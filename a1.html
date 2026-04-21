@@ -1874,10 +1874,12 @@ window.importSalesExcel = function(input){
       // Skip header row
       let imported=0,skipped=0;
       const promises=[];
+      let lastRoom=0;
+      let lastDate='';
       rows.forEach((row,i)=>{
         if(i===0)return; // skip header
-        if(!row[0]||!row[1])return; // skip empty rows
-        const dateRaw=row[0];
+        if(!row[0]&&!row[1]&&!row[2])return; // skip completely empty rows
+        const dateRaw=row[0]||lastDate;
         let dateStr='';
         if(typeof dateRaw==='number'&&dateRaw>40000){
           const base=new Date(1899,11,30);
@@ -1886,9 +1888,11 @@ window.importSalesExcel = function(input){
         } else {
           dateStr=String(dateRaw).trim().replace(/\//g,'-').substring(0,10);
         }
-        const roomRaw=String(row[1]).replace(/[Rr]/g,'').trim();
-        const room=parseInt(roomRaw)||0;
+        const roomRaw=String(row[1]||'').replace(/[Rr]/g,'').trim();
+        const room=parseInt(roomRaw)||lastRoom;
         if(!dateStr||!room)return;
+        lastRoom=room;
+        lastDate=dateStr;
 
         const bookerStr=String(row[2]||'').trim();
         const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):[];
@@ -1917,8 +1921,8 @@ window.importSalesExcel = function(input){
 
         // Use date+room as unique key to prevent duplicates (overwrite)
         const id=`${dateStr}-R${room}-${Date.now()}-${i}`;
-        // Check for existing record with same date+room
-        const existing=records.find(r=>r.date===dateStr&&r.room==room);
+        // Check for existing record with same date+room+booker
+        const existing=records.find(r=>r.date===dateStr&&r.room==room&&(r.bookers||[]).join('/')===(bookers||[]).join('/'));
         const recId=existing?existing.id:id;
 
         const rec={
