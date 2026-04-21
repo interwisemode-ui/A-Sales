@@ -476,6 +476,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <button class="quick-btn" onclick="setQuickDate('this_month','records')">이번달</button>
           <button class="quick-btn" onclick="setQuickDate('last_month','records')">지난달</button>
           <button class="quick-btn" onclick="setQuickDate('all','records')">전체</button>
+          <button class="btn btn-sm" style="background:#2a0a0a;border:1px solid var(--red);color:var(--red);padding:5px 10px;border-radius:6px;font-size:12px;" onclick="openBulkDelete()">🗑 일괄삭제</button>
         </div>
       </div>
       <div class="total-bar" id="totalBar2"></div>
@@ -683,6 +684,34 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
 </div>
 
+
+<!-- Bulk Delete Modal -->
+<div class="modal-overlay" id="bulkDeleteModal">
+  <div class="modal">
+    <div class="modal-title">🗑 일괄 삭제</div>
+    <div class="bk-form-grid" style="margin-bottom:16px;">
+      <div class="input-group">
+        <div class="input-label">삭제할 날짜 범위</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+          <input class="input-field" type="date" id="bulkDelFrom" style="flex:1;">
+          <span style="color:var(--text3)">~</span>
+          <input class="input-field" type="date" id="bulkDelTo" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="quick-btn" onclick="setBulkDelQuick('this_month')">이번달</button>
+          <button class="quick-btn" onclick="setBulkDelQuick('last_month')">지난달</button>
+          <button class="quick-btn" onclick="setBulkDelQuick('all')">전체</button>
+        </div>
+      </div>
+      <div id="bulkDelCount" style="color:var(--text3);font-size:13px;padding:8px 0;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('bulkDeleteModal').classList.remove('show')">취소</button>
+      <button class="btn" style="background:#7f1d1d;border:1px solid var(--red);color:#fff;" onclick="confirmBulkDelete()">🗑 삭제 확인</button>
+    </div>
+  </div>
+</div>
+
 <!-- Mobile FAB -->
 <button class="fab" onclick="openMobilePanel()" title="입력">➕</button>
 
@@ -759,6 +788,8 @@ function init(){
   setStatus(false);
   // Date filter listeners
   document.getElementById('bkFilterDate')?.addEventListener('change',renderBookings);
+  document.getElementById('bulkDelFrom')?.addEventListener('change',updateBulkDelCount);
+  document.getElementById('bulkDelTo')?.addEventListener('change',updateBulkDelCount);
   [['filterDateFrom','filterDateTo','entry'],
    ['filterDate2From','filterDate2To','records'],
    ['filterDate3From','filterDate3To','summary'],
@@ -1365,6 +1396,10 @@ function switchTab(n){
   if(n==='booking')renderBookings();
 }
 window.switchTab=switchTab;
+window.openBulkDelete=openBulkDelete;
+window.setBulkDelQuick=setBulkDelQuick;
+window.updateBulkDelCount=updateBulkDelCount;
+window.confirmBulkDelete=confirmBulkDelete;
 
 // EXPORT
 function buildTSV(){
@@ -1511,6 +1546,47 @@ function setQuickDate(type, tab){
   }
 }
 
+
+
+// ── BULK DELETE ────────────────────────────────────────────
+function openBulkDelete(){
+  document.getElementById('bulkDelFrom').value='';
+  document.getElementById('bulkDelTo').value='';
+  document.getElementById('bulkDelCount').textContent='';
+  document.getElementById('bulkDeleteModal').classList.add('show');
+}
+function setBulkDelQuick(type){
+  const today=new Date();
+  let from='',to='';
+  if(type==='this_month'){
+    from=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-01';
+    to=new Date(today.getFullYear(),today.getMonth()+1,0).toISOString().split('T')[0];
+  } else if(type==='last_month'){
+    from=new Date(today.getFullYear(),today.getMonth()-1,1).toISOString().split('T')[0];
+    to=new Date(today.getFullYear(),today.getMonth(),0).toISOString().split('T')[0];
+  }
+  document.getElementById('bulkDelFrom').value=from;
+  document.getElementById('bulkDelFrom').addEventListener('change',updateBulkDelCount);
+  document.getElementById('bulkDelTo').value=to;
+  updateBulkDelCount();
+}
+function updateBulkDelCount(){
+  const from=document.getElementById('bulkDelFrom').value;
+  const to=document.getElementById('bulkDelTo').value;
+  const matched=records.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+  document.getElementById('bulkDelCount').textContent=
+    matched.length>0?matched.length+'건이 삭제됩니다':'해당 기간 데이터 없음';
+  document.getElementById('bulkDelCount').style.color=matched.length>0?'var(--red)':'var(--text3)';
+}
+function confirmBulkDelete(){
+  const from=document.getElementById('bulkDelFrom').value;
+  const to=document.getElementById('bulkDelTo').value;
+  const matched=records.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+  if(matched.length===0){showToast('⚠ 삭제할 데이터가 없어요');return;}
+  matched.forEach(r=>remove(ref(db,'records/'+r.id)));
+  document.getElementById('bulkDeleteModal').classList.remove('show');
+  showToast('🗑 '+matched.length+'건 삭제 완료');
+}
 
 // ── BOOKING SELECT MODE ────────────────────────────────────
 window.toggleBkSelectMode=function(){toggleBkSelectMode();}
@@ -1881,22 +1957,29 @@ window.importSalesExcel = function(input){
       const colIdx={};
       const selCols=[];
       header.forEach((h,i)=>{
-        const key=String(h||'').trim().toLowerCase()
+        const raw=String(h||'').trim().toLowerCase();
+        const key=raw
           .replace('날짜','date').replace('룸','room').replace('부킹자','booker')
           .replace('금액','total').replace('결제','payment').replace('나라','country')
           .replace('인원','pax').replace('dc','dc').replace('부킹','booking')
           .replace('체크인','checkin').replace('체크아웃','checkout').replace('메모','note')
-          .replace('셀렉션1','sel1').replace('셀렉션2','sel2').replace('셀렉션','sel');
+          .replace('셀렉션1','sel').replace('셀렉션2','sel').replace('셀렉션','sel');
         if(key==='sel')selCols.push(i);
-        else colIdx[key]=i;
+        else if(key!==''&&colIdx[key]===undefined)colIdx[key]=i;
       });
-      // Fallback to fixed positions if no header match
-      const gi=(key,fallback)=>colIdx[key]!==undefined?colIdx[key]:fallback;
+      // Find date column offset (handles extra prefix columns)
+      const dateCol=colIdx['date']!==undefined?colIdx['date']:0;
+      const offset=dateCol;
+      // Fallback to fixed positions relative to date column
+      const gi=(key,fallback)=>colIdx[key]!==undefined?colIdx[key]:offset+fallback;
 
       rows.forEach((row,i)=>{
         if(i===0)return; // skip header
-        if(!row[0]&&!row[1]&&!row[2])return; // skip completely empty rows
-        const dateRaw=row[gi('date',0)]||lastDate;
+        // Skip rows where date position is empty or non-date value
+        const rawDate=row[gi('date',0)];
+        if(!rawDate&&!row[gi('room',1)]&&!row[gi('booker',2)])return;
+        if(typeof rawDate==='string'&&['TOTAL','%','합계'].some(x=>String(rawDate).includes(x)))return;
+        const dateRaw=rawDate||lastDate;
         let dateStr='';
         if(typeof dateRaw==='number'&&dateRaw>40000){
           const base=new Date(1899,11,30);
@@ -1913,11 +1996,11 @@ window.importSalesExcel = function(input){
 
         const bookerStr=String(row[gi('booker',2)]||'').trim();
         const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):[];
-        const total=parseFloat(row[gi('total',3)])||0;
+        const totalRaw=row[gi('total',3)];const total=(totalRaw==='-')?0:parseFloat(totalRaw)||0;
         const payment=String(row[gi('payment',4)]||'').trim().toUpperCase();
         const country=String(row[gi('country',5)]||'').trim();
-        const pax=parseInt(row[gi('pax',6)])||0;
-        const dc=parseFloat(row[gi('dc',7)])||0;
+        const paxRaw=row[gi('pax',6)];const pax=(paxRaw==='-')?0:parseInt(paxRaw)||0;
+        const dcRaw=row[gi('dc',7)];const dc=(dcRaw==='-'||dcRaw===null||dcRaw===undefined)?0:parseFloat(dcRaw)||0;
         // Collect all 셀렉션 columns into staff array
         let staff=[];
         if(selCols.length>0){
@@ -1931,7 +2014,8 @@ window.importSalesExcel = function(input){
         }
         const staff2Str=String(row[gi('sel2',9)]||'').trim();
         const staff2=staff2Str?staff2Str.split(',').map(s=>s.trim()).filter(Boolean):[];
-        const booking=String(row[gi('booking',10)]||'').trim();
+        let booking=String(row[gi('booking',10)]||'').trim();
+        if(!booking){booking=bookers.length>=2?'2P':bookers.length===1?'1P':'';}
         const checkin=String(row[gi('checkin',11)]||'').trim();
         const checkout=String(row[gi('checkout',12)]||'').trim();
         const note=String(row[gi('note',13)]||'').trim();
