@@ -1876,39 +1876,65 @@ window.importSalesExcel = function(input){
       const promises=[];
       let lastRoom=0;
       let lastDate='';
+      // Parse header row to get column indices
+      const header=rows[0]||[];
+      const colIdx={};
+      const selCols=[];
+      header.forEach((h,i)=>{
+        const key=String(h||'').trim().toLowerCase()
+          .replace('날짜','date').replace('룸','room').replace('부킹자','booker')
+          .replace('금액','total').replace('결제','payment').replace('나라','country')
+          .replace('인원','pax').replace('dc','dc').replace('부킹','booking')
+          .replace('체크인','checkin').replace('체크아웃','checkout').replace('메모','note')
+          .replace('셀렉션1','sel1').replace('셀렉션2','sel2').replace('셀렉션','sel');
+        if(key==='sel')selCols.push(i);
+        else colIdx[key]=i;
+      });
+      // Fallback to fixed positions if no header match
+      const gi=(key,fallback)=>colIdx[key]!==undefined?colIdx[key]:fallback;
+
       rows.forEach((row,i)=>{
         if(i===0)return; // skip header
         if(!row[0]&&!row[1]&&!row[2])return; // skip completely empty rows
-        const dateRaw=row[0]||lastDate;
+        const dateRaw=row[gi('date',0)]||lastDate;
         let dateStr='';
         if(typeof dateRaw==='number'&&dateRaw>40000){
           const base=new Date(1899,11,30);
           const d=new Date(base.getTime()+Math.floor(dateRaw)*86400000);
-          dateStr=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
         } else {
           dateStr=String(dateRaw).trim().replace(/\//g,'-').substring(0,10);
         }
-        const roomRaw=String(row[1]||'').replace(/[Rr]/g,'').trim();
+        const roomRaw=String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim();
         const room=parseInt(roomRaw)||lastRoom;
         if(!dateStr||!room)return;
         lastRoom=room;
         lastDate=dateStr;
 
-        const bookerStr=String(row[2]||'').trim();
+        const bookerStr=String(row[gi('booker',2)]||'').trim();
         const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):[];
-        const total=parseFloat(row[3])||0;
-        const payment=String(row[4]||'').trim().toUpperCase();
-        const country=String(row[5]||'').trim();
-        const pax=parseInt(row[6])||0;
-        const dc=parseFloat(row[7])||0;
-        const staff1Str=String(row[8]||'').trim();
-        const staff=staff1Str?staff1Str.split(',').map(s=>s.trim()).filter(Boolean):[];
-        const staff2Str=String(row[9]||'').trim();
+        const total=parseFloat(row[gi('total',3)])||0;
+        const payment=String(row[gi('payment',4)]||'').trim().toUpperCase();
+        const country=String(row[gi('country',5)]||'').trim();
+        const pax=parseInt(row[gi('pax',6)])||0;
+        const dc=parseFloat(row[gi('dc',7)])||0;
+        // Collect all 셀렉션 columns into staff array
+        let staff=[];
+        if(selCols.length>0){
+          selCols.forEach(ci=>{
+            const v=String(row[ci]||'').trim();
+            if(v)v.split(',').map(s=>s.trim()).filter(Boolean).forEach(s=>staff.push(s));
+          });
+        } else {
+          const s1=String(row[gi('sel1',8)]||'').trim();
+          if(s1)s1.split(',').map(s=>s.trim()).filter(Boolean).forEach(s=>staff.push(s));
+        }
+        const staff2Str=String(row[gi('sel2',9)]||'').trim();
         const staff2=staff2Str?staff2Str.split(',').map(s=>s.trim()).filter(Boolean):[];
-        const booking=String(row[10]||'').trim();
-        const checkin=String(row[11]||'').trim();
-        const checkout=String(row[12]||'').trim();
-        const note=String(row[13]||'').trim();
+        const booking=String(row[gi('booking',10)]||'').trim();
+        const checkin=String(row[gi('checkin',11)]||'').trim();
+        const checkout=String(row[gi('checkout',12)]||'').trim();
+        const note=String(row[gi('note',13)]||'').trim();
 
         let cash=0,card=0,upi=0;
         if(payment==='CASH')cash=total;
