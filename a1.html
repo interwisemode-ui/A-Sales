@@ -892,39 +892,19 @@ function toggleBooker(n){
 }
 function toggleStaff(n){selStaff=selStaff.includes(n)?selStaff.filter(x=>x!==n):[...selStaff,n];renderPickers();}
 function toggleStaff2(n){selStaff2=selStaff2.includes(n)?selStaff2.filter(x=>x!==n):[...selStaff2,n];renderPickers();}
-function _makeTag(text, color, borderColor, onRemove){
-  const t=document.createElement('div');t.className='tag tag-booker';
-  if(color)t.style.color=color;if(borderColor)t.style.borderColor=borderColor;
-  const label=document.createElement('span');label.textContent=text+' ';
-  const x=document.createElement('span');x.className='remove';x.textContent='×';
-  x.onclick=onRemove;t.appendChild(label);t.appendChild(x);return t;
-}
 function _renderBookerTags(){
   const c=document.getElementById('bookerTags');c.innerHTML='';
-  selBookers.forEach(s=>{
-    const isWk=s==='WALKIN';
-    c.appendChild(_makeTag((isWk?'🚶':managerList.includes(s)?'🌟':'')+s,
-      isWk?'#c084fc':null, isWk?'#c084fc':null,
-      ()=>{toggleBooker(s);}));
-  });
+  selBookers.forEach(s=>{const isWk=s==='WALKIN';const t=document.createElement('div');t.className='tag tag-booker';if(isWk){t.style.borderColor='#c084fc';t.style.color='#c084fc';}t.innerHTML=`${isWk?'🚶':managerList.includes(s)?'🌟':''}${s} <span class="remove" onclick="toggleBooker('${s.replace(/'/g,"\\'")}')">×</span>`;c.appendChild(t);});
 }
 function _renderStaffTags(){
   const c=document.getElementById('staffTags');c.innerHTML='';
-  selStaff.forEach(s=>{
-    const isMgr=managerList.includes(s);
-    c.appendChild(_makeTag((isMgr?'🌟':'')+s,
-      isMgr?'var(--yellow)':null, isMgr?'#a16207':null,
-      ()=>{toggleStaff(s);}));
-  });
+  selStaff.forEach(s=>{const isMgr=managerList.includes(s);const t=document.createElement('div');t.className='tag tag-staff';if(isMgr){t.style.borderColor='#a16207';t.style.color='var(--yellow)';}t.innerHTML=`${isMgr?'🌟':''}${s} <span class="remove" onclick="toggleStaff('${s.replace(/'/g,"\\'")}')">×</span>`;c.appendChild(t);});
 }
 function _renderStaff2Tags(){
   const c=document.getElementById('staff2Tags');if(!c)return;c.innerHTML='';
-  selStaff2.forEach(s=>{
-    const isMgr=managerList.includes(s);
-    c.appendChild(_makeTag((isMgr?'🌟':'')+s,
-      'var(--blue)','var(--blue)',
-      ()=>{toggleStaff2(s);}));
-  });
+  selStaff2.forEach(s=>{const isMgr=managerList.includes(s);const t=document.createElement('div');t.className='tag tag-staff';
+  t.style.borderColor='var(--blue)';t.style.color='var(--blue)';
+  t.innerHTML=`${isMgr?'🌟':''}${s} <span class="remove" onclick="toggleStaff2('${s.replace(/'/g,"\'")}')">×</span>`;c.appendChild(t);});
 }
 function _updateBadge(){
   const b=document.getElementById('btypeBadge');const bt=getBookingType();
@@ -1187,7 +1167,7 @@ function renderSummary(){
       <div class="stat-card"><div class="stat-label">WALKIN</div><div class="stat-value" style="color:#c084fc">${wk}</div></div>
     </div>
     <div class="sum-sec"><div class="sum-sec-title">결제 방식별</div>${buildBarChart(pmItems,maxPm,it=>pmColors[it.label]||'var(--accent)')}</div>
-    <div class="sum-sec"><div class="sum-sec-title">💸 DC</div>${buildBarChart([{label:'DC',value:dc,sub:(tot>0?Math.round(dc/(tot+dc)*100):0)+'%'}],Math.max(dc,1),()=>'var(--red)')}</div>
+    <div class="stat-card" style="margin-bottom:12px;"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div><div class="stat-sub">DC율 ${tot>0?Math.round(dc/(tot+dc)*100):0}%</div></div>
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
     `;
@@ -1844,7 +1824,7 @@ function buildBarChart(items, maxVal, colorFn){
           <span class="chart-bar-val">${it.value.toLocaleString()}</span>
         </div>
       </div>
-      ${it.sub?`<div style="font-size:10px;color:var(--text3);min-width:70px;white-space:nowrap">${it.sub}</div>`:''}
+      ${it.sub?`<div style="font-size:10px;color:var(--text3);min-width:40px">${it.sub}</div>`:''}
     </div>`;
   }).join('')+'</div>';
 }
