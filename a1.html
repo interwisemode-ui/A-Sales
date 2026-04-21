@@ -1399,24 +1399,53 @@ function downloadExport(){
   const from=document.getElementById('dlFrom').value||'';
   const to=document.getElementById('dlTo').value||'';
   const headers=['날짜','룸','부킹자','금액','결제','나라','인원','DC','셀렉션1','셀렉션2','부킹','체크인','체크아웃','메모'];
-  const rows=[...records]
+  const sorted=[...records]
     .filter(r=>(!from||r.date>=from)&&(!to||r.date<=to))
-    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(r=>[
-    r.date||'',
-    'R'+r.room,
-    (Array.isArray(r.bookers)?r.bookers:[]).join('/'),
-    r.total||0,
-    r.payment||'',
-    r.country||'',
-    r.pax||0,
-    r.dc||0,
-    (Array.isArray(r.staff)?r.staff:[]).join(', '),
-    (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
-    r.booking||'',
-    r.checkin||'',
-    r.checkout||'',
-    r.note||''
-  ]);
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  // Split 2P bookings into 2 rows
+  const rows=[];
+  sorted.forEach(r=>{
+    const bookers=Array.isArray(r.bookers)?r.bookers:[];
+    const is2P=bookers.length>=2;
+    if(is2P){
+      // Two rows - one per booker, split amounts
+      bookers.forEach(booker=>{
+        rows.push([
+          r.date||'',
+          'R'+r.room,
+          booker,
+          (r.total||0)/2,
+          r.payment||'',
+          r.country||'',
+          Math.round((r.pax||0)/2*10)/10,
+          Math.round((r.dc||0)/2*10)/10,
+          (Array.isArray(r.staff)?r.staff:[]).join(', '),
+          (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
+          r.booking||'',
+          r.checkin||'',
+          r.checkout||'',
+          r.note||''
+        ]);
+      });
+    } else {
+      rows.push([
+        r.date||'',
+        'R'+r.room,
+        bookers.join('/'),
+        r.total||0,
+        r.payment||'',
+        r.country||'',
+        r.pax||0,
+        r.dc||0,
+        (Array.isArray(r.staff)?r.staff:[]).join(', '),
+        (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
+        r.booking||'',
+        r.checkin||'',
+        r.checkout||'',
+        r.note||''
+      ]);
+    }
+  });
   // Build CSV with BOM for Excel Korean support
   const bom='﻿';
   const csv=[headers,...rows].map(row=>row.map(v=>
