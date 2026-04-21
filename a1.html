@@ -297,9 +297,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
   <div style="display:flex;align-items:center;gap:14px;">
     <div style="display:flex;gap:12px;align-items:center;"><span id="syncStatus" style="font-size:11px;font-family:'JetBrains Mono',monospace;">⏳ 연결 중...</span><div class="header-date" id="headerDate"></div></div>
     <div style="display:flex;gap:7px;">
-      <button class="btn btn-ghost btn-sm" onclick="exportToClipboard()">📋 클립보드</button>
-      <button class="btn btn-success btn-sm" onclick="openDownloadModal()">⬇ 엑셀 다운로드</button>
-    <button class="btn btn-ghost btn-sm" onclick="window.openSalesImport()">⬆ 엑셀 업로드</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportToClipboard()">📋 복사</button>
+      <button class="btn btn-success btn-sm" onclick="openDownloadModal()">⬇ 다운</button>
+    <button class="btn btn-ghost btn-sm" onclick="window.openSalesImport()">⬆ 업로드</button>
     <input type="file" id="salesImportInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="window.importSalesExcel(this)">
     </div>
   </div>
@@ -659,7 +659,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <!-- Download Modal -->
 <div class="modal-overlay" id="downloadModal">
   <div class="modal">
-    <div class="modal-title">⬇ 엑셀 다운로드</div>
+    <div class="modal-title">⬇ 다운</div>
     <div class="bk-form-grid" style="margin-bottom:16px;">
       <div class="input-group">
         <div class="input-label">날짜 범위</div>
@@ -1372,7 +1372,7 @@ function buildTSV(){
   const rows=[...records].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map((r,i)=>[r.date||'','R'+r.room,(r.bookers||[]).join('/'),r.booking||'',r.country||'',r.pax||'',r.total,r.payment||'',r.cash||'',r.card||'',r.upi||'',(r.staff||[]).join(', '),r.checkin||'',r.checkout||'',r.note||''].join('\t'));
   return[h,...rows].join('\n');
 }
-function exportToClipboard(){navigator.clipboard.writeText(buildTSV()).then(()=>showToast('📋 클립보드에 복사됨')).catch(()=>showToast('⚠ 복사 실패'));}
+function exportToClipboard(){navigator.clipboard.writeText(buildTSV()).then(()=>showToast('📋 복사에 복사됨')).catch(()=>showToast('⚠ 복사 실패'));}
 function openDownloadModal(){
   const today=new Date().toISOString().split('T')[0];
   document.getElementById('dlFrom').value=today;
