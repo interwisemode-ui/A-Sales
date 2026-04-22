@@ -1506,18 +1506,15 @@ function showToast(msg){clearTimeout(_tt);document.querySelectorAll('.toast').fo
 // ── DATE RANGE HELPERS ─────────────────────────────────────
 function setQuickDate(type, tab){
   const today=new Date();
-  const todayStr=today.toISOString().split('T')[0];
+  const todayStr=localDateStr(today);
   let from='',to='';
   if(type==='today'){from=todayStr;to=todayStr;}
   else if(type==='this_month'){
-    from=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
-    const last=new Date(today.getFullYear(),today.getMonth()+1,0);
-    to=last.toISOString().split('T')[0];
+    from=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-01';
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth()+1,0));
   } else if(type==='last_month'){
-    const lm=new Date(today.getFullYear(),today.getMonth()-1,1);
-    from=lm.toISOString().split('T')[0];
-    const last=new Date(today.getFullYear(),today.getMonth(),0);
-    to=last.toISOString().split('T')[0];
+    from=localDateStr(new Date(today.getFullYear(),today.getMonth()-1,1));
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth(),0));
   } else {from='';to='';}
 
   if(tab==='entry'){
@@ -2041,10 +2038,17 @@ window.importSalesExcel = function(input){
         // Normalize: 1->1P, 2->2P
         if(bookingRaw==='1')bookingRaw='1P';
         else if(bookingRaw==='2')bookingRaw='2P';
-        let booking=bookingRaw||lastBooking;
-        // Auto-detect if still empty
-        if(!booking){booking=bookers.length>=2?'2P':bookers.length===1?'1P':'';}
-        if(booking)lastBooking=booking;
+        const hasExplicitRoom=!!parseInt(String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim());
+        let booking='';
+        if(bookingRaw){
+          booking=bookingRaw;
+          lastBooking=booking;
+        } else if(hasExplicitRoom){
+          // Only carry over or auto-detect when row has its own room
+          booking=lastBooking||( bookers.length>=2?'2P':bookers.length===1?'1P':'');
+          if(booking)lastBooking=booking;
+        }
+        // If room was inherited (no explicit room) = 2P second row, leave booking empty
         const checkin=String(row[gi('checkin',11)]||'').trim();
         const checkout=String(row[gi('checkout',12)]||'').trim();
         const note=String(row[gi('note',13)]||'').trim();
