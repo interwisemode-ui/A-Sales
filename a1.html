@@ -1983,10 +1983,14 @@ window.importSalesExcel = function(input){
         const dateRaw=rawDate||lastDate;
         let dateStr='';
         if(typeof dateRaw==='number'&&dateRaw>40000){
+          // Excel serial number
           const base=new Date(1899,11,30);
           const d=new Date(base.getTime()+Math.floor(dateRaw)*86400000);
           dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        } else {
+        } else if(dateRaw instanceof Date){
+          // JS Date object
+          dateStr=dateRaw.getFullYear()+'-'+String(dateRaw.getMonth()+1).padStart(2,'0')+'-'+String(dateRaw.getDate()).padStart(2,'0');
+        } else if(dateRaw){
           dateStr=String(dateRaw).trim().replace(/\//g,'-').substring(0,10);
         }
         const roomRaw=String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim();
