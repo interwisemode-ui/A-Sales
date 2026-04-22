@@ -1952,6 +1952,7 @@ window.importSalesExcel = function(input){
       const promises=[];
       let lastRoom=0;
       let lastDate='';
+      let lastBooking='';
       // Parse header row to get column indices
       const header=rows[0]||[];
       const colIdx={};
@@ -1990,17 +1991,18 @@ window.importSalesExcel = function(input){
         }
         const roomRaw=String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim();
         const room=parseInt(roomRaw)||lastRoom;
-        if(!dateStr||!room)return;
-        lastRoom=room;
+        // Update lastRoom only when we have an explicit room
+        if(parseInt(roomRaw))lastRoom=parseInt(roomRaw);
         lastDate=dateStr;
+        if(!dateStr||!room)return;
 
         const bookerStr=String(row[gi('booker',2)]||'').trim();
         const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):[];
-        const totalRaw=row[gi('total',3)];const total=(totalRaw==='-')?0:parseFloat(totalRaw)||0;
+        const totalRaw=row[gi('total',3)];const total=(totalRaw==='-'||totalRaw===null||totalRaw===undefined||totalRaw!==totalRaw)?0:parseFloat(totalRaw)||0;
         const payment=String(row[gi('payment',4)]||'').trim().toUpperCase();
         const country=String(row[gi('country',5)]||'').trim();
         const paxRaw=row[gi('pax',6)];const pax=(paxRaw==='-')?0:parseInt(paxRaw)||0;
-        const dcRaw=row[gi('dc',7)];const dc=(dcRaw==='-'||dcRaw===null||dcRaw===undefined)?0:parseFloat(dcRaw)||0;
+        const dcRaw=row[gi('dc',7)];const dc=(dcRaw==='-'||dcRaw===null||dcRaw===undefined||dcRaw!==dcRaw)?0:parseFloat(dcRaw)||0;
         // Collect all 셀렉션 columns into staff array
         let staff=[];
         if(selCols.length>0){
@@ -2014,8 +2016,14 @@ window.importSalesExcel = function(input){
         }
         const staff2Str=String(row[gi('sel2',9)]||'').trim();
         const staff2=staff2Str?staff2Str.split(',').map(s=>s.trim()).filter(Boolean):[];
-        let booking=String(row[gi('booking',10)]||'').trim();
+        let bookingRaw=String(row[gi('booking',16)]||'').trim();
+        // Normalize: 1->1P, 2->2P
+        if(bookingRaw==='1')bookingRaw='1P';
+        else if(bookingRaw==='2')bookingRaw='2P';
+        let booking=bookingRaw||lastBooking;
+        // Auto-detect if still empty
         if(!booking){booking=bookers.length>=2?'2P':bookers.length===1?'1P':'';}
+        if(booking)lastBooking=booking;
         const checkin=String(row[gi('checkin',11)]||'').trim();
         const checkout=String(row[gi('checkout',12)]||'').trim();
         const note=String(row[gi('note',13)]||'').trim();
@@ -2031,9 +2039,8 @@ window.importSalesExcel = function(input){
 
         // Use date+room as unique key to prevent duplicates (overwrite)
         const id=`${dateStr}-R${room}-${Date.now()}-${i}`;
-        // Check for existing record with same date+room+booker
-        const existing=records.find(r=>r.date===dateStr&&r.room==room&&(r.bookers||[]).join('/')===(bookers||[]).join('/'));
-        const recId=existing?existing.id:id;
+        // Use unique ID based on date+room+booker+index (no duplicate check)
+        const recId=dateStr.replace(/-/g,'')+String(room)+bookers.join('')+String(i);
 
         const rec={
           id:recId,
