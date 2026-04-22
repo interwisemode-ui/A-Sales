@@ -1423,10 +1423,10 @@ function setDlQuick(type){
   if(type==='today'){from=todayStr;to=todayStr;}
   else if(type==='this_month'){
     from=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
-    to=new Date(today.getFullYear(),today.getMonth()+1,0).toISOString().split('T')[0];
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth()+1,0));
   } else if(type==='last_month'){
-    from=new Date(today.getFullYear(),today.getMonth()-1,1).toISOString().split('T')[0];
-    to=new Date(today.getFullYear(),today.getMonth(),0).toISOString().split('T')[0];
+    from=localDateStr(new Date(today.getFullYear(),today.getMonth()-1,1));
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth(),0));
   }
   document.getElementById('dlFrom').value=from;
   document.getElementById('dlTo').value=to;
@@ -1570,10 +1570,10 @@ function setBulkDelQuick(type){
   let from='',to='';
   if(type==='this_month'){
     from=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-01';
-    to=new Date(today.getFullYear(),today.getMonth()+1,0).toISOString().split('T')[0];
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth()+1,0));
   } else if(type==='last_month'){
-    from=new Date(today.getFullYear(),today.getMonth()-1,1).toISOString().split('T')[0];
-    to=new Date(today.getFullYear(),today.getMonth(),0).toISOString().split('T')[0];
+    from=localDateStr(new Date(today.getFullYear(),today.getMonth()-1,1));
+    to=localDateStr(new Date(today.getFullYear(),today.getMonth(),0));
   }
   document.getElementById('bulkDelFrom').value=from;
   document.getElementById('bulkDelFrom').addEventListener('change',updateBulkDelCount);
@@ -1913,6 +1913,9 @@ function confirmBkToSales(){
 
 
 
+function localDateStr(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 // ── VIEW TOGGLES ───────────────────────────────────────────
 let staffView='card', sumView='card';
 
@@ -1963,6 +1966,7 @@ window.importSalesExcel = function(input){
       let lastRoom=0;
       let lastDate='';
       let lastBooking='';
+      let lastBooker='';
       // Parse header row to get column indices
       const header=rows[0]||[];
       const colIdx={};
@@ -2013,7 +2017,8 @@ window.importSalesExcel = function(input){
         if(!dateStr||!room)return;
 
         const bookerStr=String(row[gi('booker',2)]||'').trim();
-        const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):[];
+        const bookers=bookerStr?bookerStr.split('/').map(s=>s.trim()).filter(Boolean):(lastBooker?[lastBooker]:[]);
+        if(bookerStr)lastBooker=bookerStr.split('/')[0].trim();
         const totalRaw=row[gi('total',3)];const total=(totalRaw==='-'||totalRaw===null||totalRaw===undefined||totalRaw!==totalRaw)?0:parseFloat(totalRaw)||0;
         const payment=String(row[gi('payment',4)]||'').trim().toUpperCase();
         const country=String(row[gi('country',5)]||'').trim();
