@@ -1982,16 +1982,14 @@ window.importSalesExcel = function(input){
         if(typeof rawDate==='string'&&['TOTAL','%','합계'].some(x=>String(rawDate).includes(x)))return;
         const dateRaw=rawDate||lastDate;
         let dateStr='';
-        if(typeof dateRaw==='number'&&dateRaw>40000){
-          // Excel serial number
-          const base=new Date(1899,11,30);
-          const d=new Date(base.getTime()+Math.floor(dateRaw)*86400000);
+        if(dateRaw instanceof Date){
+          // Fix timezone: add offset to get local date
+          const d=new Date(dateRaw.getTime()+dateRaw.getTimezoneOffset()*60000);
           dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        } else if(dateRaw instanceof Date){
-          // JS Date object
-          dateStr=dateRaw.getFullYear()+'-'+String(dateRaw.getMonth()+1).padStart(2,'0')+'-'+String(dateRaw.getDate()).padStart(2,'0');
+        } else if(typeof dateRaw==='string'&&dateRaw.match(/\d{4}[-\/]\d{2}[-\/]\d{2}/)){
+          dateStr=dateRaw.substring(0,10).replace(/\//g,'-');
         } else if(dateRaw){
-          dateStr=String(dateRaw).trim().replace(/\//g,'-').substring(0,10);
+          dateStr=String(dateRaw).trim().substring(0,10).replace(/\//g,'-');
         }
         const roomRaw=String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim();
         const room=parseInt(roomRaw)||lastRoom;
@@ -2044,7 +2042,7 @@ window.importSalesExcel = function(input){
         // Use date+room as unique key to prevent duplicates (overwrite)
         const id=`${dateStr}-R${room}-${Date.now()}-${i}`;
         // Use unique ID based on date+room+booker+index (no duplicate check)
-        const recId=dateStr.replace(/-/g,'')+String(room)+bookers.join('')+String(i);
+        const recId=dateStr.replace(/-/g,'')+String(room)+bookers.join('')+String(i)+String(Date.now()).slice(-6);
 
         const rec={
           id:recId,
@@ -2073,9 +2071,9 @@ function loadAttendanceFile(input){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:false});
+      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
       parseAttendance(raw);
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
