@@ -477,6 +477,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <button class="quick-btn" onclick="setQuickDate('last_month','records')">지난달</button>
           <button class="quick-btn" onclick="setQuickDate('all','records')">전체</button>
           <button class="btn btn-sm" style="background:#2a0a0a;border:1px solid var(--red);color:var(--red);padding:5px 10px;border-radius:6px;font-size:12px;" onclick="openBulkDelete()">🗑 일괄삭제</button>
+          <button class="btn btn-sm" style="background:#1a0a2a;border:1px solid #a855f7;color:#a855f7;padding:5px 10px;border-radius:6px;font-size:12px;" onclick="deleteInvalidDates()">🗑 오류날짜삭제</button>
         </div>
       </div>
       <div class="total-bar" id="totalBar2"></div>
@@ -1397,6 +1398,7 @@ function switchTab(n){
 }
 window.switchTab=switchTab;
 window.openBulkDelete=openBulkDelete;
+window.deleteInvalidDates=deleteInvalidDates;
 window.setBulkDelQuick=setBulkDelQuick;
 window.updateBulkDelCount=updateBulkDelCount;
 window.confirmBulkDelete=confirmBulkDelete;
@@ -1547,6 +1549,14 @@ function setQuickDate(type, tab){
 }
 
 
+
+function deleteInvalidDates(){
+  const invalid=records.filter(r=>!r.date||r.date.toString().match(/^4[0-9]{4}/)||r.date.length<8);
+  if(invalid.length===0){showToast('오류 날짜 데이터 없음');return;}
+  if(!confirm(invalid.length+'건의 오류 날짜 데이터를 삭제할까요?'))return;
+  invalid.forEach(r=>remove(ref(db,'records/'+r.id)));
+  showToast('🗑 '+invalid.length+'건 삭제 완료');
+}
 
 // ── BULK DELETE ────────────────────────────────────────────
 function openBulkDelete(){
@@ -1983,13 +1993,17 @@ window.importSalesExcel = function(input){
         const dateRaw=rawDate||lastDate;
         let dateStr='';
         if(dateRaw instanceof Date){
-          // Fix timezone: add offset to get local date
           const d=new Date(dateRaw.getTime()+dateRaw.getTimezoneOffset()*60000);
           dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        } else if(typeof dateRaw==='string'&&dateRaw.match(/\d{4}[-\/]\d{2}[-\/]\d{2}/)){
+        } else if(typeof dateRaw==='number'&&dateRaw>40000){
+          // Excel serial number
+          const base=new Date(1899,11,30);
+          const d=new Date(base.getTime()+Math.floor(dateRaw)*86400000);
+          dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        } else if(typeof dateRaw==='string'&&dateRaw.length>=10){
           dateStr=dateRaw.substring(0,10).replace(/\//g,'-');
         } else if(dateRaw){
-          dateStr=String(dateRaw).trim().substring(0,10).replace(/\//g,'-');
+          dateStr=String(dateRaw).trim().substring(0,10);
         }
         const roomRaw=String(row[gi('room',1)]||'').replace(/[Rr]/g,'').trim();
         const room=parseInt(roomRaw)||lastRoom;
@@ -2071,9 +2085,9 @@ function loadAttendanceFile(input){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:false});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+      const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
       parseAttendance(raw);
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
