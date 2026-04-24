@@ -1444,31 +1444,82 @@ function downloadExport(){
   sorted.forEach(r=>{
     const bookers=Array.isArray(r.bookers)?r.bookers:[];
     const is2P=bookers.length>=2;
+    const isMix=r.payment==='MIX';
+    const bookerStr=bookers.join('/');
+
     if(is2P){
       // Two rows - one per booker, split amounts
-      bookers.forEach(booker=>{
+      bookers.forEach((booker,bi)=>{
+        const amt=(r.total||0)/2;
+        const cash=(r.cash||0)/2;
+        const card=(r.card||0)/2;
+        const upi=(r.upi||0)/2;
+        if(isMix){
+          // MIX: split each payment type into separate rows
+          const pmRows=[];
+          if(cash>0)pmRows.push([cash,'CASH']);
+          if(card>0)pmRows.push([card,'CARD']);
+          if(upi>0)pmRows.push([upi,'UPI']);
+          pmRows.forEach(([ pmAmt, pm], pi)=>{
+            rows.push([
+              pi===0&&bi===0?r.date||'':'',
+              pi===0&&bi===0?'R'+r.room:'',
+              booker,
+              pmAmt,
+              pm,
+              r.country||'',
+              Math.round((r.pax||0)/2*10)/10,
+              Math.round((r.dc||0)/2*10)/10,
+              (Array.isArray(r.staff)?r.staff:[]).join(', '),
+              (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
+              r.booking||'',
+              r.checkin||'',r.checkout||'',r.note||''
+            ]);
+          });
+        } else {
+          rows.push([
+            bi===0?r.date||'':'',
+            bi===0?'R'+r.room:'',
+            booker,
+            amt,
+            r.payment||'',
+            r.country||'',
+            Math.round((r.pax||0)/2*10)/10,
+            Math.round((r.dc||0)/2*10)/10,
+            (Array.isArray(r.staff)?r.staff:[]).join(', '),
+            (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
+            r.booking||'',
+            r.checkin||'',r.checkout||'',r.note||''
+          ]);
+        }
+      });
+    } else if(isMix){
+      // MIX single booker: split into payment rows
+      const pmRows=[];
+      if(r.cash>0)pmRows.push([r.cash,'CASH']);
+      if(r.card>0)pmRows.push([r.card,'CARD']);
+      if(r.upi>0)pmRows.push([r.upi,'UPI']);
+      pmRows.forEach(([pmAmt,pm],pi)=>{
         rows.push([
-          r.date||'',
-          'R'+r.room,
-          booker,
-          (r.total||0)/2,
-          r.payment||'',
+          pi===0?r.date||'':'',
+          pi===0?'R'+r.room:'',
+          bookerStr,
+          pmAmt,
+          pm,
           r.country||'',
-          Math.round((r.pax||0)/2*10)/10,
-          Math.round((r.dc||0)/2*10)/10,
+          r.pax||0,
+          r.dc||0,
           (Array.isArray(r.staff)?r.staff:[]).join(', '),
           (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
           r.booking||'',
-          r.checkin||'',
-          r.checkout||'',
-          r.note||''
+          r.checkin||'',r.checkout||'',r.note||''
         ]);
       });
     } else {
       rows.push([
         r.date||'',
         'R'+r.room,
-        bookers.join('/'),
+        bookerStr,
         r.total||0,
         r.payment||'',
         r.country||'',
@@ -1477,9 +1528,7 @@ function downloadExport(){
         (Array.isArray(r.staff)?r.staff:[]).join(', '),
         (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
         r.booking||'',
-        r.checkin||'',
-        r.checkout||'',
-        r.note||''
+        r.checkin||'',r.checkout||'',r.note||''
       ]);
     }
   });
