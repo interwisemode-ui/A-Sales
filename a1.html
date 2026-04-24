@@ -1660,7 +1660,6 @@ function renderBkBookerGrid(){
   const g=document.getElementById('bkBookerGrid');g.innerHTML='';
   [...staffList,'기타'].filter(s=>s.toLowerCase().includes(q)).forEach(s=>{
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
-    if(isWk)return;
     const sel=bkSelBookers.includes(s);
     const btn=document.createElement('button');
     btn.className='picker-btn'+(sel?' sel-booker':'')+(isMgr?' is-manager':'');
