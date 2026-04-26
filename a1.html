@@ -2499,12 +2499,9 @@ function renderProfit(){
   const totalSales=periodRecs.reduce((s,r)=>s+(r.total||0),0);
   const salesByMethod={ CARD:0, UPI:0, CASH:0 };
   periodRecs.forEach(r=>{
-    if(r.payments) r.payments.forEach(p=>{
-      const m=p.method||'CASH';
-      if(salesByMethod[m]!==undefined) salesByMethod[m]+=p.amount||0;
-      else salesByMethod['CASH']+=p.amount||0;
-    });
-    else salesByMethod['CASH']+=(r.total||0);
+    salesByMethod.CASH+=(r.cash||0);
+    salesByMethod.CARD+=(r.card||0);
+    salesByMethod.UPI +=(r.upi ||0);
   });
 
   let combinedExp={};
