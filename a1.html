@@ -2226,23 +2226,45 @@ function parseExpense(raw, monthKey){
   const headerRow=raw[headerRowIdx]||[];
   const result={};
 
-  // ── 날짜 열 파싱: "4/11(토)", "4/11", 숫자 모두 처리 ──
+  // ── 날짜 열 파싱: "4/11(토)", "4/11", 숫자(시리얼), 순수 일자 모두 처리 ──
   const dayCols=[];
+
+  // 엑셀 시리얼 날짜 → JS Date 변환
+  function excelSerialToDate(serial){
+    // 엑셀 기준: 1900-01-01 = 1 (단, 1900-02-29 버그로 +1 보정)
+    const d=new Date(Math.round((serial-25569)*86400*1000));
+    return d;
+  }
+
   for(let c=1;c<headerRow.length;c++){
-    const v=String(headerRow[c]||'').trim();
-    if(!v)continue;
-    // "M/D(요일)" or "M/D" 형식
+    const raw=headerRow[c];
+    const v=String(raw||'').trim();
+    if(!v||v==='')continue;
+
+    // Case 1: 엑셀 날짜 시리얼 숫자 (보통 40000~50000 범위)
+    const num=parseFloat(v);
+    if(!isNaN(num)&&num>365*100){
+      const d=excelSerialToDate(num);
+      const m=d.getMonth()+1, day=d.getDate(), y=d.getFullYear();
+      const dateStr=y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      dayCols.push({col:c,dateStr});
+      continue;
+    }
+
+    // Case 2: "4/11(토)" or "4/11" 형식 문자열
     const mSlash=v.match(/^(\d+)\/(\d+)/);
     if(mSlash){
       const m=parseInt(mSlash[1]), d=parseInt(mSlash[2]);
       let useYear=year, useMonth=m;
-      if(useMonth<month) useYear=year+1; // 익년
+      // 익월 처리 (예: 5월 파일인데 4/11 → 이전달 아니고 당월)
+      if(useMonth!==month && useMonth===month+1) useYear=year;
+      if(useMonth<month-1) useYear=year+1;
       const dateStr=useYear+'-'+String(useMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       dayCols.push({col:c,dateStr});
       continue;
     }
-    // 순수 숫자(일자만)
-    const num=parseInt(v);
+
+    // Case 3: 순수 일자 숫자 (1~31)
     if(!isNaN(num)&&num>=1&&num<=31){
       const dateStr=year+'-'+String(month).padStart(2,'0')+'-'+String(num).padStart(2,'0');
       dayCols.push({col:c,dateStr});
