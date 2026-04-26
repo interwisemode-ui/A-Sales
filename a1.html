@@ -787,6 +787,9 @@ function init(){
   buildPaxGrid();
   renderPickers();
   setStatus(false);
+  const nowMonth=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  const expEl=document.getElementById('expenseMonth');if(expEl)expEl.value=nowMonth;
+  const profEl=document.getElementById('profitMonth');if(profEl)profEl.value=nowMonth;
   // Date filter listeners
   document.getElementById('bkFilterDate')?.addEventListener('change',renderBookings);
   document.getElementById('bulkDelFrom')?.addEventListener('change',updateBulkDelCount);
@@ -1384,7 +1387,7 @@ function removeStaff(name){
 }
 
 // TABS
-const TABS=['entry','booking','records','summary','staffstats','manage','attendance'];
+const TABS=['entry','booking','records','summary','staffstats','manage','attendance','expense','profit'];
 function switchTab(n){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',TABS[i]===n));
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
@@ -1395,8 +1398,13 @@ function switchTab(n){
   if(n==='staffstats')renderStaffStats();
   if(n==='manage')renderManageGrid();
   if(n==='booking')renderBookings();
+  if(n==='expense'){const m=document.getElementById('expenseMonth').value;if(m)loadExpenseFromDB(m);}
+  if(n==='profit')renderProfit();
 }
 window.switchTab=switchTab;
+window.loadExpenseFile=loadExpenseFile;
+window.setProfitMonth=setProfitMonth;
+window.renderProfit=renderProfit;
 window.openBulkDelete=openBulkDelete;
 window.deleteInvalidDates=deleteInvalidDates;
 window.setBulkDelQuick=setBulkDelQuick;
@@ -2134,6 +2142,191 @@ window.importSalesExcel = function(input){
   };
   reader.readAsArrayBuffer(file);
 };
+
+
+// ── EXPENSE ────────────────────────────────────────────────
+const EXPENSE_CATEGORIES=['인건비', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '접대비'];
+let expenseData={}; // {monthKey: {date: {category: amount}}}
+
+function loadExpenseFile(input){
+  const file=input.files[0];if(!file)return;
+  const monthEl=document.getElementById('expenseMonth');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      parseExpense(raw, monthEl.value);
+    }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+
+function parseExpense(raw, monthKey){
+  if(!raw||raw.length<2){showToast('⚠ 데이터 없음');return;}
+  // Format: row0=headers(날짜행), col0=category
+  // Find date row (row 0) - cols 1,2,3... = days
+  const headerRow=raw[0]||[];
+  const result={}; // {date: {category: amount}}
+  
+  // Get year/month from monthKey (YYYY-MM) or from file
+  let year, month;
+  if(monthKey&&monthKey.length===7){
+    year=parseInt(monthKey.split('-')[0]);
+    month=parseInt(monthKey.split('-')[1]);
+  } else {
+    const now=new Date();
+    year=now.getFullYear();
+    month=now.getMonth()+1;
+    monthKey=year+'-'+String(month).padStart(2,'0');
+  }
+
+  // Find day columns
+  const dayCols=[];
+  for(let c=1;c<headerRow.length;c++){
+    const v=headerRow[c];
+    const day=parseInt(v);
+    if(day>=1&&day<=31){
+      const dateStr=year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      dayCols.push({col:c,dateStr});
+    }
+  }
+
+  // Read each category row
+  for(let r=1;r<raw.length;r++){
+    const row=raw[r]||[];
+    const catRaw=String(row[0]||'').trim();
+    if(!catRaw)continue;
+    // Match to known categories
+    const cat=EXPENSE_CATEGORIES.find(c=>catRaw.toUpperCase()===c.toUpperCase())||catRaw;
+    dayCols.forEach(({col,dateStr})=>{
+      const v=row[col];
+      const amt=(v===''||v===null||v===undefined||v!==v)?0:parseFloat(v)||0;
+      if(amt>0){
+        if(!result[dateStr])result[dateStr]={};
+        result[dateStr][cat]=(result[dateStr][cat]||0)+amt;
+      }
+    });
+  }
+
+  // Save to Firebase
+  set(ref(db,'expenses/'+monthKey), {monthKey, year, month, data:result});
+  showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일치)');
+  renderExpenseTable(result, monthKey);
+}
+
+function renderExpenseTable(data, monthKey){
+  const dates=Object.keys(data).sort();
+  if(!dates.length){
+    document.getElementById('expenseContent').innerHTML='<div style="color:var(--text3);padding:20px">데이터 없음</div>';
+    return;
+  }
+
+  // Build table
+  let html='<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:12px;width:100%;">';
+  // Header
+  html+='<thead><tr><th style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);text-align:left;position:sticky;left:0;z-index:2">항목</th>';
+  dates.forEach(d=>{
+    const day=d.split('-')[2];
+    html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;min-width:60px">'+parseInt(day)+'일</th>';
+  });
+  html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;color:var(--accent2)">합계</th>';
+  html+='</tr></thead><tbody>';
+
+  // Rows per category
+  const catTotals={};
+  EXPENSE_CATEGORIES.forEach(cat=>{
+    let rowTotal=0;
+    let hasData=false;
+    let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500">'+cat+'</td>';
+    dates.forEach(d=>{
+      const amt=(data[d]&&data[d][cat])||0;
+      if(amt>0)hasData=true;
+      rowTotal+=amt;
+      catTotals[cat]=(catTotals[cat]||0)+amt;
+      row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt>0?'var(--text)':'var(--text3)')+'">'+( amt>0?amt.toLocaleString():'-')+'</td>';
+    });
+    row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--accent2)">'+(rowTotal>0?rowTotal.toLocaleString():'-')+'</td></tr>';
+    if(hasData)html+=row;
+  });
+
+  // Total row
+  html+='<tr style="background:var(--bg3)"><td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;position:sticky;left:0;background:var(--bg3)">합계</td>';
+  let grandTotal=0;
+  dates.forEach(d=>{
+    const dayTotal=Object.values(data[d]||{}).reduce((s,v)=>s+v,0);
+    grandTotal+=dayTotal;
+    html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+(dayTotal>0?dayTotal.toLocaleString():'-')+'</td>';
+  });
+  html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+grandTotal.toLocaleString()+'</td></tr>';
+  html+='</tbody></table></div>';
+
+  document.getElementById('expenseContent').innerHTML=html;
+}
+
+// Load expense from Firebase when tab opens
+function loadExpenseFromDB(monthKey){
+  onValue(ref(db,'expenses/'+monthKey),snap=>{
+    if(snap.exists()){
+      const d=snap.val();
+      renderExpenseTable(d.data||{}, monthKey);
+    }
+  },{onlyOnce:true});
+}
+
+// ── PROFIT ─────────────────────────────────────────────────
+function setProfitMonth(type){
+  const today=new Date();
+  let val;
+  if(type==='this') val=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  else val=new Date(today.getFullYear(),today.getMonth()-1,1).getFullYear()+'-'+String(new Date(today.getFullYear(),today.getMonth()-1,1).getMonth()+1).padStart(2,'0');
+  document.getElementById('profitMonth').value=val;
+  renderProfit();
+}
+
+function renderProfit(){
+  const monthVal=document.getElementById('profitMonth').value;
+  if(!monthVal)return;
+  const [year,month]=monthVal.split('-').map(Number);
+  const today=new Date();
+  const todayStr=localDateStr(today);
+  const monthFrom=monthVal+'-01';
+  const monthTo=localDateStr(new Date(year,month,0));
+  const todayInMonth=todayStr>=monthFrom&&todayStr<=monthTo;
+
+  // Sales data
+  const monthRecs=records.filter(r=>r.date>=monthFrom&&r.date<=monthTo);
+  const todayRecs=records.filter(r=>r.date===todayStr);
+  const monthSales=monthRecs.reduce((s,r)=>s+(r.total||0),0);
+  const todaySales=todayRecs.reduce((s,r)=>s+(r.total||0),0);
+
+  // Load expense from Firebase
+  onValue(ref(db,'expenses/'+monthVal),snap=>{
+    let totalExpense=0;
+    let expByDate={};
+    if(snap.exists()){
+      const d=snap.val().data||{};
+      Object.keys(d).forEach(date=>{
+        const dayTotal=Object.values(d[date]).reduce((s,v)=>s+v,0);
+        expByDate[date]=dayTotal;
+        if(date<=todayStr)totalExpense+=dayTotal;
+      });
+    }
+
+    const profit=monthSales-totalExpense;
+    const profitColor=profit>=0?'var(--green)':'var(--red)';
+
+    document.getElementById('profitContent').innerHTML=
+      '<div class="stats-grid" style="margin-bottom:16px;">'+
+        '<div class="stat-card"><div class="stat-label">오늘 매출</div><div class="stat-value" style="color:var(--accent2)">'+todaySales.toLocaleString()+'</div><div class="stat-sub">'+todayRecs.length+'건</div></div>'+
+        '<div class="stat-card"><div class="stat-label">'+year+'년 '+month+'월 매출</div><div class="stat-value" style="color:var(--accent2)">'+monthSales.toLocaleString()+'</div><div class="stat-sub">'+monthRecs.length+'건</div></div>'+
+        '<div class="stat-card"><div class="stat-label">'+month+'월 누적 경비</div><div class="stat-value" style="color:var(--red)">'+totalExpense.toLocaleString()+'</div><div class="stat-sub">'+todayStr+'까지</div></div>'+
+        '<div class="stat-card"><div class="stat-label">'+month+'월 손익</div><div class="stat-value" style="color:'+profitColor+'">'+profit.toLocaleString()+'</div><div class="stat-sub">'+(profit>=0?'▲ 흑자':'▼ 적자')+'</div></div>'+
+      '</div>';
+  },{onlyOnce:true});
+}
 
 // ── ATTENDANCE ─────────────────────────────────────────────
 function loadAttendanceFile(input){
