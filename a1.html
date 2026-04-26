@@ -2320,39 +2320,47 @@ function renderProfit(){
   const [year,month]=monthVal.split('-').map(Number);
   const today=new Date();
   const todayStr=localDateStr(today);
-  const monthFrom=monthVal+'-01';
-  const monthTo=localDateStr(new Date(year,month,0));
-  const todayInMonth=todayStr>=monthFrom&&todayStr<=monthTo;
+  // Period: 11th of this month ~ 10th of next month
+  const periodFrom=monthVal+'-11';
+  const nextMonth=new Date(year,month,1); // 1st of next month
+  const periodTo=localDateStr(new Date(nextMonth.getFullYear(),nextMonth.getMonth(),10));
 
-  // Sales data
-  const monthRecs=records.filter(r=>r.date>=monthFrom&&r.date<=monthTo);
+  // Sales data for this period
+  const monthRecs=records.filter(r=>r.date>=periodFrom&&r.date<=periodTo);
   const todayRecs=records.filter(r=>r.date===todayStr);
   const monthSales=monthRecs.reduce((s,r)=>s+(r.total||0),0);
   const todaySales=todayRecs.reduce((s,r)=>s+(r.total||0),0);
 
-  // Load expense from Firebase
-  onValue(ref(db,'expenses/'+monthVal),snap=>{
-    let totalExpense=0;
-    let expByDate={};
-    if(snap.exists()){
-      const d=snap.val().data||{};
-      Object.keys(d).forEach(date=>{
-        const dayTotal=Object.values(d[date]).reduce((s,v)=>s+v,0);
-        expByDate[date]=dayTotal;
-        if(date<=todayStr)totalExpense+=dayTotal;
-      });
-    }
+  // Load expense from Firebase - need both this month and next month data
+  const nextMonthVal=nextMonth.getFullYear()+'-'+String(nextMonth.getMonth()+1).padStart(2,'0');
 
+  function mergeAndRender(expData){
+    let totalExpense=0;
+    Object.keys(expData).forEach(date=>{
+      if(date>=periodFrom&&date<=periodTo&&date<=todayStr){
+        totalExpense+=Object.values(expData[date]).reduce((s,v)=>s+v,0);
+      }
+    });
     const profit=monthSales-totalExpense;
     const profitColor=profit>=0?'var(--green)':'var(--red)';
-
     document.getElementById('profitContent').innerHTML=
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기간: '+periodFrom+' ~ '+periodTo+'</div>'+
       '<div class="stats-grid" style="margin-bottom:16px;">'+
         '<div class="stat-card"><div class="stat-label">오늘 매출</div><div class="stat-value" style="color:var(--accent2)">'+todaySales.toLocaleString()+'</div><div class="stat-sub">'+todayRecs.length+'건</div></div>'+
-        '<div class="stat-card"><div class="stat-label">'+year+'년 '+month+'월 매출</div><div class="stat-value" style="color:var(--accent2)">'+monthSales.toLocaleString()+'</div><div class="stat-sub">'+monthRecs.length+'건</div></div>'+
+        '<div class="stat-card"><div class="stat-label">'+month+'월 매출 합계</div><div class="stat-value" style="color:var(--accent2)">'+monthSales.toLocaleString()+'</div><div class="stat-sub">'+monthRecs.length+'건</div></div>'+
         '<div class="stat-card"><div class="stat-label">'+month+'월 누적 경비</div><div class="stat-value" style="color:var(--red)">'+totalExpense.toLocaleString()+'</div><div class="stat-sub">'+todayStr+'까지</div></div>'+
         '<div class="stat-card"><div class="stat-label">'+month+'월 손익</div><div class="stat-value" style="color:'+profitColor+'">'+profit.toLocaleString()+'</div><div class="stat-sub">'+(profit>=0?'▲ 흑자':'▼ 적자')+'</div></div>'+
       '</div>';
+  }
+
+  // Load expense data from both months
+  let combinedExp={};
+  onValue(ref(db,'expenses/'+monthVal),snap=>{
+    if(snap.exists())Object.assign(combinedExp,snap.val().data||{});
+    onValue(ref(db,'expenses/'+nextMonthVal),snap2=>{
+      if(snap2.exists())Object.assign(combinedExp,snap2.val().data||{});
+      mergeAndRender(combinedExp);
+    },{onlyOnce:true});
   },{onlyOnce:true});
 }
 
