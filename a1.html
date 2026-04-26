@@ -693,17 +693,22 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="rec-title">경비</div>
         <div class="filter-bar">
           <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;">
-          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">⬆ 엑셀 업로드</button>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
           <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
+          <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
+          <input type="file" id="expenseImageInput" accept="image/*" style="display:none;" onchange="window.loadExpenseImage(this)">
         </div>
       </div>
-      <div id="expenseContent"><div style="color:var(--text3);padding:20px;text-align:center">월을 선택하고 엑셀 파일을 업로드해주세요</div></div>
+      <div id="expenseAiStatus" style="display:none;padding:12px 16px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;margin:12px 0;color:var(--blue);font-size:13px;">
+        🤖 AI가 이미지를 분석하고 있어요...
+      </div>
+      <div id="expenseContent"><div style="color:var(--text3);padding:20px;text-align:center">월을 선택하고 엑셀 또는 이미지를 업로드해주세요</div></div>
     </div>
 
     <!-- PROFIT TAB -->
     <div id="tab-profit" class="tab-content">
       <div class="rec-header">
-        <div class="rec-title">손익</div>
+        <div class="rec-title">손익 결산</div>
         <div class="filter-bar">
           <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
           <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
@@ -1431,6 +1436,7 @@ function switchTab(n){
 }
 window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
+window.loadExpenseImage=loadExpenseImage;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
 window.openBulkDelete=openBulkDelete;
@@ -2304,7 +2310,121 @@ function loadExpenseFromDB(monthKey){
   },{onlyOnce:true});
 }
 
+// ── IMAGE EXPENSE UPLOAD (AI parsing) ──────────────────────
+window.loadExpenseImage = async function(input){
+  const file = input.files[0]; if(!file) return;
+  const monthEl = document.getElementById('expenseMonth');
+  const monthKey = monthEl.value;
+  if(!monthKey){ showToast('⚠ 먼저 월을 선택해주세요'); input.value=''; return; }
+
+  const statusEl = document.getElementById('expenseAiStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '🤖 AI가 이미지를 분석하고 있어요...';
+
+  try {
+    // Convert image to base64
+    const base64 = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = e => res(e.target.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+    const mediaType = file.type || 'image/jpeg';
+
+    // Parse year/month from monthKey
+    const [year, month] = monthKey.split('-').map(Number);
+    const catList = EXPENSE_CATEGORIES.join(', ');
+
+    const prompt = `이 이미지는 경비 장부의 특정 날짜 열(column) 캡처입니다.
+이미지에서 날짜와 각 항목별 금액을 읽어서 JSON으로 반환해주세요.
+
+알려진 경비 카테고리: ${catList}
+
+반환 형식 (JSON만, 다른 텍스트 없이):
+{
+  "date": "YYYY-MM-DD",
+  "items": {
+    "카테고리명": 금액(숫자),
+    ...
+  }
+}
+
+날짜가 이미지에 없으면 date를 "${year}-${String(month).padStart(2,'0')}-01"로 설정.
+금액이 없거나 0인 항목은 제외.
+카테고리명은 위 목록에서 가장 가까운 것으로 매칭.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 }},
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    const text = data.content?.map(b=>b.text||'').join('') || '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('JSON 파싱 실패');
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    const dateStr = parsed.date;
+    const items = parsed.items || {};
+
+    if(!Object.keys(items).length){ showToast('⚠ 금액 데이터를 찾지 못했어요'); statusEl.style.display='none'; input.value=''; return; }
+
+    // Merge with existing Firebase data
+    onValue(ref(db,'expenses/'+monthKey), snap=>{
+      let existing = {};
+      if(snap.exists()) existing = snap.val().data || {};
+      if(!existing[dateStr]) existing[dateStr] = {};
+      Object.entries(items).forEach(([cat,amt])=>{
+        existing[dateStr][cat] = (existing[dateStr][cat]||0) + amt;
+      });
+      set(ref(db,'expenses/'+monthKey), { monthKey, year, month, data: existing });
+      showToast('✓ AI 파싱 완료! '+dateStr+' ('+Object.keys(items).length+'개 항목)');
+      statusEl.style.display = 'none';
+      renderExpenseTable(existing, monthKey);
+    },{onlyOnce:true});
+
+  } catch(err) {
+    statusEl.textContent = '⚠ 오류: '+err.message;
+    setTimeout(()=>{ statusEl.style.display='none'; }, 3000);
+  }
+  input.value='';
+};
+
 // ── PROFIT ─────────────────────────────────────────────────
+// Category grouping for profit statement (matching Image 2 structure)
+const PROFIT_GROUPS = {
+  '인건비': { label: '인건비', group: '고정비', sub: '인건비' },
+  '임대로': { label: '임대로', group: '고정비', sub: '임대로' },
+  '관리비': { label: '관리비', group: '고정비', sub: '임대로' },
+  '수도광열': { label: '수도광열', group: '비용', sub: '비용' },
+  'TAX': { label: 'TAX', group: 'TAX', sub: 'TAX' },
+  '라이선스': { label: '라이선스', group: '라이선스', sub: '라이선스' },
+  '주류': { label: '주류', group: '비용', sub: '비용' },
+  '음료': { label: '음료', group: '비용', sub: '비용' },
+  'FRUITS': { label: 'FRUITS', group: '비용', sub: '비용' },
+  'VEGETABLE': { label: 'VEGETABLE', group: '비용', sub: '비용' },
+  '식자재': { label: '식자재', group: '비용', sub: '비용' },
+  '장비': { label: '장비', group: '비용', sub: '비용' },
+  '유지보수': { label: '유지보수', group: '비용', sub: '비용' },
+  '소모품': { label: '소모품', group: '비용', sub: '비용' },
+  '비품': { label: '비품', group: '비용', sub: '비용' },
+  '교통비': { label: '교통비', group: '비용', sub: '비용' },
+  '기타': { label: '기타', group: '비용', sub: '비용' },
+  '통신비': { label: '통신비', group: '비용', sub: '비용' },
+  '접대비': { label: '접대비', group: '비용', sub: '비용' },
+};
+
 function setProfitMonth(type){
   const today=new Date();
   let val;
@@ -2320,46 +2440,168 @@ function renderProfit(){
   const [year,month]=monthVal.split('-').map(Number);
   const today=new Date();
   const todayStr=localDateStr(today);
-  // Period: 11th of this month ~ 10th of next month
   const periodFrom=monthVal+'-11';
-  const nextMonth=new Date(year,month,1); // 1st of next month
+  const nextMonth=new Date(year,month,1);
   const periodTo=localDateStr(new Date(nextMonth.getFullYear(),nextMonth.getMonth(),10));
-
-  // Sales data for this period
-  const monthRecs=records.filter(r=>r.date>=periodFrom&&r.date<=periodTo);
-  const todayRecs=records.filter(r=>r.date===todayStr);
-  const monthSales=monthRecs.reduce((s,r)=>s+(r.total||0),0);
-  const todaySales=todayRecs.reduce((s,r)=>s+(r.total||0),0);
-
-  // Load expense from Firebase - need both this month and next month data
   const nextMonthVal=nextMonth.getFullYear()+'-'+String(nextMonth.getMonth()+1).padStart(2,'0');
 
-  function mergeAndRender(expData){
-    let totalExpense=0;
-    Object.keys(expData).forEach(date=>{
-      if(date>=periodFrom&&date<=periodTo&&date<=todayStr){
-        totalExpense+=Object.values(expData[date]).reduce((s,v)=>s+v,0);
-      }
+  // Sales data
+  const periodRecs=records.filter(r=>r.date>=periodFrom&&r.date<=periodTo);
+  const totalSales=periodRecs.reduce((s,r)=>s+(r.total||0),0);
+  const salesByMethod={ CARD:0, UPI:0, CASH:0 };
+  periodRecs.forEach(r=>{
+    if(r.payments) r.payments.forEach(p=>{
+      const m=p.method||'CASH';
+      if(salesByMethod[m]!==undefined) salesByMethod[m]+=p.amount||0;
+      else salesByMethod['CASH']+=p.amount||0;
     });
-    const profit=monthSales-totalExpense;
-    const profitColor=profit>=0?'var(--green)':'var(--red)';
-    document.getElementById('profitContent').innerHTML=
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기간: '+periodFrom+' ~ '+periodTo+'</div>'+
-      '<div class="stats-grid" style="margin-bottom:16px;">'+
-        '<div class="stat-card"><div class="stat-label">오늘 매출</div><div class="stat-value" style="color:var(--accent2)">'+todaySales.toLocaleString()+'</div><div class="stat-sub">'+todayRecs.length+'건</div></div>'+
-        '<div class="stat-card"><div class="stat-label">'+month+'월 매출 합계</div><div class="stat-value" style="color:var(--accent2)">'+monthSales.toLocaleString()+'</div><div class="stat-sub">'+monthRecs.length+'건</div></div>'+
-        '<div class="stat-card"><div class="stat-label">'+month+'월 누적 경비</div><div class="stat-value" style="color:var(--red)">'+totalExpense.toLocaleString()+'</div><div class="stat-sub">'+todayStr+'까지</div></div>'+
-        '<div class="stat-card"><div class="stat-label">'+month+'월 손익</div><div class="stat-value" style="color:'+profitColor+'">'+profit.toLocaleString()+'</div><div class="stat-sub">'+(profit>=0?'▲ 흑자':'▼ 적자')+'</div></div>'+
-      '</div>';
-  }
+    else salesByMethod['CASH']+=(r.total||0);
+  });
 
-  // Load expense data from both months
   let combinedExp={};
   onValue(ref(db,'expenses/'+monthVal),snap=>{
-    if(snap.exists())Object.assign(combinedExp,snap.val().data||{});
+    if(snap.exists()) Object.assign(combinedExp, snap.val().data||{});
     onValue(ref(db,'expenses/'+nextMonthVal),snap2=>{
-      if(snap2.exists())Object.assign(combinedExp,snap2.val().data||{});
-      mergeAndRender(combinedExp);
+      if(snap2.exists()) Object.assign(combinedExp, snap2.val().data||{});
+
+      // Sum expenses by category (within period up to today)
+      const catTotals={};
+      Object.keys(combinedExp).forEach(date=>{
+        if(date>=periodFrom&&date<=periodTo&&date<=todayStr){
+          Object.entries(combinedExp[date]).forEach(([cat,amt])=>{
+            catTotals[cat]=(catTotals[cat]||0)+amt;
+          });
+        }
+      });
+
+      // Group sums
+      const sum=(cats)=>cats.reduce((s,c)=>s+(catTotals[c]||0),0);
+      const laborCost = catTotals['인건비']||0;
+      const rentCost = (catTotals['임대로']||0)+(catTotals['임대료']||0)+(catTotals['관리비']||0);
+      const fixedTotal = laborCost + rentCost;
+      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','접대비','수도광열'];
+      const varTotal = sum(varCats);
+      const taxTotal = catTotals['TAX']||0;
+      const licTotal = catTotals['라이선스']||0;
+      const totalExpense = fixedTotal + varTotal + taxTotal + licTotal;
+      const profit = totalSales - totalExpense;
+      const profitColor = profit>=0?'var(--green)':'var(--red)';
+
+      const pct=(v)=>totalSales>0?((v/totalSales)*100).toFixed(1)+'%':'-';
+      const fmt=(v)=>v>0?'₩'+v.toLocaleString():'-';
+
+      // Build statement table (Image 2 style)
+      let h='';
+      h+=`<div style="max-width:600px;margin:0 auto;">`;
+      h+=`<div style="text-align:center;font-weight:700;font-size:15px;padding:12px 0;color:var(--accent2)">
+        ${year}년 ${month}월 결산내역
+        <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:2px;">기간: ${periodFrom} ~ ${periodTo}</div>
+      </div>`;
+
+      // Table
+      h+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
+      const th=(txt,extra='')=>`<th style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3);${extra}">${txt}</th>`;
+      const td=(txt,extra='')=>`<td style="padding:6px 10px;border:1px solid var(--border);${extra}">${txt}</td>`;
+      const tr=(cells)=>`<tr>${cells}</tr>`;
+
+      h+=tr(th('구분')+th('항목')+th('금액')+th('매출 대비'));
+
+      // ── 매출 ──
+      h+=`<tr>
+        <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(167,154,248,0.08);color:var(--accent2)">매출</td>
+        ${td('카드')}${td('₩'+salesByMethod.CARD.toLocaleString(),'text-align:right;')}${td(pct(salesByMethod.CARD),'text-align:right;color:var(--text3);')}
+      </tr>`;
+      h+=tr(td('UPI')+td('₩'+salesByMethod.UPI.toLocaleString(),'text-align:right;')+td(pct(salesByMethod.UPI),'text-align:right;color:var(--text3);'));
+      h+=tr(td('현금')+td('₩'+salesByMethod.CASH.toLocaleString(),'text-align:right;')+td(pct(salesByMethod.CASH),'text-align:right;color:var(--text3);'));
+      h+=`<tr style="background:rgba(167,154,248,0.06);">
+        ${td('<b>매출 합계</b>','font-weight:700;')}
+        ${td('<b>₩'+totalSales.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--accent2);')}
+        ${td('<b>100%</b>','text-align:right;font-weight:700;color:var(--accent2);')}
+      </tr>`;
+
+      // ── 고정비 ──
+      h+=`<tr>
+        <td rowspan="3" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
+        ${td('인건비')}${td(fmt(laborCost),'text-align:right;')}${td(pct(laborCost),'text-align:right;color:var(--text3);')}
+      </tr>`;
+      h+=tr(td('임대로')+td(fmt(catTotals['임대로']||catTotals['임대료']||0),'text-align:right;')+td(pct(catTotals['임대로']||catTotals['임대료']||0),'text-align:right;color:var(--text3);'));
+      h+=tr(td('관리비')+td(fmt(catTotals['관리비']||0),'text-align:right;')+td(pct(catTotals['관리비']||0),'text-align:right;color:var(--text3);'));
+      h+=`<tr style="background:rgba(248,113,113,0.04);">
+        <td style="padding:6px 10px;border:1px solid var(--border);"></td>
+        ${td('<b>소계</b>','font-weight:700;')}
+        ${td('<b>₩'+fixedTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
+        ${td(pct(fixedTotal),'text-align:right;color:var(--text3);')}
+      </tr>`;
+
+      // ── 비용 ──
+      const varItems=[
+        ['주류',catTotals['주류']||0],['음료',catTotals['음료']||0],
+        ['식자재',(catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)],
+        ['비품/소모품',(catTotals['비품']||0)+(catTotals['소모품']||0)],
+        ['장비',catTotals['장비']||0],['유지보수',catTotals['유지보수']||0],
+        ['교통비',catTotals['교통비']||0],['수도광열',catTotals['수도광열']||0],
+        ['통신비',catTotals['통신비']||0],['접대비',catTotals['접대비']||0],
+        ['기타',catTotals['기타']||0],
+      ].filter(([,v])=>v>0);
+
+      if(varItems.length>0){
+        h+=`<tr>
+          <td rowspan="${varItems.length+1}" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(251,191,36,0.05);color:var(--yellow)">비용</td>
+          ${td(varItems[0][0])}${td(fmt(varItems[0][1]),'text-align:right;')}${td(pct(varItems[0][1]),'text-align:right;color:var(--text3);')}
+        </tr>`;
+        varItems.slice(1).forEach(([k,v])=>{
+          h+=tr(td(k)+td(fmt(v),'text-align:right;')+td(pct(v),'text-align:right;color:var(--text3);'));
+        });
+      } else {
+        h+=`<tr>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--yellow)">비용</td>
+          ${td('(없음)')}${td('-','text-align:right;')}${td('-','text-align:right;')}
+        </tr>`;
+      }
+      h+=`<tr style="background:rgba(251,191,36,0.04);">
+        <td style="padding:6px 10px;border:1px solid var(--border);"></td>
+        ${td('<b>소계</b>','font-weight:700;')}
+        ${td('<b>₩'+varTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
+        ${td(pct(varTotal),'text-align:right;color:var(--text3);')}
+      </tr>`;
+
+      // ── TAX ──
+      h+=`<tr>
+        <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--orange)">TAX</td>
+        ${td('TAX')}${td(fmt(taxTotal),'text-align:right;')}${td(pct(taxTotal),'text-align:right;color:var(--text3);')}
+      </tr>`;
+
+      // ── 라이선스 ──
+      h+=`<tr>
+        <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--blue)">라이선스</td>
+        ${td('라이선스')}${td(fmt(licTotal),'text-align:right;')}${td(pct(licTotal),'text-align:right;color:var(--text3);')}
+      </tr>`;
+
+      // ── 비용 합계 ──
+      h+=`<tr style="background:rgba(248,113,113,0.08);">
+        <td colspan="2" style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
+        ${td('<b>₩'+totalExpense.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
+        ${td('<b>'+pct(totalExpense)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
+      </tr>`;
+
+      // ── 손익 ──
+      h+=`<tr style="background:${profit>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.12)'};border-top:2px solid ${profitColor};">
+        <td colspan="2" style="padding:10px 10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
+          ${profit>=0?'▲ 흑자':'▼ 적자'}
+        </td>
+        <td style="padding:10px 10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
+          ₩${Math.abs(profit).toLocaleString()}
+        </td>
+        <td style="padding:10px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:${profitColor}">
+          ${pct(profit)}
+        </td>
+      </tr>`;
+
+      h+=`</table>`;
+      h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">* 경비는 ${todayStr}까지 누계 기준</div>`;
+      h+=`</div>`;
+
+      document.getElementById('profitContent').innerHTML=h;
     },{onlyOnce:true});
   },{onlyOnce:true});
 }
