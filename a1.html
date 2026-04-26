@@ -2539,121 +2539,200 @@ function renderProfit(){
       const pct=(v)=>totalSales>0?((v/totalSales)*100).toFixed(1)+'%':'-';
       const fmt=(v)=>v>0?'₩'+v.toLocaleString():'-';
 
-      // Build statement table (Image 2 style)
-      let h='';
-      h+=`<div style="max-width:600px;margin:0 auto;">`;
-      h+=`<div style="text-align:center;font-weight:700;font-size:15px;padding:12px 0;color:var(--accent2)">
-        ${year}년 ${month}월 결산내역
-        <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:2px;">기간: ${periodFrom} ~ ${periodTo}</div>
-      </div>`;
+      // ── 오늘 날짜 제목 ──
+      const todayDisp=`${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
 
-      // Table
-      h+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
-      const th=(txt,extra='')=>`<th style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3);${extra}">${txt}</th>`;
-      const td=(txt,extra='')=>`<td style="padding:6px 10px;border:1px solid var(--border);${extra}">${txt}</td>`;
-      const tr=(cells)=>`<tr>${cells}</tr>`;
+      // ── Firebase에서 수동 오버라이드 로드 ──
+      // profitOverrides: {카테고리키: 수동입력금액}
+      // 표시할 최종값: override가 있으면 override, 없으면 계산값
+      const ovKey='profitOverrides/'+monthVal;
 
-      h+=tr(th('구분')+th('항목')+th('금액')+th('매출 대비'));
+      function buildTable(overrides){
+        const ov=overrides||{};
 
-      // ── 매출 ──
-      h+=`<tr>
-        <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(167,154,248,0.08);color:var(--accent2)">매출</td>
-        ${td('카드')}${td('₩'+salesByMethod.CARD.toLocaleString(),'text-align:right;')}${td(pct(salesByMethod.CARD),'text-align:right;color:var(--text3);')}
-      </tr>`;
-      h+=tr(td('UPI')+td('₩'+salesByMethod.UPI.toLocaleString(),'text-align:right;')+td(pct(salesByMethod.UPI),'text-align:right;color:var(--text3);'));
-      h+=tr(td('현금')+td('₩'+salesByMethod.CASH.toLocaleString(),'text-align:right;')+td(pct(salesByMethod.CASH),'text-align:right;color:var(--text3);'));
-      h+=`<tr style="background:rgba(167,154,248,0.06);">
-        ${td('<b>매출 합계</b>','font-weight:700;')}
-        ${td('<b>₩'+totalSales.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--accent2);')}
-        ${td('<b>100%</b>','text-align:right;font-weight:700;color:var(--accent2);')}
-      </tr>`;
+        // override 적용된 최종값 계산
+        const getVal=(key, calcVal)=> ov[key]!==undefined ? ov[key] : calcVal;
 
-      // ── 고정비 ──
-      h+=`<tr>
-        <td rowspan="3" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
-        ${td('인건비')}${td(fmt(laborCost),'text-align:right;')}${td(pct(laborCost),'text-align:right;color:var(--text3);')}
-      </tr>`;
-      h+=tr(td('임대로')+td(fmt(catTotals['임대로']||catTotals['임대료']||0),'text-align:right;')+td(pct(catTotals['임대로']||catTotals['임대료']||0),'text-align:right;color:var(--text3);'));
-      h+=tr(td('관리비')+td(fmt(catTotals['관리비']||0),'text-align:right;')+td(pct(catTotals['관리비']||0),'text-align:right;color:var(--text3);'));
-      h+=`<tr style="background:rgba(248,113,113,0.04);">
-        <td style="padding:6px 10px;border:1px solid var(--border);"></td>
-        ${td('<b>소계</b>','font-weight:700;')}
-        ${td('<b>₩'+fixedTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
-        ${td(pct(fixedTotal),'text-align:right;color:var(--text3);')}
-      </tr>`;
+        const cardVal   = getVal('CARD',   salesByMethod.CARD);
+        const upiVal    = getVal('UPI',    salesByMethod.UPI);
+        const cashVal   = getVal('CASH',   salesByMethod.CASH);
+        const salesTotal= cardVal+upiVal+cashVal;
 
-      // ── 비용 ──
-      const varItems=[
-        ['주류',catTotals['주류']||0],['음료',catTotals['음료']||0],
-        ['식자재',(catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)],
-        ['비품/소모품',(catTotals['비품']||0)+(catTotals['소모품']||0)],
-        ['장비',catTotals['장비']||0],['유지보수',catTotals['유지보수']||0],
-        ['교통비',catTotals['교통비']||0],['수도광열',catTotals['수도광열']||0],
-        ['통신비',catTotals['통신비']||0],['접대비',catTotals['접대비']||0],
-        ['기타',catTotals['기타']||0],
-      ].filter(([,v])=>v>0);
+        const laborVal  = getVal('인건비',  catTotals['인건비']||0);
+        const rentVal   = getVal('임대로',  (catTotals['임대로']||0)+(catTotals['임대료']||0));
+        const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
+        const fixedTot  = laborVal+rentVal+mgmtVal;
 
-      if(varItems.length>0){
+        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신비','접대비','기타'];
+        const varCalc={
+          '주류':     catTotals['주류']||0,
+          '음료':     catTotals['음료']||0,
+          '식자재':   (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0),
+          '비품/소모품': (catTotals['비품']||0)+(catTotals['소모품']||0),
+          '장비':     catTotals['장비']||0,
+          '유지보수': catTotals['유지보수']||0,
+          '교통비':   catTotals['교통비']||0,
+          '수도광열': catTotals['수도광열']||0,
+          '통신비':   catTotals['통신비']||0,
+          '접대비':   catTotals['접대비']||0,
+          '기타':     catTotals['기타']||0,
+        };
+        const varItems=varKeys.map(k=>[k, getVal(k, varCalc[k])]).filter(([,v])=>v>0);
+        const varTot=varItems.reduce((s,[,v])=>s+v,0);
+
+        const taxVal    = getVal('TAX',      catTotals['TAX']||0);
+        const licVal    = getVal('라이선스', catTotals['라이선스']||0);
+        const expTot    = fixedTot+varTot+taxVal+licVal;
+        const profitVal = salesTotal-expTot;
+        const profitColor= profitVal>=0?'var(--green)':'var(--red)';
+
+        const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
+        const fmt=(v)=>v>0?'₩'+v.toLocaleString():'-';
+
+        // 수동 편집 인풋 렌더
+        const editCell=(key,val,calcVal)=>{
+          const isOverridden=ov[key]!==undefined;
+          return `<td style="padding:3px 6px;border:1px solid var(--border);text-align:right;">
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
+              <input type="number" 
+                value="${val}"
+                data-key="${key}"
+                data-calc="${calcVal}"
+                onchange="window.saveProfitOverride('${monthVal}','${key}',this.value,${calcVal})"
+                style="width:100px;background:${isOverridden?'rgba(251,191,36,0.1)':'transparent'};border:1px solid ${isOverridden?'var(--yellow)':'transparent'};border-radius:4px;padding:2px 4px;color:var(--text);font-size:12px;text-align:right;font-family:inherit;">
+              ${isOverridden?`<span title="수동입력값. 클릭시 원래값으로" onclick="window.resetProfitOverride('${monthVal}','${key}')" style="cursor:pointer;color:var(--yellow);font-size:10px;">↺</span>`:''}
+            </div>
+          </td>`;
+        };
+
+        // Build statement table
+        let h='';
+        h+=`<div style="max-width:620px;margin:0 auto;">`;
+        h+=`<div style="text-align:center;font-weight:700;font-size:15px;padding:12px 0;color:var(--accent2)">
+          ${year}년 ${month}월 결산 — <span style="color:var(--text2)">${todayDisp} 현재</span>
+          <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:2px;">기간: ${periodFrom} ~ ${periodTo}</div>
+        </div>
+        <div style="font-size:11px;color:var(--yellow);margin-bottom:8px;text-align:right;">✏ 금액을 직접 클릭해서 수정할 수 있어요 &nbsp;|&nbsp; <span style="color:var(--text3)">↺ = 자동계산값으로 되돌리기</span></div>`;
+
+        h+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
+        const th=(txt,extra='')=>`<th style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3);${extra}">${txt}</th>`;
+        const td=(txt,extra='')=>`<td style="padding:6px 10px;border:1px solid var(--border);${extra}">${txt}</td>`;
+        const tr=(cells)=>`<tr>${cells}</tr>`;
+
+        h+=tr(th('구분')+th('항목')+th('금액')+th('매출 대비'));
+
+        // ── 매출 ──
         h+=`<tr>
-          <td rowspan="${varItems.length+1}" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(251,191,36,0.05);color:var(--yellow)">비용</td>
-          ${td(varItems[0][0])}${td(fmt(varItems[0][1]),'text-align:right;')}${td(pct(varItems[0][1]),'text-align:right;color:var(--text3);')}
+          <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(167,154,248,0.08);color:var(--accent2)">매출</td>
+          ${td('카드')}${editCell('CARD',cardVal,salesByMethod.CARD)}${td(pct(cardVal),'text-align:right;color:var(--text3);')}
         </tr>`;
-        varItems.slice(1).forEach(([k,v])=>{
-          h+=tr(td(k)+td(fmt(v),'text-align:right;')+td(pct(v),'text-align:right;color:var(--text3);'));
-        });
-      } else {
+        h+=`<tr>${td('UPI')}${editCell('UPI',upiVal,salesByMethod.UPI)}${td(pct(upiVal),'text-align:right;color:var(--text3);')}</tr>`;
+        h+=`<tr>${td('현금')}${editCell('CASH',cashVal,salesByMethod.CASH)}${td(pct(cashVal),'text-align:right;color:var(--text3);')}</tr>`;
+        h+=`<tr style="background:rgba(167,154,248,0.06);">
+          ${td('<b>매출 합계</b>','font-weight:700;')}
+          ${td('<b>₩'+salesTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--accent2);')}
+          ${td('<b>100%</b>','text-align:right;font-weight:700;color:var(--accent2);')}
+        </tr>`;
+
+        // ── 고정비 ──
         h+=`<tr>
-          <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--yellow)">비용</td>
-          ${td('(없음)')}${td('-','text-align:right;')}${td('-','text-align:right;')}
+          <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
+          ${td('인건비')}${editCell('인건비',laborVal,catTotals['인건비']||0)}${td(pct(laborVal),'text-align:right;color:var(--text3);')}
         </tr>`;
-      }
-      h+=`<tr style="background:rgba(251,191,36,0.04);">
-        <td style="padding:6px 10px;border:1px solid var(--border);"></td>
-        ${td('<b>소계</b>','font-weight:700;')}
-        ${td('<b>₩'+varTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
-        ${td(pct(varTotal),'text-align:right;color:var(--text3);')}
-      </tr>`;
+        h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
+        h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
+        h+=`<tr style="background:rgba(248,113,113,0.04);">
+          ${td('<b>소계</b>','font-weight:700;')}
+          ${td('<b>₩'+fixedTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
+          ${td(pct(fixedTot),'text-align:right;color:var(--text3);')}
+        </tr>`;
 
-      // ── TAX ──
-      h+=`<tr>
-        <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--orange)">TAX</td>
-        ${td('TAX')}${td(fmt(taxTotal),'text-align:right;')}${td(pct(taxTotal),'text-align:right;color:var(--text3);')}
-      </tr>`;
+        // ── 비용 ──
+        if(varItems.length>0){
+          h+=`<tr>
+            <td rowspan="${varItems.length+1}" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(251,191,36,0.05);color:var(--yellow)">비용</td>
+            ${td(varItems[0][0])}${editCell(varItems[0][0],varItems[0][1],varCalc[varItems[0][0]]||0)}${td(pct(varItems[0][1]),'text-align:right;color:var(--text3);')}
+          </tr>`;
+          varItems.slice(1).forEach(([k,v])=>{
+            h+=`<tr>${td(k)}${editCell(k,v,varCalc[k]||0)}${td(pct(v),'text-align:right;color:var(--text3);')}</tr>`;
+          });
+        } else {
+          h+=`<tr>
+            <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--yellow)">비용</td>
+            ${td('(없음)')}${td('-','text-align:right;')}${td('-','text-align:right;')}
+          </tr>`;
+        }
+        h+=`<tr style="background:rgba(251,191,36,0.04);">
+          <td style="padding:6px 10px;border:1px solid var(--border);"></td>
+          ${td('<b>소계</b>','font-weight:700;')}
+          ${td('<b>₩'+varTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
+          ${td(pct(varTot),'text-align:right;color:var(--text3);')}
+        </tr>`;
 
-      // ── 라이선스 ──
-      h+=`<tr>
-        <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--blue)">라이선스</td>
-        ${td('라이선스')}${td(fmt(licTotal),'text-align:right;')}${td(pct(licTotal),'text-align:right;color:var(--text3);')}
-      </tr>`;
+        // ── TAX ──
+        h+=`<tr>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--orange)">TAX</td>
+          ${td('TAX')}${editCell('TAX',taxVal,catTotals['TAX']||0)}${td(pct(taxVal),'text-align:right;color:var(--text3);')}
+        </tr>`;
 
-      // ── 비용 합계 ──
-      h+=`<tr style="background:rgba(248,113,113,0.08);">
-        <td colspan="2" style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
-        ${td('<b>₩'+totalExpense.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
-        ${td('<b>'+pct(totalExpense)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
-      </tr>`;
+        // ── 라이선스 ──
+        h+=`<tr>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--blue)">라이선스</td>
+          ${td('라이선스')}${editCell('라이선스',licVal,catTotals['라이선스']||0)}${td(pct(licVal),'text-align:right;color:var(--text3);')}
+        </tr>`;
 
-      // ── 손익 ──
-      h+=`<tr style="background:${profit>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.12)'};border-top:2px solid ${profitColor};">
-        <td colspan="2" style="padding:10px 10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
-          ${profit>=0?'▲ 흑자':'▼ 적자'}
-        </td>
-        <td style="padding:10px 10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
-          ₩${Math.abs(profit).toLocaleString()}
-        </td>
-        <td style="padding:10px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:${profitColor}">
-          ${pct(profit)}
-        </td>
-      </tr>`;
+        // ── 비용 합계 ──
+        h+=`<tr style="background:rgba(248,113,113,0.08);">
+          <td colspan="2" style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
+          ${td('<b>₩'+expTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
+          ${td('<b>'+pct(expTot)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
+        </tr>`;
 
-      h+=`</table>`;
-      h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">* 경비는 ${todayStr}까지 누계 기준</div>`;
-      h+=`</div>`;
+        // ── 손익 ──
+        h+=`<tr style="background:${profitVal>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.12)'};">
+          <td colspan="2" style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
+            ${profitVal>=0?'▲ 흑자':'▼ 적자'}
+          </td>
+          <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
+            ₩${Math.abs(profitVal).toLocaleString()}
+          </td>
+          <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;color:${profitColor}">
+            ${pct(profitVal)}
+          </td>
+        </tr>`;
 
-      document.getElementById('profitContent').innerHTML=h;
+        h+=`</table>`;
+        h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">* 경비는 ${todayStr}까지 누계 기준</div>`;
+        h+=`</div>`;
+        document.getElementById('profitContent').innerHTML=h;
+      } // end buildTable
+
+      // Load overrides from Firebase then build table
+      onValue(ref(db,ovKey),ovSnap=>{
+        buildTable(ovSnap.exists()?ovSnap.val():{});
+      },{onlyOnce:true});
+
     },{onlyOnce:true});
   },{onlyOnce:true});
 }
+
+// ── 수동 오버라이드 저장/리셋 ──
+window.saveProfitOverride=function(monthVal,key,val,calcVal){
+  const num=parseFloat(val);
+  if(isNaN(num))return;
+  if(num===parseFloat(calcVal)){
+    window.resetProfitOverride(monthVal,key);
+    return;
+  }
+  set(ref(db,'profitOverrides/'+monthVal+'/'+key), num);
+  showToast('✓ 저장됨: '+key+' = ₩'+num.toLocaleString());
+  setTimeout(()=>renderProfit(),300);
+};
+window.resetProfitOverride=function(monthVal,key){
+  remove(ref(db,'profitOverrides/'+monthVal+'/'+key));
+  showToast('↺ '+key+' 원래값으로 되돌림');
+  setTimeout(()=>renderProfit(),300);
+};
 
 // ── ATTENDANCE ─────────────────────────────────────────────
 function loadAttendanceFile(input){
