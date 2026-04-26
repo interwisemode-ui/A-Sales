@@ -815,7 +815,7 @@ function init(){
   buildPaxGrid();
   renderPickers();
   setStatus(false);
-  const nowMonth=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  const nowMonth=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
   const expEl=document.getElementById('expenseMonth');if(expEl)expEl.value=nowMonth;
   const profEl=document.getElementById('profitMonth');if(profEl)profEl.value=nowMonth;
   // Date filter listeners
