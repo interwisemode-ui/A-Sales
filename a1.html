@@ -2200,12 +2200,8 @@ function loadExpenseFile(input){
 
 function parseExpense(raw, monthKey){
   if(!raw||raw.length<2){showToast('⚠ 데이터 없음');return;}
-  // Format: row0=headers(날짜행), col0=category
-  // Find date row (row 0) - cols 1,2,3... = days
-  const headerRow=raw[0]||[];
-  const result={}; // {date: {category: amount}}
-  
-  // Get year/month from monthKey (YYYY-MM) or from file
+
+  // Get year/month from monthKey
   let year, month;
   if(monthKey&&monthKey.length===7){
     year=parseInt(monthKey.split('-')[0]);
@@ -2217,27 +2213,56 @@ function parseExpense(raw, monthKey){
     monthKey=year+'-'+String(month).padStart(2,'0');
   }
 
-  // Find day columns
+  // ── 헤더 행 찾기 (1행=타이틀, 2행=헤더 구조 대응) ──
+  let headerRowIdx=0;
+  for(let r=0;r<Math.min(5,raw.length);r++){
+    const row=raw[r]||[];
+    const first=String(row[0]||'').trim();
+    // "분류" 텍스트가 있거나, B열부터 날짜 패턴이 있는 행
+    if(first==='분류'||(row.length>1&&/\d+\/\d+/.test(String(row[1]||'')))){
+      headerRowIdx=r; break;
+    }
+  }
+
+  const headerRow=raw[headerRowIdx]||[];
+  const result={};
+
+  // ── 날짜 열 파싱: "4/11(토)", "4/11", 숫자 모두 처리 ──
   const dayCols=[];
   for(let c=1;c<headerRow.length;c++){
-    const v=headerRow[c];
-    const day=parseInt(v);
-    if(day>=1&&day<=31){
-      const dateStr=year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    const v=String(headerRow[c]||'').trim();
+    if(!v)continue;
+    // "M/D(요일)" or "M/D" 형식
+    const mSlash=v.match(/^(\d+)\/(\d+)/);
+    if(mSlash){
+      const m=parseInt(mSlash[1]), d=parseInt(mSlash[2]);
+      let useYear=year, useMonth=m;
+      if(useMonth<month) useYear=year+1; // 익년
+      const dateStr=useYear+'-'+String(useMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      dayCols.push({col:c,dateStr});
+      continue;
+    }
+    // 순수 숫자(일자만)
+    const num=parseInt(v);
+    if(!isNaN(num)&&num>=1&&num<=31){
+      const dateStr=year+'-'+String(month).padStart(2,'0')+'-'+String(num).padStart(2,'0');
       dayCols.push({col:c,dateStr});
     }
   }
 
-  // Read each category row
-  for(let r=1;r<raw.length;r++){
+  if(!dayCols.length){showToast('⚠ 날짜 열을 찾지 못했어요. 월 선택 후 다시 시도해주세요.');return;}
+
+  // ── 카테고리 행 읽기 ──
+  for(let r=headerRowIdx+1;r<raw.length;r++){
     const row=raw[r]||[];
     const catRaw=String(row[0]||'').trim();
     if(!catRaw)continue;
-    // Match to known categories
+    // 합계 행 건너뛰기
+    if(catRaw.includes('합계')||catRaw.includes('합 계'))continue;
     const cat=EXPENSE_CATEGORIES.find(c=>catRaw.toUpperCase()===c.toUpperCase())||catRaw;
     dayCols.forEach(({col,dateStr})=>{
       const v=row[col];
-      const amt=(v===''||v===null||v===undefined||v!==v)?0:parseFloat(v)||0;
+      const amt=(v===''||v===null||v===undefined||isNaN(v))?0:parseFloat(v)||0;
       if(amt>0){
         if(!result[dateStr])result[dateStr]={};
         result[dateStr][cat]=(result[dateStr][cat]||0)+amt;
