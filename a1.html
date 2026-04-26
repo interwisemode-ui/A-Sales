@@ -312,6 +312,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
   <div class="tab"         onclick="window.switchTab('staffstats')">👥 스태프 통계</div>
   <div class="tab"         onclick="window.switchTab('manage')">⚙ 스태프 관리</div>
   <div class="tab"         onclick="window.switchTab('attendance')">📋 출근부</div>
+  <div class="tab"         onclick="window.switchTab('expense')">💸 경비</div>
+  <div class="tab"         onclick="window.switchTab('profit')">📊 손익</div>
 </div>
 
 <div class="main">
@@ -684,6 +686,32 @@ tr:hover td{background:rgba(255,255,255,.018);}
     </div>
   </div>
 </div>
+
+    <!-- EXPENSE TAB -->
+    <div id="tab-expense" class="tab-content">
+      <div class="rec-header">
+        <div class="rec-title">경비</div>
+        <div class="filter-bar">
+          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;">
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">⬆ 엑셀 업로드</button>
+          <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
+        </div>
+      </div>
+      <div id="expenseContent"><div style="color:var(--text3);padding:20px;text-align:center">월을 선택하고 엑셀 파일을 업로드해주세요</div></div>
+    </div>
+
+    <!-- PROFIT TAB -->
+    <div id="tab-profit" class="tab-content">
+      <div class="rec-header">
+        <div class="rec-title">손익</div>
+        <div class="filter-bar">
+          <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
+          <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
+          <button class="quick-btn" onclick="window.setProfitMonth('last')">지난달</button>
+        </div>
+      </div>
+      <div id="profitContent"></div>
+    </div>
 
 
 <!-- Bulk Delete Modal -->
