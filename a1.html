@@ -1436,7 +1436,6 @@ function switchTab(n){
 }
 window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
-window.loadExpenseImage=loadExpenseImage;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
 window.openBulkDelete=openBulkDelete;
@@ -2336,7 +2335,8 @@ function loadExpenseFromDB(monthKey){
 }
 
 // ── IMAGE EXPENSE UPLOAD (AI parsing) ──────────────────────
-window.loadExpenseImage = async function(input){
+async function loadExpenseImage(input){
+window.loadExpenseImage=loadExpenseImage;
   const file = input.files[0]; if(!file) return;
   const monthEl = document.getElementById('expenseMonth');
   const monthKey = monthEl.value;
