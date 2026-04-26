@@ -560,6 +560,37 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div id="attContent"></div>
     </div>
 
+    <!-- EXPENSE TAB -->
+    <div id="tab-expense" class="tab-content">
+      <div class="rec-header">
+        <div class="rec-title">경비</div>
+        <div class="filter-bar">
+          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;">
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
+          <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
+          <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
+          <input type="file" id="expenseImageInput" accept="image/*" style="display:none;" onchange="window.loadExpenseImage(this)">
+        </div>
+      </div>
+      <div id="expenseAiStatus" style="display:none;padding:12px 16px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;margin:12px 0;color:var(--blue);font-size:13px;">
+        🤖 AI가 이미지를 분석하고 있어요...
+      </div>
+      <div id="expenseContent"><div style="color:var(--text3);padding:20px;text-align:center">월을 선택하고 엑셀 또는 이미지를 업로드해주세요</div></div>
+    </div>
+
+    <!-- PROFIT TAB -->
+    <div id="tab-profit" class="tab-content">
+      <div class="rec-header">
+        <div class="rec-title">손익 결산</div>
+        <div class="filter-bar">
+          <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
+          <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
+          <button class="quick-btn" onclick="window.setProfitMonth('last')">지난달</button>
+        </div>
+      </div>
+      <div id="profitContent"></div>
+    </div>
+
   </div>
 </div>
 
@@ -686,39 +717,6 @@ tr:hover td{background:rgba(255,255,255,.018);}
     </div>
   </div>
 </div>
-
-    <!-- EXPENSE TAB -->
-    <div id="tab-expense" class="tab-content">
-      <div class="rec-header">
-        <div class="rec-title">경비</div>
-        <div class="filter-bar">
-          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;">
-          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
-          <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
-          <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
-          <input type="file" id="expenseImageInput" accept="image/*" style="display:none;" onchange="window.loadExpenseImage(this)">
-        </div>
-      </div>
-      <div id="expenseAiStatus" style="display:none;padding:12px 16px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;margin:12px 0;color:var(--blue);font-size:13px;">
-        🤖 AI가 이미지를 분석하고 있어요...
-      </div>
-      <div id="expenseContent"><div style="color:var(--text3);padding:20px;text-align:center">월을 선택하고 엑셀 또는 이미지를 업로드해주세요</div></div>
-    </div>
-
-    <!-- PROFIT TAB -->
-    <div id="tab-profit" class="tab-content">
-      <div class="rec-header">
-        <div class="rec-title">손익 결산</div>
-        <div class="filter-bar">
-          <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
-          <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
-          <button class="quick-btn" onclick="window.setProfitMonth('last')">지난달</button>
-        </div>
-      </div>
-      <div id="profitContent"></div>
-    </div>
-
-
 <!-- Bulk Delete Modal -->
 <div class="modal-overlay" id="bulkDeleteModal">
   <div class="modal">
@@ -2187,17 +2185,19 @@ function loadExpenseFile(input){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:false});
+      const wb=window.XLSX.read(e.target.result,{type:'array',cellDates:false,cellStyles:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
+      // Get column info to detect hidden columns
+      const colInfo=ws['!cols']||[];
       const raw=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
-      parseExpense(raw, monthEl.value);
+      parseExpense(raw, monthEl.value, colInfo);
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
   input.value='';
 }
 
-function parseExpense(raw, monthKey){
+function parseExpense(raw, monthKey, colInfo=[]){
   if(!raw||raw.length<2){showToast('⚠ 데이터 없음');return;}
 
   // Get year/month from monthKey
@@ -2237,6 +2237,8 @@ function parseExpense(raw, monthKey){
   }
 
   for(let c=1;c<headerRow.length;c++){
+    // 숨긴 열 건너뛰기
+    if(colInfo[c]&&colInfo[c].hidden)continue;
     const raw=headerRow[c];
     const v=String(raw||'').trim();
     if(!v||v==='')continue;
