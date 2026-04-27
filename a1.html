@@ -537,7 +537,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
     </div>
 
     <div id="tab-manage" class="tab-content">
-      <div class="rec-header"><div class="rec-title">스태프 관리</div></div>
+      <div class="rec-header">
+        <div class="rec-title">스태프 관리</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-sm" onclick="fixExistingNamesCase()" style="background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);font-size:12px;">🔧 이름 대문자 통일</button>
+          <span id="fixCaseStatus" style="font-size:11px;color:var(--text3);"></span>
+        </div>
+      </div>
       <div class="add-row">
         <input class="input-field" type="text" id="newStaffName" placeholder="이름 (영문 대문자)" oninput="this.value=this.value.toUpperCase()">
         <label class="mgr-check"><input type="checkbox" id="newStaffMgr"> 매니저</label>
@@ -1026,14 +1032,14 @@ function submitEntry(){
     id:editId||Date.now().toString(),time,
     date:document.getElementById('entryDate').value,
     room:selRoom,
-    bookers:[...selBookers],
+    bookers:selBookers.map(s=>s.toUpperCase()),
     booking:getBookingType(),
     payment:selPayment||'',
     total,cash,card,upi,
     dc:+document.getElementById('amtDC').value||0,
     country:selCountry,
     pax:selPax,
-    staff:[...selStaff],
+    staff:selStaff.map(s=>s.toUpperCase()),
     staff2:[...selStaff2],
     checkin:document.getElementById('checkinTime').value,
     checkout:document.getElementById('checkoutTime').value,
@@ -1556,6 +1562,35 @@ function downloadStaffStatsXlsx(){
 }
 window.downloadStaffStatsXlsx=downloadStaffStatsXlsx;
 
+// ── FIX EXISTING NAMES UPPERCASE ───────────────────────────
+async function fixExistingNamesCase(){
+  const statusEl=document.getElementById('fixCaseStatus');
+  statusEl.textContent='처리 중...';
+  let fixed=0;
+  const snap=await new Promise(res=>onValue(ref(db,'records'),res,{onlyOnce:true}));
+  if(!snap.exists()){statusEl.textContent='데이터 없음';return;}
+  const updates={};
+  snap.forEach(child=>{
+    const r=child.val();
+    let changed=false;
+    const newBookers=(r.bookers||[]).map(s=>{const u=s.toUpperCase();if(u!==s)changed=true;return u;});
+    const newStaff=(r.staff||[]).map(s=>{const u=s.toUpperCase();if(u!==s)changed=true;return u;});
+    const newStaff2=(r.staff2||[]).map(s=>{const u=s.toUpperCase();if(u!==s)changed=true;return u;});
+    if(changed){
+      updates['records/'+child.key+'/bookers']=newBookers;
+      updates['records/'+child.key+'/staff']=newStaff;
+      updates['records/'+child.key+'/staff2']=newStaff2;
+      fixed++;
+    }
+  });
+  if(fixed===0){statusEl.textContent='✓ 이미 모두 대문자예요';return;}
+  const {update}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+  await update(ref(db),updates);
+  statusEl.textContent=`✓ ${fixed}건 수정 완료! 새로고침해주세요`;
+  showToast(`✓ ${fixed}건 이름 대문자로 통일 완료!`);
+}
+window.fixExistingNamesCase=fixExistingNamesCase;
+
 // STAFF MANAGE
 function renderManageGrid(){
   const g=document.getElementById('staffManageGrid');g.innerHTML='';
@@ -1957,7 +1992,7 @@ function saveBking(){
     date,room:+room,
     pax:+document.getElementById('bkPax').value||0,
     country:bkSelCty,
-    bookers:[...bkSelBookers],
+    bookers:bkSelBookers.map(s=>s.toUpperCase()),
     note:document.getElementById('bkNote').value,
     status:'active',
     createdAt:new Date().toISOString()
@@ -2158,8 +2193,8 @@ function confirmBkToSales(){
     dc:+document.getElementById('bkConfirmDC')?.value||0,
     country:bk.country||'',
     pax:bk.pax||0,
-    staff:[...bkConfirmStaff],
-    staff2:[...bkConfirmStaff2],
+    staff:bkConfirmStaff.map(s=>s.toUpperCase()),
+    staff2:bkConfirmStaff2.map(s=>s.toUpperCase()),
     checkin:'',checkout:'',note:bk.note||''
   };
   saveRecordDB(rec);
