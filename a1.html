@@ -1416,6 +1416,48 @@ function downloadStaffStatsXlsx(){
 
   const wb=window.XLSX.utils.book_new();
 
+  // 부킹자 없는 레코드 → 직전 레코드 부킹자 상속
+  const recsSorted=[...recs].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  let lastBookers=[];
+  const recsFixed=recsSorted.map(r=>{
+    const bookers=r.bookers||[];
+    if(bookers.length===0){
+      return {...r, bookers:[...lastBookers]};
+    }
+    if(!bookers.includes('WALKIN')) lastBookers=[...bookers];
+    return r;
+  });
+
+  // WALKIN 별도 집계 (상속 후 기준)
+  const walkinRecs=recsFixed.filter(r=>(r.bookers||[]).includes('WALKIN'));
+  const walkinRev=walkinRecs.reduce((s,r)=>s+(r.total||0),0);
+  const walkinCnt=walkinRecs.length;
+
+  // 전체 매출 (장부 기준)
+  const totalAllRev=recsFixed.reduce((s,r)=>s+(r.total||0),0);
+  const totalAllCnt=recsFixed.length;
+
+  // bMap/sMap/dcMap 재계산 (recsFixed 기준으로)
+  const bMapF={}, sMapF={}, dcMapF={};
+  recsFixed.forEach(r=>{
+    const bookers=(r.bookers||[]).filter(s=>s&&s!=='WALKIN');
+    const isShared=bookers.length>1;
+    const share=isShared?r.total/bookers.length:r.total;
+    const dcShare=isShared?(r.dc||0)/bookers.length:(r.dc||0);
+    bookers.forEach(s=>{
+      if(!bMapF[s])bMapF[s]={cnt:0,tot:0,shared:0,dc:0};
+      bMapF[s].cnt++;bMapF[s].tot+=share;bMapF[s].dc+=dcShare;
+      if(isShared)bMapF[s].shared++;
+      if(!dcMapF[s])dcMapF[s]={dc:0,cnt:0};
+      dcMapF[s].dc+=(r.dc||0);dcMapF[s].cnt++;
+    });
+    (r.staff||[]).forEach(s=>{if(!s)return;if(!sMapF[s])sMapF[s]={cnt1:0,cnt2:0};sMapF[s].cnt1++;});
+    (r.staff2||[]).forEach(s=>{if(!s)return;if(!sMapF[s])sMapF[s]={cnt1:0,cnt2:0};sMapF[s].cnt2++;});
+  });
+
+  const bSortedF=Object.entries(bMapF).sort((a,b)=>Math.round(b[1].tot)-Math.round(a[1].tot));
+  const sSortedF=Object.entries(sMapF).sort((a,b)=>((b[1].cnt1*200)+(b[1].cnt2*100))-((a[1].cnt1*200)+(a[1].cnt2*100)));
+
   // ── Sheet1: Booking Stats ──
   const bRows=[
     ['Staff Stats - Booking Revenue'],
@@ -1423,7 +1465,7 @@ function downloadStaffStatsXlsx(){
     [],
     ['Name','Role','Total Revenue','Count','Shared','DC Total','DC Rate(%)']
   ];
-  bSorted.forEach(([s,d])=>{
+  bSortedF.forEach(([s,d])=>{
     const gross=Math.round(d.tot)+Math.round(d.dc);
     const pct=gross>0?Math.round(d.dc/gross*100):0;
     bRows.push([
@@ -1437,7 +1479,10 @@ function downloadStaffStatsXlsx(){
     ]);
   });
   bRows.push([]);
-  bRows.push(['TOTAL','',bSorted.reduce((s,[,d])=>s+Math.round(d.tot),0),bSorted.reduce((s,[,d])=>s+d.cnt,0)]);
+  bRows.push(['WALKIN','—',Math.round(walkinRev),walkinCnt,'','','']);
+  bRows.push([]);
+  bRows.push(['TOTAL (Staff)','',bSortedF.reduce((s,[,d])=>s+Math.round(d.tot),0),bSortedF.reduce((s,[,d])=>s+d.cnt,0)]);
+  bRows.push(['TOTAL (All incl. WALKIN)','',Math.round(totalAllRev),totalAllCnt]);
 
   const ws1=window.XLSX.utils.aoa_to_sheet(bRows);
   ws1['!cols']=[{wch:16},{wch:10},{wch:14},{wch:8},{wch:8},{wch:12},{wch:10}];
@@ -1450,7 +1495,7 @@ function downloadStaffStatsXlsx(){
     [],
     ['Name','Role','Sel1 Count','Sel2 Count','Sel1 Income(×200)','Sel2 Income(×100)','Total Income']
   ];
-  sSorted.forEach(([s,d])=>{
+  sSortedF.forEach(([s,d])=>{
     sRows.push([
       s,
       managerList.includes(s)?'Manager':'Staff',
@@ -1462,14 +1507,14 @@ function downloadStaffStatsXlsx(){
     ]);
   });
   sRows.push([]);
-  sRows.push(['TOTAL','','','','','',sSorted.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0)]);
+  sRows.push(['TOTAL','','','','','',sSortedF.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0)]);
 
   const ws2=window.XLSX.utils.aoa_to_sheet(sRows);
   ws2['!cols']=[{wch:16},{wch:10},{wch:12},{wch:12},{wch:16},{wch:16},{wch:14}];
   window.XLSX.utils.book_append_sheet(wb,ws2,'Selection Stats');
 
   // ── Sheet3: Summary ──
-  const allStaff=[...new Set([...bSorted.map(([s])=>s),...sSorted.map(([s])=>s)])];
+  const allStaff=[...new Set([...bSortedF.map(([s])=>s),...sSortedF.map(([s])=>s)])];
   const sumRows=[
     ['Staff Stats - Summary'],
     ['Period: '+period],
@@ -1477,8 +1522,8 @@ function downloadStaffStatsXlsx(){
     ['Name','Role','Booking Rev.','Booking Cnt','Sel Income','Sel Count','DC Total','Grand Total']
   ];
   allStaff.forEach(s=>{
-    const b=bMap[s]||{tot:0,cnt:0,dc:0};
-    const sel=sMap[s]||{cnt1:0,cnt2:0};
+    const b=bMapF[s]||{tot:0,cnt:0,dc:0};
+    const sel=sMapF[s]||{cnt1:0,cnt2:0};
     const selIncome=(sel.cnt1*200)+(sel.cnt2*100);
     const selCnt=sel.cnt1+sel.cnt2;
     sumRows.push([
@@ -1492,6 +1537,13 @@ function downloadStaffStatsXlsx(){
       Math.round(b.tot)+selIncome
     ]);
   });
+  sumRows.push([]);
+  sumRows.push(['WALKIN / Unassigned','—',Math.round(walkinRev),walkinCnt,'','','',Math.round(walkinRev)]);
+  sumRows.push([]);
+  const staffTotalRev=bSortedF.reduce((s,[,d])=>s+Math.round(d.tot),0);
+  const staffTotalSel=sSortedF.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0);
+  sumRows.push(['TOTAL (Staff)','',staffTotalRev,bSortedF.reduce((s,[,d])=>s+d.cnt,0),staffTotalSel,'','',staffTotalRev+staffTotalSel]);
+  sumRows.push(['TOTAL (All incl. WALKIN)','',Math.round(totalAllRev),totalAllCnt,'','','',Math.round(totalAllRev)]);
 
   const ws3=window.XLSX.utils.aoa_to_sheet(sumRows);
   ws3['!cols']=[{wch:16},{wch:10},{wch:14},{wch:12},{wch:12},{wch:10},{wch:12},{wch:14}];
