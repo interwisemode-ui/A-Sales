@@ -2656,6 +2656,7 @@ function renderProfit(){
         h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
+          <td style="padding:6px 10px;border:1px solid var(--border);"></td>
           ${td('<b>소계</b>','font-weight:700;')}
           ${td('<b>₹'+fixedTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
           ${td(pct(fixedTot),'text-align:right;color:var(--text3);')}
@@ -2697,15 +2698,19 @@ function renderProfit(){
 
         // ── 비용 합계 ──
         h+=`<tr style="background:rgba(248,113,113,0.08);">
-          <td colspan="2" style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
+          <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
+          ${td('<b>고정비+비용+TAX+라이선스</b>','font-size:10px;color:var(--text3);')}
           ${td('<b>₹'+expTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
           ${td('<b>'+pct(expTot)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
         </tr>`;
 
         // ── 손익 ──
         h+=`<tr style="background:${profitVal>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.12)'};">
-          <td colspan="2" style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
+          <td style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
             ${profitVal>=0?'▲ 흑자':'▼ 적자'}
+          </td>
+          <td style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
+            매출 - 비용합계
           </td>
           <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
             ₹${Math.abs(profitVal).toLocaleString()}
