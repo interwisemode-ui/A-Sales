@@ -530,6 +530,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="quick-btn" onclick="setQuickDate('last_month','staffstats')">지난달</button>
             <button class="quick-btn" onclick="setQuickDate('all','staffstats')">전체</button>
           </div>
+          <button class="btn btn-sm" onclick="downloadStaffStatsXlsx()" style="background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);white-space:nowrap;">⬇ 엑셀</button>
         </div>
       </div>
       <div id="staffStatsContent"></div>
@@ -1381,6 +1382,127 @@ function renderStaffStats(){
   if(!bSorted.length&&!sSorted.length)html='<div style="color:var(--text3);padding:20px">데이터 없음</div>';
   document.getElementById('staffStatsContent').innerHTML=html;
 }
+
+// ── STAFF STATS XLSX DOWNLOAD ──────────────────────────────
+function downloadStaffStatsXlsx(){
+  if(typeof window.XLSX==='undefined'){showToast('⚠ 라이브러리 로딩 중, 잠시 후 다시 시도해주세요');return;}
+
+  const from4=document.getElementById('filterDate4From')?.value||'';
+  const to4=document.getElementById('filterDate4To')?.value||'';
+  const recs=records.filter(r=>(!from4||r.date>=from4)&&(!to4||r.date<=to4));
+  const period=(from4||'전체')+' ~ '+(to4||'전체');
+
+  // 부킹자 통계 계산
+  const bMap={}, sMap={}, dcMap={};
+  recs.forEach(r=>{
+    const bookers=(r.bookers||[]).filter(s=>s&&s!=='WALKIN');
+    const isShared=bookers.length>1;
+    const share=isShared?r.total/bookers.length:r.total;
+    const dcShare=isShared?(r.dc||0)/bookers.length:(r.dc||0);
+    bookers.forEach(s=>{
+      if(!bMap[s])bMap[s]={cnt:0,tot:0,shared:0,dc:0};
+      bMap[s].cnt++;bMap[s].tot+=share;bMap[s].dc+=dcShare;
+      if(isShared)bMap[s].shared++;
+      if(!dcMap[s])dcMap[s]={dc:0,cnt:0};
+      dcMap[s].dc+=(r.dc||0);dcMap[s].cnt++;
+    });
+    (r.staff||[]).forEach(s=>{if(!s)return;if(!sMap[s])sMap[s]={cnt1:0,cnt2:0};sMap[s].cnt1++;});
+    (r.staff2||[]).forEach(s=>{if(!s)return;if(!sMap[s])sMap[s]={cnt1:0,cnt2:0};sMap[s].cnt2++;});
+  });
+
+  const bSorted=Object.entries(bMap).sort((a,b)=>Math.round(b[1].tot)-Math.round(a[1].tot));
+  const sSorted=Object.entries(sMap).sort((a,b)=>((b[1].cnt1*200)+(b[1].cnt2*100))-((a[1].cnt1*200)+(a[1].cnt2*100)));
+  const dcSorted=Object.entries(dcMap).filter(([,d])=>d.dc>0).sort((a,b)=>b[1].dc-a[1].dc);
+
+  const wb=window.XLSX.utils.book_new();
+
+  // ── 시트1: 부킹자 통계 ──
+  const bRows=[
+    ['스태프 통계 - 부킹자 매출'],
+    ['기간: '+period],
+    [],
+    ['이름','구분','매출 합계','건수','분할건','DC 합계','DC율(%)']
+  ];
+  bSorted.forEach(([s,d])=>{
+    const gross=Math.round(d.tot)+Math.round(d.dc);
+    const pct=gross>0?Math.round(d.dc/gross*100):0;
+    bRows.push([
+      s,
+      managerList.includes(s)?'매니저':'스태프',
+      Math.round(d.tot),
+      d.cnt,
+      d.shared,
+      Math.round(d.dc),
+      pct
+    ]);
+  });
+  bRows.push([]);
+  bRows.push(['합계','',bSorted.reduce((s,[,d])=>s+Math.round(d.tot),0),bSorted.reduce((s,[,d])=>s+d.cnt,0)]);
+
+  const ws1=window.XLSX.utils.aoa_to_sheet(bRows);
+  ws1['!cols']=[{wch:16},{wch:10},{wch:14},{wch:8},{wch:8},{wch:12},{wch:8}];
+  window.XLSX.utils.book_append_sheet(wb,ws1,'부킹자통계');
+
+  // ── 시트2: 셀렉션 통계 ──
+  const sRows=[
+    ['스태프 통계 - 셀렉션 수입'],
+    ['기간: '+period],
+    [],
+    ['이름','구분','셀1 건수','셀2 건수','셀1 수입(×200)','셀2 수입(×100)','총 수입']
+  ];
+  sSorted.forEach(([s,d])=>{
+    sRows.push([
+      s,
+      managerList.includes(s)?'매니저':'스태프',
+      d.cnt1,
+      d.cnt2,
+      d.cnt1*200,
+      d.cnt2*100,
+      (d.cnt1*200)+(d.cnt2*100)
+    ]);
+  });
+  sRows.push([]);
+  sRows.push(['합계','','','','','',sSorted.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0)]);
+
+  const ws2=window.XLSX.utils.aoa_to_sheet(sRows);
+  ws2['!cols']=[{wch:16},{wch:10},{wch:10},{wch:10},{wch:14},{wch:14},{wch:12}];
+  window.XLSX.utils.book_append_sheet(wb,ws2,'셀렉션통계');
+
+  // ── 시트3: 통합 요약 ──
+  const allStaff=[...new Set([...bSorted.map(([s])=>s),...sSorted.map(([s])=>s)])];
+  const sumRows=[
+    ['스태프 통계 - 통합 요약'],
+    ['기간: '+period],
+    [],
+    ['이름','구분','부킹매출','부킹건수','셀수입','셀건수','DC합계','합계']
+  ];
+  allStaff.forEach(s=>{
+    const b=bMap[s]||{tot:0,cnt:0,dc:0};
+    const sel=sMap[s]||{cnt1:0,cnt2:0};
+    const selIncome=(sel.cnt1*200)+(sel.cnt2*100);
+    const selCnt=sel.cnt1+sel.cnt2;
+    sumRows.push([
+      s,
+      managerList.includes(s)?'매니저':'스태프',
+      Math.round(b.tot),
+      b.cnt,
+      selIncome,
+      selCnt,
+      Math.round(b.dc),
+      Math.round(b.tot)+selIncome
+    ]);
+  });
+
+  const ws3=window.XLSX.utils.aoa_to_sheet(sumRows);
+  ws3['!cols']=[{wch:16},{wch:10},{wch:12},{wch:10},{wch:10},{wch:8},{wch:10},{wch:12}];
+  window.XLSX.utils.book_append_sheet(wb,ws3,'통합요약');
+
+  // 파일명
+  const fname='스태프통계_'+(from4||'전체')+(to4?'_~_'+to4:'')+'.xlsx';
+  window.XLSX.writeFile(wb,fname);
+  showToast('✓ 엑셀 다운로드 완료!');
+}
+window.downloadStaffStatsXlsx=downloadStaffStatsXlsx;
 
 // STAFF MANAGE
 function renderManageGrid(){
