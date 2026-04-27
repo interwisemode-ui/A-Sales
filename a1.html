@@ -2613,7 +2613,7 @@ function renderProfit(){
                 data-key="${key}"
                 data-calc="${calcVal}"
                 onchange="window.saveProfitOverride('${monthVal}','${key}',this.value,${calcVal})"
-                style="width:100px;background:${isOverridden?'rgba(251,191,36,0.1)':'transparent'};border:1px solid ${isOverridden?'var(--yellow)':'transparent'};border-radius:4px;padding:2px 4px;color:var(--text);font-size:12px;text-align:right;font-family:inherit;">
+                style="width:90px;max-width:100%;background:${isOverridden?'rgba(251,191,36,0.1)':'transparent'};border:1px solid ${isOverridden?'var(--yellow)':'transparent'};border-radius:4px;padding:2px 4px;color:var(--text);font-size:12px;text-align:right;font-family:inherit;">
               ${isOverridden?`<span title="수동입력값. 클릭시 원래값으로" onclick="window.resetProfitOverride('${monthVal}','${key}')" style="cursor:pointer;color:var(--yellow);font-size:10px;">↺</span>`:''}
             </div>
           </td>`;
@@ -2628,12 +2628,13 @@ function renderProfit(){
         </div>
         <div style="font-size:11px;color:var(--yellow);margin-bottom:8px;text-align:right;">✏ 금액을 직접 클릭해서 수정할 수 있어요 &nbsp;|&nbsp; <span style="color:var(--text3)">↺ = 자동계산값으로 되돌리기</span></div>`;
 
-        h+=`<table style="width:100%;border-collapse:collapse;font-size:12px;">`;
-        const th=(txt,extra='')=>`<th style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3);${extra}">${txt}</th>`;
-        const td=(txt,extra='')=>`<td style="padding:6px 10px;border:1px solid var(--border);${extra}">${txt}</td>`;
+        h+=`<div style="width:100%;overflow-x:auto;">`;
+        h+=`<table style="width:100%;min-width:280px;border-collapse:collapse;font-size:12px;">`;
+        const th=(txt,extra='')=>`<th style="padding:5px 4px;background:var(--bg3);border:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3);white-space:nowrap;${extra}">${txt}</th>`;
+        const td=(txt,extra='')=>`<td style="padding:5px 4px;border:1px solid var(--border);${extra}">${txt}</td>`;
         const tr=(cells)=>`<tr>${cells}</tr>`;
 
-        h+=tr(th('구분')+th('항목')+th('금액')+th('매출 대비'));
+        h+=tr(th('구분','width:15%;')+th('항목','width:20%;')+th('금액','width:42%;')+th('%','width:13%;'));
 
         // ── 매출 ──
         h+=`<tr>
@@ -2656,7 +2657,7 @@ function renderProfit(){
         h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
-          <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
+          <td style="padding:5px 6px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red);">₹${fixedTot.toLocaleString()}</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(fixedTot)}</td>
         </tr>`;
@@ -2677,7 +2678,7 @@ function renderProfit(){
           </tr>`;
         }
         h+=`<tr style="background:rgba(251,191,36,0.04);">
-          <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
+          <td style="padding:5px 6px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--yellow);">₹${varTot.toLocaleString()}</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(varTot)}</td>
         </tr>`;
@@ -2696,8 +2697,8 @@ function renderProfit(){
 
         // ── 비용 합계 ──
         h+=`<tr style="background:rgba(248,113,113,0.08);">
-          <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
-          ${td('<b>고정비+비용+TAX+라이선스</b>','font-size:10px;color:var(--text3);')}
+          <td style="padding:6px 8px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
+          ${td('')}
           ${td('<b>₹'+expTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
           ${td('<b>'+pct(expTot)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
         </tr>`;
@@ -2707,9 +2708,7 @@ function renderProfit(){
           <td style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
             ${profitVal>=0?'▲ 흑자':'▼ 적자'}
           </td>
-          <td style="padding:10px;border:1px solid var(--border);font-weight:700;text-align:center;font-size:14px;color:${profitColor}">
-            매출 - 비용합계
-          </td>
+          <td style="padding:10px;border:1px solid var(--border);"></td>
           <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
             ₹${Math.abs(profitVal).toLocaleString()}
           </td>
@@ -2718,7 +2717,7 @@ function renderProfit(){
           </td>
         </tr>`;
 
-        h+=`</table>`;
+        h+=`</table></div>`;
         h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
         h+=`</div>`;
         document.getElementById('profitContent').innerHTML=h;
