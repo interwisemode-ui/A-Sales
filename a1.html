@@ -2504,16 +2504,33 @@ function renderProfit(){
     salesByMethod.UPI +=(r.upi ||0);
   });
 
+  // 매출 데이터의 마지막 날짜
+  const lastSalesDate = periodRecs.length
+    ? periodRecs.map(r=>r.date).sort().pop()
+    : '';
+
   let combinedExp={};
   onValue(ref(db,'expenses/'+monthVal),snap=>{
     if(snap.exists()) Object.assign(combinedExp, snap.val().data||{});
     onValue(ref(db,'expenses/'+nextMonthVal),snap2=>{
       if(snap2.exists()) Object.assign(combinedExp, snap2.val().data||{});
 
-      // Sum expenses by category (within period up to today)
+      // 경비 데이터의 마지막 날짜
+      const expDates = Object.keys(combinedExp).filter(d=>d>=periodFrom&&d<=periodTo);
+      const lastExpDate = expDates.length ? expDates.sort().pop() : '';
+
+      // 기준일 = 매출/경비 중 더 최근 날짜 (오늘보다 미래면 오늘로 제한)
+      const lastDataDate = [lastSalesDate, lastExpDate].filter(Boolean).sort().pop() || todayStr;
+      const baseDate = lastDataDate <= todayStr ? lastDataDate : todayStr;
+
+      // 기준일 표시용
+      const baseDateObj = new Date(baseDate+'T00:00:00');
+      const baseDisp = `${baseDateObj.getFullYear()}년 ${baseDateObj.getMonth()+1}월 ${baseDateObj.getDate()}일`;
+
+      // Sum expenses by category (within period up to baseDate)
       const catTotals={};
       Object.keys(combinedExp).forEach(date=>{
-        if(date>=periodFrom&&date<=periodTo&&date<=todayStr){
+        if(date>=periodFrom&&date<=periodTo&&date<=baseDate){
           Object.entries(combinedExp[date]).forEach(([cat,amt])=>{
             catTotals[cat]=(catTotals[cat]||0)+amt;
           });
@@ -2534,10 +2551,10 @@ function renderProfit(){
       const profitColor = profit>=0?'var(--green)':'var(--red)';
 
       const pct=(v)=>totalSales>0?((v/totalSales)*100).toFixed(1)+'%':'-';
-      const fmt=(v)=>v>0?'₩'+v.toLocaleString():'-';
+      const fmt=(v)=>v>0?'₹'+v.toLocaleString():'-';
 
       // ── 오늘 날짜 제목 ──
-      const todayDisp=`${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
+      // baseDisp already set above
 
       // ── Firebase에서 수동 오버라이드 로드 ──
       // profitOverrides: {카테고리키: 수동입력금액}
@@ -2584,7 +2601,7 @@ function renderProfit(){
         const profitColor= profitVal>=0?'var(--green)':'var(--red)';
 
         const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
-        const fmt=(v)=>v>0?'₩'+v.toLocaleString():'-';
+        const fmt=(v)=>v>0?'₹'+v.toLocaleString():'-';
 
         // 수동 편집 인풋 렌더
         const editCell=(key,val,calcVal)=>{
@@ -2606,7 +2623,7 @@ function renderProfit(){
         let h='';
         h+=`<div style="max-width:620px;margin:0 auto;">`;
         h+=`<div style="text-align:center;font-weight:700;font-size:15px;padding:12px 0;color:var(--accent2)">
-          ${year}년 ${month}월 결산 — <span style="color:var(--text2)">${todayDisp} 현재</span>
+          ${year}년 ${month}월 결산 — <span style="color:var(--text2)">${baseDisp} 현재</span>
           <div style="font-size:11px;color:var(--text3);font-weight:400;margin-top:2px;">기간: ${periodFrom} ~ ${periodTo}</div>
         </div>
         <div style="font-size:11px;color:var(--yellow);margin-bottom:8px;text-align:right;">✏ 금액을 직접 클릭해서 수정할 수 있어요 &nbsp;|&nbsp; <span style="color:var(--text3)">↺ = 자동계산값으로 되돌리기</span></div>`;
@@ -2627,7 +2644,7 @@ function renderProfit(){
         h+=`<tr>${td('현금')}${editCell('CASH',cashVal,salesByMethod.CASH)}${td(pct(cashVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(167,154,248,0.06);">
           ${td('<b>매출 합계</b>','font-weight:700;')}
-          ${td('<b>₩'+salesTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--accent2);')}
+          ${td('<b>₹'+salesTotal.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--accent2);')}
           ${td('<b>100%</b>','text-align:right;font-weight:700;color:var(--accent2);')}
         </tr>`;
 
@@ -2640,7 +2657,7 @@ function renderProfit(){
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
           ${td('<b>소계</b>','font-weight:700;')}
-          ${td('<b>₩'+fixedTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
+          ${td('<b>₹'+fixedTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
           ${td(pct(fixedTot),'text-align:right;color:var(--text3);')}
         </tr>`;
 
@@ -2662,7 +2679,7 @@ function renderProfit(){
         h+=`<tr style="background:rgba(251,191,36,0.04);">
           <td style="padding:6px 10px;border:1px solid var(--border);"></td>
           ${td('<b>소계</b>','font-weight:700;')}
-          ${td('<b>₩'+varTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
+          ${td('<b>₹'+varTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
           ${td(pct(varTot),'text-align:right;color:var(--text3);')}
         </tr>`;
 
@@ -2681,7 +2698,7 @@ function renderProfit(){
         // ── 비용 합계 ──
         h+=`<tr style="background:rgba(248,113,113,0.08);">
           <td colspan="2" style="padding:8px 10px;border:1px solid var(--border);font-weight:700;text-align:center;color:var(--red)">비용 합계</td>
-          ${td('<b>₩'+expTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
+          ${td('<b>₹'+expTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);font-size:13px;')}
           ${td('<b>'+pct(expTot)+'</b>','text-align:right;font-weight:700;color:var(--red);')}
         </tr>`;
 
@@ -2691,7 +2708,7 @@ function renderProfit(){
             ${profitVal>=0?'▲ 흑자':'▼ 적자'}
           </td>
           <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:15px;color:${profitColor}">
-            ₩${Math.abs(profitVal).toLocaleString()}
+            ₹${Math.abs(profitVal).toLocaleString()}
           </td>
           <td style="padding:10px;border:1px solid var(--border);text-align:right;font-weight:700;color:${profitColor}">
             ${pct(profitVal)}
@@ -2699,7 +2716,7 @@ function renderProfit(){
         </tr>`;
 
         h+=`</table>`;
-        h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">* 경비는 ${todayStr}까지 누계 기준</div>`;
+        h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
         h+=`</div>`;
         document.getElementById('profitContent').innerHTML=h;
       } // end buildTable
@@ -2722,7 +2739,7 @@ window.saveProfitOverride=function(monthVal,key,val,calcVal){
     return;
   }
   set(ref(db,'profitOverrides/'+monthVal+'/'+key), num);
-  showToast('✓ 저장됨: '+key+' = ₩'+num.toLocaleString());
+  showToast('✓ 저장됨: '+key+' = ₹'+num.toLocaleString());
   setTimeout(()=>renderProfit(),300);
 };
 window.resetProfitOverride=function(monthVal,key){
