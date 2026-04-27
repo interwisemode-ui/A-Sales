@@ -2657,9 +2657,9 @@ function renderProfit(){
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
           <td style="padding:6px 10px;border:1px solid var(--border);"></td>
-          ${td('<b>소계</b>','font-weight:700;')}
-          ${td('<b>₹'+fixedTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--red);')}
-          ${td(pct(fixedTot),'text-align:right;color:var(--text3);')}
+          <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red);">₹${fixedTot.toLocaleString()}</td>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(fixedTot)}</td>
         </tr>`;
 
         // ── 비용 ──
@@ -2679,9 +2679,9 @@ function renderProfit(){
         }
         h+=`<tr style="background:rgba(251,191,36,0.04);">
           <td style="padding:6px 10px;border:1px solid var(--border);"></td>
-          ${td('<b>소계</b>','font-weight:700;')}
-          ${td('<b>₹'+varTot.toLocaleString()+'</b>','text-align:right;font-weight:700;color:var(--yellow);')}
-          ${td(pct(varTot),'text-align:right;color:var(--text3);')}
+          <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--yellow);">₹${varTot.toLocaleString()}</td>
+          <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(varTot)}</td>
         </tr>`;
 
         // ── TAX ──
