@@ -2656,7 +2656,6 @@ function renderProfit(){
         h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
-          <td style="padding:6px 10px;border:1px solid var(--border);"></td>
           <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red);">₹${fixedTot.toLocaleString()}</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(fixedTot)}</td>
@@ -2678,7 +2677,6 @@ function renderProfit(){
           </tr>`;
         }
         h+=`<tr style="background:rgba(251,191,36,0.04);">
-          <td style="padding:6px 10px;border:1px solid var(--border);"></td>
           <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--yellow);">₹${varTot.toLocaleString()}</td>
           <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;color:var(--text3);">${pct(varTot)}</td>
