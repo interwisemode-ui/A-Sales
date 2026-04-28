@@ -1279,6 +1279,48 @@ function renderStaffStats(){
   const to4=document.getElementById('filterDate4To')?.value||'';
   const recs=records.filter(r=>(!from4||r.date>=from4)&&(!to4||r.date<=to4));
 
+  // 출근 데이터 수집: attendance DB에서 기간 내 출근일수 합산
+  // attendanceByName = { 'AIEN': 10, 'KEMCHI': 8, ... }
+  const attMap={}; // 전역 attData에서 가져옴
+  onValue(ref(db,'attendance'),attSnap=>{
+    if(attSnap.exists()){
+      attSnap.forEach(monthSnap=>{
+        const data=monthSnap.val();
+        (data.staff||[]).forEach(s=>{
+          // 해당 월이 필터 기간과 겹치는지 확인
+          const dates=(data.dates||[]).map(d=>d.dateStr).filter(d=>(!from4||d>=from4)&&(!to4||d<=to4));
+          if(dates.length===0&&from4&&to4){
+            // 날짜 필터가 있는데 겹치지 않으면 해당 월 스킵
+            const monthDates=(data.dates||[]).map(d=>d.dateStr);
+            if(monthDates.length>0){
+              const mFrom=monthDates[0], mTo=monthDates[monthDates.length-1];
+              if(mTo<from4||mFrom>to4) return;
+            }
+          }
+          // 이름 대문자로 통일
+          const name=(s.name||'').toUpperCase();
+          if(!name)return;
+          // 기간 내 출근일수 계산
+          let presentInPeriod=0;
+          if(from4||to4){
+            // 날짜별 출근여부 확인
+            (s.entries||[]).forEach((e,idx)=>{
+              const dateStr=(data.dates||[])[idx]?.dateStr||'';
+              if((!from4||dateStr>=from4)&&(!to4||dateStr<=to4)&&e.type==='present') presentInPeriod++;
+            });
+          } else {
+            presentInPeriod=s.presentCnt||0;
+          }
+          attMap[name]=(attMap[name]||0)+presentInPeriod;
+        });
+      });
+    }
+    _renderStaffStatsInner(recs,from4,to4,attMap);
+  },{onlyOnce:true});
+}
+
+function _renderStaffStatsInner(recs,from4,to4,attMap){
+
   // separate booker map and selection map
   const bMap={},sMap={};
   const dcMap={};
@@ -1311,11 +1353,15 @@ function renderStaffStats(){
   const bSorted=Object.entries(bMap).sort((a,b)=>b[1].cnt-a[1].cnt);
   const sSorted=Object.entries(sMap).sort((a,b)=>(b[1].cnt1+b[1].cnt2)-(a[1].cnt1+a[1].cnt2));
 
-  const bCard=([s,d])=>`<div class="ss-card">
-    <div class="ss-name">${managerList.includes(s)?'🌟':''}${s}</div>
-    <div class="ss-val">${Math.round(d.tot).toLocaleString()}</div>
-    <div class="ss-cnt">${d.cnt}건${d.shared>0?` <span style="color:var(--text3);font-size:10px">(분할${d.shared}건)</span>`:''}</div>
-  </div>`;
+  const bCard=([s,d])=>{
+    const att=attMap[s]||0;
+    const attStr=att>0?` <span style="color:var(--green);font-size:10px">(${att}일 출근)</span>`:'';
+    return `<div class="ss-card">
+      <div class="ss-name">${managerList.includes(s)?'🌟':''}${s}</div>
+      <div class="ss-val">${Math.round(d.tot).toLocaleString()}</div>
+      <div class="ss-cnt">${d.cnt}건${attStr}${d.shared>0?` <span style="color:var(--text3);font-size:10px">(분할${d.shared}건)</span>`:''}</div>
+    </div>`;
+  };
   const sCard=([s,d])=>`<div class="ss-card">
     <div class="ss-name">${managerList.includes(s)?'🌟':''}${s}</div>
     <div class="ss-val">${((d.cnt1*200)+(d.cnt2*100)).toLocaleString()}</div>
@@ -1331,7 +1377,11 @@ function renderStaffStats(){
     // Chart view
     if(bSorted.length){
       const maxB=Math.round(bSorted[0][1].tot);
-      const items=bSorted.map(([s,d])=>({label:(managerList.includes(s)?'🌟':'')+s,value:Math.round(d.tot),sub:d.cnt+'건'}));
+      const items=bSorted.map(([s,d])=>{
+        const att=attMap[s]||0;
+        const attStr=att>0?`(${att}일 출근)`:'';
+        return {label:(managerList.includes(s)?'🌟':'')+s,value:Math.round(d.tot),sub:d.cnt+'건 '+attStr};
+      });
       html+=`<div class="sum-sec"><div class="sum-sec-title">📌 부킹자 매출</div>${buildBarChart(items,maxB,it=>managerList.includes(it.label.replace('🌟',''))?'var(--yellow)':'var(--accent)')}</div>`;
     }
     if(sSorted.length){
