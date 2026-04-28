@@ -3027,51 +3027,69 @@ function loadAttendanceFile(input){
 }
 
 function parseAttendance(raw){
-  // Row 2 = dates (index 2), col 4 = day1 start
+  // 구조: row0=빈행, row1=숫자(1,2,3..), row2=날짜(4/1(수)..), row3=Name+예약건수, row4~=스태프
+  // 날짜는 row2(index 2)의 "4/1(수)" 형식, B열(index 1)부터 시작
   const dateRow=raw[2]||[];
+  const numRow=raw[1]||[];  // 숫자행 (백업용)
   const dates=[];
-  let startCol=4;
-  // Excel serial to JS Date (local, no timezone issues)
+
   function excelSerialToDate(serial){
-    // Excel epoch: Dec 30, 1899, with leap year bug (day 60 = Feb 29 1900 fake)
     const base=new Date(1899,11,30);
-    const ms=Math.round((serial-Math.floor(serial))*86400000);
     const d=new Date(base.getTime()+Math.floor(serial)*86400000);
     return new Date(d.getFullYear(),d.getMonth(),d.getDate());
   }
-  for(let c=startCol;c<dateRow.length;c++){
-    const v=dateRow[c];
-    if(v&&v!==''){
-      try{
-        let d;
-        if(typeof v==='number'&&v>40000&&v<60000){
-          // Excel serial number
-          d=excelSerialToDate(v);
-        } else if(v instanceof Date){
-          d=new Date(v.getFullYear(),v.getMonth(),v.getDate());
-        } else if(typeof v==='string'){
-          const parts=v.replace(/T.*$/,'').split('-');
-          if(parts.length===3) d=new Date(+parts[0],+parts[1]-1,+parts[2]);
-          else d=new Date(v);
-        } else {
-          d=new Date(v);
-        }
-        if(d&&!isNaN(d.getTime())) dates.push({col:c,date:d});
-      }catch(e){}
+
+  // 연도/월 추정 - 현재 날짜 기준
+  const now=new Date();
+  let guessYear=now.getFullYear();
+  let guessMonth=now.getMonth()+1;
+
+  for(let col=1;col<dateRow.length;col++){
+    const v=dateRow[col];
+    const vStr=String(v||'').trim();
+    if(!vStr||vStr==='')continue;
+
+    let d=null;
+
+    // Case 1: "4/1(수)", "4/2(목)" 형식
+    const mSlash=vStr.match(/^(\d+)\/(\d+)/);
+    if(mSlash){
+      const m=parseInt(mSlash[1]), day=parseInt(mSlash[2]);
+      d=new Date(guessYear, m-1, day);
+      if(dates.length===0){ guessYear=d.getFullYear(); guessMonth=m; }
     }
+
+    // Case 2: 엑셀 시리얼 숫자
+    else if(typeof v==='number' && v>40000 && v<60000){
+      d=excelSerialToDate(v);
+    }
+
+    // Case 3: JS Date 객체
+    else if(v instanceof Date){
+      d=new Date(v.getFullYear(),v.getMonth(),v.getDate());
+    }
+
+    // Case 4: "YYYY-MM-DD" 문자열
+    else if(typeof v==='string'){
+      const parts=v.replace(/T.*$/,'').split('-');
+      if(parts.length===3) d=new Date(+parts[0],+parts[1]-1,+parts[2]);
+    }
+
+    if(d&&!isNaN(d.getTime())) dates.push({col,date:d});
   }
-  if(!dates.length){showToast('⚠ 날짜를 찾을 수 없어요');return;}
+
+  if(!dates.length){showToast('⚠ 날짜를 찾을 수 없어요. 3행에 날짜(4/1(수) 형식)가 있는지 확인해주세요.');return;}
 
   const month=dates[0].date.getMonth()+1;
   const year=dates[0].date.getFullYear();
   const monthKey=`${year}-${String(month).padStart(2,'0')}`;
   document.getElementById('attMonthBadge').textContent=`${year}년 ${month}월`;
 
-  // Parse staff rows (from row 4 onwards)
+  // 스태프 행: row3=Name행, row4~=스태프 (A열=이름)
   const staffData=[];
   for(let r=4;r<raw.length;r++){
     const row=raw[r]||[];
-    const name=String(row[3]||'').trim();
+    const name=String(row[0]||'').trim();
     if(!name||name==='-')continue;
 
     const entries=[];
@@ -3108,10 +3126,20 @@ function parseAttendance(raw){
     staffData.push({name,entries,presentCnt,lateCnt,absentCnt,avgTime});
   }
 
+  // 4행(index 3): 날짜별 출근인원
+  const headCountRow=raw[3]||[];
+  const dailyHeadCount={};
+  dates.forEach(({col,date})=>{
+    const v=parseInt(headCountRow[col]||0);
+    const dateStr=date.toISOString().split('T')[0];
+    if(!isNaN(v)&&v>0) dailyHeadCount[dateStr]=v;
+  });
+
   // Save to Firebase
   const attPayload={
     monthKey,year,month,
     updatedAt:new Date().toISOString(),
+    dailyHeadCount,
     dates:dates.map(({date})=>({
       dateStr:date.toISOString().split('T')[0],
       dow:date.getDay()
@@ -3128,7 +3156,7 @@ function parseAttendance(raw){
   set(ref(db,'attendance/'+monthKey), attPayload)
     .then(()=>showToast('✓ 출근부 저장됨 (모든 기기에서 공유)'))
     .catch(e=>showToast('⚠ 저장 오류: '+e.message));
-  renderAttTable(staffData,dates);
+  renderAttTable(staffData,dates,dailyHeadCount);
 }
 
 function parseTimeStr(s){
@@ -3169,10 +3197,10 @@ function renderAttFromFirebase(data){
     entries:s.entries.map(e=>({time:e.time,type:e.type,booking:e.booking,date:new Date()}))
   }));
   document.getElementById('attMonthBadge').textContent=`${data.year}년 ${data.month}월`;
-  renderAttTable(staffData,dates);
+  renderAttTable(staffData,dates,data.dailyHeadCount||{});
 }
 
-function renderAttTable(staffData,dates){
+function renderAttTable(staffData,dates,dailyHeadCount={}){
   if(!staffData.length){document.getElementById('attContent').innerHTML='<div style="color:var(--text3);padding:20px">데이터 없음</div>';return;}
 
   // Summary cards
@@ -3195,7 +3223,9 @@ function renderAttTable(staffData,dates){
     const dow=['일','월','화','수','목','금','토'][date.getDay()];
     const isFriSat=date.getDay()===5||date.getDay()===6;
     const color=isFriSat?'color:var(--red)':'';
-    return `<th style="${color}">${date.getDate()}<br><span style="font-size:9px">${dow}</span></th>`;
+    const dateStr=date.toISOString().split('T')[0];
+    const hc=dailyHeadCount[dateStr];
+    return `<th style="${color}">${date.getDate()}<br><span style="font-size:9px">${dow}</span>${hc?`<br><span style="font-size:9px;color:var(--green);font-weight:700">${hc}명</span>`:'&nbsp;'}</th>`;
   }).join('');
 
   const rows=staffData.map(s=>{
