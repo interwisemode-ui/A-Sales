@@ -3034,9 +3034,11 @@ function parseAttendance(raw){
   const dates=[];
 
   function excelSerialToDate(serial){
-    const base=new Date(1899,11,30);
-    const d=new Date(base.getTime()+Math.floor(serial)*86400000);
-    return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    // Excel epoch: 1900-01-01 = 1, with leap year bug (+1 offset needed)
+    // Use UTC to avoid timezone/DST shifting the date by 1 day
+    const ms=(Math.floor(serial)-25569)*86400*1000;
+    const d=new Date(ms);
+    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
   }
 
   // 연도/월 추정 - 현재 날짜 기준
