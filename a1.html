@@ -3070,10 +3070,10 @@ function parseAttendance(raw){
   let guessYear=now.getFullYear();
   let guessMonth=now.getMonth()+1;
 
-  for(let col=1;col<dateRow.length;col++){
+  for(let col=0;col<dateRow.length;col++){
     const v=dateRow[col];
     const vStr=String(v||'').trim();
-    if(!vStr||vStr==='')continue;
+    if(!vStr||vStr===''||vStr==='Name')continue; // Name 셀 건너뛰기
 
     let d=null;
 
