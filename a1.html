@@ -3083,13 +3083,17 @@ function parseAttendance(raw){
 
   if(!dates.length){showToast('⚠ 날짜를 찾을 수 없어요. 3행에 날짜(4/1(수) 형식)가 있는지 확인해주세요.');return;}
   // DEBUG
-  console.log('dates found:', dates.slice(0,5).map(d=>({col:d.col, date:d.date.toISOString().split('T')[0]})));
-  console.log('dateRow[1..5]:', dateRow.slice(1,6));
-  console.log('raw[0] (1행):', (raw[0]||[]).slice(0,6));
-  console.log('raw[1] (2행):', (raw[1]||[]).slice(0,6));
-  console.log('raw[2] (3행):', (raw[2]||[]).slice(0,6));
-  console.log('raw[3] (4행):', (raw[3]||[]).slice(0,6));
-  console.log('raw[4] (5행):', (raw[4]||[]).slice(0,6));
+  console.log('dates found:', dates.slice(0,3).map(d=>({col:d.col, date:d.date.toISOString().split('T')[0]})));
+  console.log('raw[2][1] type:', typeof dateRow[1], 'value:', dateRow[1]);
+  console.log('raw[2][2] type:', typeof dateRow[2], 'value:', dateRow[2]);
+  // Test IST conversion on first value
+  const testSerial=dateRow[1];
+  if(typeof testSerial==='number'){
+    const ms2=(Math.floor(testSerial)-25569)*86400*1000;
+    const istMs2=ms2+19800000;
+    const td=new Date(istMs2);
+    console.log('IST conversion of',testSerial,'=',td.getUTCFullYear()+'-'+(td.getUTCMonth()+1)+'-'+td.getUTCDate());
+  }
 
   const month=dates[0].date.getMonth()+1;
   const year=dates[0].date.getFullYear();
