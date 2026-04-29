@@ -1379,44 +1379,81 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
   let html='';
   // ── 표 뷰 ──
   if(staffView==='table'){
-    let th=(t,extra='')=>`<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text3);text-align:center;white-space:nowrap;${extra}">${t}</th>`;
-    let td=(t,extra='')=>`<td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;${extra}">${t}</td>`;
-    let tableHtml=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">`;
-    tableHtml+=`<tr>${th('이름')}${th('매출')}${th('건수')}${th('출근')}${th('셀1')}${th('셀2')}${th('셀수입')}${th('DC')}</tr>`;
+    if(!window._ssTableSort) window._ssTableSort='revenue'; // 기본 매출순
+
+    const th=(t,key,extra='')=>{
+      const isActive=window._ssTableSort===key;
+      return `<th onclick="window._ssTableSort='${key}';renderStaffStats();" 
+        style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;
+        color:${isActive?'var(--accent2)':'var(--text3)'};text-align:center;white-space:nowrap;
+        cursor:pointer;user-select:none;${extra}">
+        ${t}${isActive?' ▼':' ↕'}
+      </th>`;
+    };
+    const td=(t,extra='')=>`<td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;${extra}">${t}</td>`;
+
+    // 전체 스태프 목록 만들기
     const allNames=[...new Set([...bSorted.map(([s])=>s),...sSorted.map(([s])=>s)])];
-    allNames.forEach(s=>{
-      const b=bMap[s]||{tot:0,cnt:0,dc:0,shared:0};
+    const rows=allNames.map(s=>{
+      const b=bMap[s]||{tot:0,cnt:0,dc:0};
       const sel=sMap[s]||{cnt1:0,cnt2:0};
       const att=attMap[s]||0;
-      const selIncome=(sel.cnt1*200)+(sel.cnt2*100);
+      const selPts=(sel.cnt1*2)+(sel.cnt2*1); // 셀1=2점, 셀2=1점
+      return {s, b, sel, att, selPts};
+    });
+
+    // 정렬
+    const sortKey=window._ssTableSort;
+    rows.sort((a,b)=>{
+      if(sortKey==='revenue') return Math.round(b.b.tot)-Math.round(a.b.tot);
+      if(sortKey==='count')   return b.b.cnt-a.b.cnt;
+      if(sortKey==='sel')     return b.selPts-a.selPts;
+      if(sortKey==='dc')      return Math.round(b.b.dc)-Math.round(a.b.dc);
+      return 0;
+    });
+
+    let tableHtml=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">`;
+    tableHtml+=`<tr>
+      ${th('이름','name','text-align:left;')}
+      ${th('매출','revenue')}
+      ${th('건수','count')}
+      ${th('출근','att')}
+      ${th('셀1','sel')}
+      ${th('셀2','sel')}
+      ${th('셀포인트','sel')}
+      ${th('DC','dc')}
+    </tr>`;
+
+    rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
       tableHtml+=`<tr style="background:${isManager?'rgba(167,154,248,0.05)':''}">
         ${td((isManager?'🌟':'')+s,'font-weight:600;')}
-        ${td('₹'+Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
+        ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
         ${td(att>0?att+'일':'-','text-align:center;color:var(--green);')}
         ${td(sel.cnt1||'-','text-align:center;')}
         ${td(sel.cnt2||'-','text-align:center;')}
-        ${td(selIncome>0?'₹'+selIncome.toLocaleString():'-','text-align:right;color:var(--yellow);')}
-        ${td(b.dc>0?'₹'+Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
+        ${td(selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
+        ${td(b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
       </tr>`;
     });
+
     // 합계행
-    const totRev=bSorted.reduce((s,[,d])=>s+Math.round(d.tot),0);
-    const totCnt=bSorted.reduce((s,[,d])=>s+d.cnt,0);
-    const totSel=sSorted.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0);
-    tableHtml+=`<tr style="background:var(--bg3);font-weight:700;">
+    const totRev=rows.reduce((s,r)=>s+Math.round(r.b.tot),0);
+    const totCnt=rows.reduce((s,r)=>s+r.b.cnt,0);
+    const totPts=rows.reduce((s,r)=>s+r.selPts,0);
+    tableHtml+=`<tr style="background:var(--bg3);font-weight:700;border-top:2px solid var(--border2);">
       ${td('합계','font-weight:700;')}
-      ${td('₹'+totRev.toLocaleString(),'text-align:right;color:var(--accent2);font-weight:700;')}
+      ${td(totRev.toLocaleString(),'text-align:right;color:var(--accent2);font-weight:700;')}
       ${td(totCnt+'건','text-align:center;font-weight:700;')}
       ${td('-','text-align:center;')}
       ${td('-','text-align:center;')}
       ${td('-','text-align:center;')}
-      ${td('₹'+totSel.toLocaleString(),'text-align:right;color:var(--yellow);font-weight:700;')}
+      ${td(totPts,'text-align:center;color:var(--yellow);font-weight:700;')}
       ${td('-','text-align:right;')}
     </tr>`;
     tableHtml+=`</table></div>`;
-    html+=`<div class="ss-section"><div class="ss-section-title">📌 부킹자 매출</div>${tableHtml}</div>`;
+    html+=`<div class="ss-section"><div class="ss-section-title">📌 스태프 통계</div>${tableHtml}</div>`;
   }
 
   if(staffView==='chart'){
@@ -1459,44 +1496,81 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
   if(dcSorted.length){
     // ── 표 뷰 ──
   if(staffView==='table'){
-    let th=(t,extra='')=>`<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text3);text-align:center;white-space:nowrap;${extra}">${t}</th>`;
-    let td=(t,extra='')=>`<td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;${extra}">${t}</td>`;
-    let tableHtml=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">`;
-    tableHtml+=`<tr>${th('이름')}${th('매출')}${th('건수')}${th('출근')}${th('셀1')}${th('셀2')}${th('셀수입')}${th('DC')}</tr>`;
+    if(!window._ssTableSort) window._ssTableSort='revenue'; // 기본 매출순
+
+    const th=(t,key,extra='')=>{
+      const isActive=window._ssTableSort===key;
+      return `<th onclick="window._ssTableSort='${key}';renderStaffStats();" 
+        style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;
+        color:${isActive?'var(--accent2)':'var(--text3)'};text-align:center;white-space:nowrap;
+        cursor:pointer;user-select:none;${extra}">
+        ${t}${isActive?' ▼':' ↕'}
+      </th>`;
+    };
+    const td=(t,extra='')=>`<td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;${extra}">${t}</td>`;
+
+    // 전체 스태프 목록 만들기
     const allNames=[...new Set([...bSorted.map(([s])=>s),...sSorted.map(([s])=>s)])];
-    allNames.forEach(s=>{
-      const b=bMap[s]||{tot:0,cnt:0,dc:0,shared:0};
+    const rows=allNames.map(s=>{
+      const b=bMap[s]||{tot:0,cnt:0,dc:0};
       const sel=sMap[s]||{cnt1:0,cnt2:0};
       const att=attMap[s]||0;
-      const selIncome=(sel.cnt1*200)+(sel.cnt2*100);
+      const selPts=(sel.cnt1*2)+(sel.cnt2*1); // 셀1=2점, 셀2=1점
+      return {s, b, sel, att, selPts};
+    });
+
+    // 정렬
+    const sortKey=window._ssTableSort;
+    rows.sort((a,b)=>{
+      if(sortKey==='revenue') return Math.round(b.b.tot)-Math.round(a.b.tot);
+      if(sortKey==='count')   return b.b.cnt-a.b.cnt;
+      if(sortKey==='sel')     return b.selPts-a.selPts;
+      if(sortKey==='dc')      return Math.round(b.b.dc)-Math.round(a.b.dc);
+      return 0;
+    });
+
+    let tableHtml=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">`;
+    tableHtml+=`<tr>
+      ${th('이름','name','text-align:left;')}
+      ${th('매출','revenue')}
+      ${th('건수','count')}
+      ${th('출근','att')}
+      ${th('셀1','sel')}
+      ${th('셀2','sel')}
+      ${th('셀포인트','sel')}
+      ${th('DC','dc')}
+    </tr>`;
+
+    rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
       tableHtml+=`<tr style="background:${isManager?'rgba(167,154,248,0.05)':''}">
         ${td((isManager?'🌟':'')+s,'font-weight:600;')}
-        ${td('₹'+Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
+        ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
         ${td(att>0?att+'일':'-','text-align:center;color:var(--green);')}
         ${td(sel.cnt1||'-','text-align:center;')}
         ${td(sel.cnt2||'-','text-align:center;')}
-        ${td(selIncome>0?'₹'+selIncome.toLocaleString():'-','text-align:right;color:var(--yellow);')}
-        ${td(b.dc>0?'₹'+Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
+        ${td(selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
+        ${td(b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
       </tr>`;
     });
+
     // 합계행
-    const totRev=bSorted.reduce((s,[,d])=>s+Math.round(d.tot),0);
-    const totCnt=bSorted.reduce((s,[,d])=>s+d.cnt,0);
-    const totSel=sSorted.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0);
-    tableHtml+=`<tr style="background:var(--bg3);font-weight:700;">
+    const totRev=rows.reduce((s,r)=>s+Math.round(r.b.tot),0);
+    const totCnt=rows.reduce((s,r)=>s+r.b.cnt,0);
+    const totPts=rows.reduce((s,r)=>s+r.selPts,0);
+    tableHtml+=`<tr style="background:var(--bg3);font-weight:700;border-top:2px solid var(--border2);">
       ${td('합계','font-weight:700;')}
-      ${td('₹'+totRev.toLocaleString(),'text-align:right;color:var(--accent2);font-weight:700;')}
+      ${td(totRev.toLocaleString(),'text-align:right;color:var(--accent2);font-weight:700;')}
       ${td(totCnt+'건','text-align:center;font-weight:700;')}
       ${td('-','text-align:center;')}
       ${td('-','text-align:center;')}
       ${td('-','text-align:center;')}
-      ${td('₹'+totSel.toLocaleString(),'text-align:right;color:var(--yellow);font-weight:700;')}
+      ${td(totPts,'text-align:center;color:var(--yellow);font-weight:700;')}
       ${td('-','text-align:right;')}
     </tr>`;
     tableHtml+=`</table></div>`;
-    html+=`<div class="ss-section"><div class="ss-section-title">📌 부킹자 매출</div>${tableHtml}</div>`;
+    html+=`<div class="ss-section"><div class="ss-section-title">📌 스태프 통계</div>${tableHtml}</div>`;
   }
 
   if(staffView==='chart'){
@@ -1608,17 +1682,19 @@ function downloadStaffStatsXlsx(){
     ['Staff Stats - Booking Revenue'],
     ['Period: '+period],
     [],
-    ['Name','Role','Total Revenue','Count','Shared','DC Total','DC Rate(%)']
+    ['Name','Role','Total Revenue','Count','Shared','Attendance','DC Total','DC Rate(%)']
   ];
   bSortedF.forEach(([s,d])=>{
     const gross=Math.round(d.tot)+Math.round(d.dc);
     const pct=gross>0?Math.round(d.dc/gross*100):0;
+    const att=attMap[s]||0;
     bRows.push([
       s,
       managerList.includes(s)?'Manager':'Staff',
       Math.round(d.tot),
       d.cnt,
       d.shared,
+      att||'-',
       Math.round(d.dc),
       pct
     ]);
@@ -1664,22 +1740,22 @@ function downloadStaffStatsXlsx(){
     ['Staff Stats - Summary'],
     ['Period: '+period],
     [],
-    ['Name','Role','Booking Rev.','Booking Cnt','Sel Income','Sel Count','DC Total','Grand Total']
+    ['Name','Role','Booking Rev.','Booking Cnt','Sel Points','Attendance','DC Total','Grand Total']
   ];
   allStaff.forEach(s=>{
     const b=bMapF[s]||{tot:0,cnt:0,dc:0};
     const sel=sMapF[s]||{cnt1:0,cnt2:0};
-    const selIncome=(sel.cnt1*200)+(sel.cnt2*100);
-    const selCnt=sel.cnt1+sel.cnt2;
+    const selPts=(sel.cnt1*2)+(sel.cnt2*1);
+    const att=attMap[s]||0;
     sumRows.push([
       s,
       managerList.includes(s)?'Manager':'Staff',
       Math.round(b.tot),
       b.cnt,
-      selIncome,
-      selCnt,
+      selPts,
+      att||'-',
       Math.round(b.dc),
-      Math.round(b.tot)+selIncome
+      Math.round(b.tot)
     ]);
   });
   sumRows.push([]);
