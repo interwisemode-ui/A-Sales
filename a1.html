@@ -1383,7 +1383,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
 
     const th=(t,key,extra='')=>{
       const isActive=window._ssTableSort===key;
-      return `<th onclick="window._ssTableSort='${key}';renderStaffStats();" 
+      return `<th onclick="window._ssTableSort='${key}';window.renderStaffStats();" 
         style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;
         color:${isActive?'var(--accent2)':'var(--text3)'};text-align:center;white-space:nowrap;
         cursor:pointer;user-select:none;${extra}">
@@ -1500,7 +1500,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
 
     const th=(t,key,extra='')=>{
       const isActive=window._ssTableSort===key;
-      return `<th onclick="window._ssTableSort='${key}';renderStaffStats();" 
+      return `<th onclick="window._ssTableSort='${key}';window.renderStaffStats();" 
         style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:11px;
         color:${isActive?'var(--accent2)':'var(--text3)'};text-align:center;white-space:nowrap;
         cursor:pointer;user-select:none;${extra}">
@@ -1859,6 +1859,7 @@ window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
+window.renderStaffStats=renderStaffStats;
 window.openBulkDelete=openBulkDelete;
 window.deleteInvalidDates=deleteInvalidDates;
 window.setBulkDelQuick=setBulkDelQuick;
