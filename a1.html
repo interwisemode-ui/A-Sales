@@ -3035,11 +3035,34 @@ function parseAttendance(raw){
 
   function excelSerialToDate(serial){
     // Excel serial → IST (UTC+5:30) 기준 날짜
-    // IST offset = 5.5 * 3600 * 1000 = 19800000ms
     const ms=(Math.floor(serial)-25569)*86400*1000;
-    const istMs=ms+19800000; // UTC+5:30 보정
+    const istMs=ms+19800000;
     const d=new Date(istMs);
-    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+    const result=new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+    return result;
+  }
+
+  // IST 기준으로 날짜 직접 계산 (new Date() 생성자 우회)
+  function serialToYMD(serial){
+    const totalDays=Math.floor(serial)-25569; // Unix epoch days
+    const istDays=totalDays; // IST는 UTC+5:30이므로 자정 기준엔 동일
+    // 1970-01-01 기준 날짜 계산 (그레고리력)
+    let y=1970,m=1,d=1;
+    let rem=totalDays;
+    // 연도 계산
+    while(true){
+      const daysInYear=(y%4===0&&(y%100!==0||y%400===0))?366:365;
+      if(rem<daysInYear) break;
+      rem-=daysInYear; y++;
+    }
+    // 월 계산
+    const daysInMonth=[0,31,(y%4===0&&(y%100!==0||y%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];
+    for(m=1;m<=12;m++){
+      if(rem<daysInMonth[m]) break;
+      rem-=daysInMonth[m];
+    }
+    d=rem+1;
+    return new Date(y,m-1,d);
   }
 
   // 연도/월 추정 - 현재 날짜 기준
@@ -3062,9 +3085,9 @@ function parseAttendance(raw){
       if(dates.length===0){ guessYear=d.getFullYear(); guessMonth=m; }
     }
 
-    // Case 2: 엑셀 시리얼 숫자
+    // Case 2: 엑셀 시리얼 숫자 → IST 기준 직접 계산
     else if(typeof v==='number' && v>40000 && v<60000){
-      d=excelSerialToDate(v);
+      d=serialToYMD(v);
     }
 
     // Case 3: JS Date 객체
