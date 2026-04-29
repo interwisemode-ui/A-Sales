@@ -3106,7 +3106,7 @@ function parseAttendance(raw){
 
   if(!dates.length){showToast('⚠ 날짜를 찾을 수 없어요. 3행에 날짜(4/1(수) 형식)가 있는지 확인해주세요.');return;}
   // DEBUG
-  console.log('dates found:', dates.slice(0,3).map(d=>({col:d.col, date:d.date.toISOString().split('T')[0]})));
+  console.log('dates found:', dates.slice(0,3).map(d=>({col:d.col, date:`${d.date.getFullYear()}-${String(d.date.getMonth()+1).padStart(2,'0')}-${String(d.date.getDate()).padStart(2,'0')}`})));
   console.log('raw[2][0] type:', typeof dateRow[0], 'value:', dateRow[0]);
   console.log('raw[2][1] type:', typeof dateRow[1], 'value:', dateRow[1]);
   console.log('dates[0]:', dates[0]);
@@ -3162,7 +3162,7 @@ function parseAttendance(raw){
   const dailyHeadCount={};
   dates.forEach(({col,date})=>{
     const v=parseInt(headCountRow[col]||0);
-    const dateStr=date.toISOString().split('T')[0];
+    const dateStr=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
     if(!isNaN(v)&&v>0) dailyHeadCount[dateStr]=v;
   });
 
@@ -3172,7 +3172,7 @@ function parseAttendance(raw){
     updatedAt:new Date().toISOString(),
     dailyHeadCount,
     dates:dates.map(({date})=>({
-      dateStr:date.toISOString().split('T')[0],
+      dateStr:`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`,
       dow:date.getDay()
     })),
     staff:staffData.map(s=>({
