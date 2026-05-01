@@ -1603,7 +1603,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
 }
 
 // ── STAFF STATS XLSX DOWNLOAD ──────────────────────────────
-function downloadStaffStatsXlsx(){
+async function downloadStaffStatsXlsx(){
   if(typeof window.XLSX==='undefined'){showToast('⚠ 라이브러리 로딩 중, 잠시 후 다시 시도해주세요');return;}
 
   const from4=document.getElementById('filterDate4From')?.value||'';
@@ -1632,6 +1632,31 @@ function downloadStaffStatsXlsx(){
   const bSorted=Object.entries(bMap).sort((a,b)=>Math.round(b[1].tot)-Math.round(a[1].tot));
   const sSorted=Object.entries(sMap).sort((a,b)=>((b[1].cnt1*200)+(b[1].cnt2*100))-((a[1].cnt1*200)+(a[1].cnt2*100)));
   const dcSorted=Object.entries(dcMap).filter(([,d])=>d.dc>0).sort((a,b)=>b[1].dc-a[1].dc);
+
+  // 출근 데이터 수집
+  const attMap={};
+  const attSnap=await new Promise(res=>onValue(ref(db,'attendance'),res,{onlyOnce:true}));
+  if(attSnap.exists()){
+    attSnap.forEach(monthSnap=>{
+      const data=monthSnap.val();
+      (data.staff||[]).forEach(s=>{
+        const name=(s.name||'').toUpperCase();
+        if(!name)return;
+        let presentInPeriod=0;
+        if(from4||to4){
+          (s.entries||[]).forEach((e,idx)=>{
+            const dateStr=(data.dates||[])[idx]?.dateStr||'';
+            if((!from4||dateStr>=from4)&&(!to4||dateStr<=to4)){
+              if(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!=='')) presentInPeriod++;
+            }
+          });
+        } else {
+          presentInPeriod=s.presentCnt||0;
+        }
+        attMap[name]=(attMap[name]||0)+presentInPeriod;
+      });
+    });
+  }
 
   const wb=window.XLSX.utils.book_new();
 
