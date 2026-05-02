@@ -2626,7 +2626,7 @@ window.importSalesExcel = function(input){
 
 
 // ── EXPENSE ────────────────────────────────────────────────
-const EXPENSE_CATEGORIES=['인건비', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '접대비'];
+const EXPENSE_CATEGORIES=['인건비', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '영업비', '접대비'];
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
 function loadExpenseFile(input){
@@ -2732,7 +2732,9 @@ function parseExpense(raw, monthKey, colInfo=[]){
     if(!catRaw)continue;
     // 합계 행 건너뛰기
     if(catRaw.includes('합계')||catRaw.includes('합 계'))continue;
-    const cat=EXPENSE_CATEGORIES.find(c=>catRaw.toUpperCase()===c.toUpperCase())||catRaw;
+    // 특수 매핑: staff 식자재 → 식자재
+    const catMapped=catRaw.replace(/^staff\s*/i,'').trim();
+    const cat=EXPENSE_CATEGORIES.find(c=>catMapped.toUpperCase()===c.toUpperCase())||catMapped;
     dayCols.forEach(({col,dateStr})=>{
       const v=row[col];
       const amt=(v===''||v===null||v===undefined||isNaN(v))?0:parseFloat(v)||0;
@@ -3035,17 +3037,18 @@ function renderProfit(){
         const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
         const fixedTot  = laborVal+rentVal+mgmtVal;
 
-        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신비','접대비','기타'];
+        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
         const varCalc={
           '주류':     catTotals['주류']||0,
           '음료':     catTotals['음료']||0,
-          '식자재':   (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0),
+          '식자재':   (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)+(catTotals['staff 식자재']||0),
           '비품/소모품': (catTotals['비품']||0)+(catTotals['소모품']||0),
           '장비':     catTotals['장비']||0,
           '유지보수': catTotals['유지보수']||0,
           '교통비':   catTotals['교통비']||0,
           '수도광열': catTotals['수도광열']||0,
           '통신비':   catTotals['통신비']||0,
+          '영업비':   catTotals['영업비']||0,
           '접대비':   catTotals['접대비']||0,
           '기타':     catTotals['기타']||0,
         };
