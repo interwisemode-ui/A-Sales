@@ -2767,12 +2767,20 @@ function renderExpenseTable(data, monthKey){
   html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;color:var(--accent2)">합계</th>';
   html+='</tr></thead><tbody>';
 
-  // Rows per category
+  // 데이터에 있는 모든 카테고리 수집 (기본 목록 + 새로 추가된 항목)
+  const allCats=[...EXPENSE_CATEGORIES];
+  dates.forEach(d=>{
+    Object.keys(data[d]||{}).forEach(cat=>{
+      if(!allCats.includes(cat)) allCats.push(cat); // 새 항목 자동 추가
+    });
+  });
+
   const catTotals={};
-  EXPENSE_CATEGORIES.forEach(cat=>{
+  allCats.forEach(cat=>{
     let rowTotal=0;
     let hasData=false;
-    let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500">'+cat+'</td>';
+    const isNew=!EXPENSE_CATEGORIES.includes(cat);
+    let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500;color:'+(isNew?'var(--yellow)':'')+'">'+(isNew?'★ ':'')+cat+'</td>';
     dates.forEach(d=>{
       const amt=(data[d]&&data[d][cat])||0;
       if(amt>0)hasData=true;
