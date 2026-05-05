@@ -886,6 +886,7 @@ function init(){
     });
     if(latest) renderAttFromFirebase(latest);
   });
+  loadSeparateCats();
   onValue(ref(db,'config/managerList'),snap=>{
     if(snap.exists()&&Array.isArray(snap.val())){
       managerList=snap.val();
@@ -2627,6 +2628,48 @@ window.importSalesExcel = function(input){
 
 
 // ── EXPENSE ────────────────────────────────────────────────
+// 별도항목 목록 (Firebase에서 로드)
+let separateCatsList = ['대여금', '대여'];
+
+function loadSeparateCats(){
+  onValue(ref(db,'config/separateCats'), snap=>{
+    if(snap.exists()) separateCatsList = snap.val();
+    // 경비/손익 탭이 열려있으면 다시 렌더
+  });
+}
+
+function saveSeparateCats(){
+  set(ref(db,'config/separateCats'), separateCatsList);
+}
+
+window.addSeparateCat = function(){
+  const name = prompt('별도항목으로 추가할 항목명:');
+  if(!name||!name.trim()) return;
+  if(separateCatsList.includes(name.trim())) return showToast('이미 있는 항목이에요');
+  separateCatsList.push(name.trim());
+  saveSeparateCats();
+  renderSeparateCatsUI();
+  showToast('✓ 추가됨: '+name.trim());
+};
+
+window.delSeparateCat = function(idx){
+  separateCatsList.splice(idx,1);
+  saveSeparateCats();
+  renderSeparateCatsUI();
+};
+
+function renderSeparateCatsUI(){
+  const el=document.getElementById('separateCatsUI');
+  if(!el) return;
+  el.innerHTML = separateCatsList.map((s,i)=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--blue);">
+      ${s}
+      <button onclick="window.delSeparateCat(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>
+    </span>`
+  ).join(' ') +
+  `<button onclick="window.addSeparateCat()" style="background:rgba(96,165,250,0.12);color:var(--blue);border:1px dashed rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;cursor:pointer;">+ 추가</button>`;
+}
+
 const EXPENSE_CATEGORIES=['인건비', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '영업비', '접대비'];
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
@@ -2779,7 +2822,7 @@ function renderExpenseTable(data, monthKey){
   });
 
   // 합계 제외 항목 (대여금 등)
-  const SEPARATE_CATS=['대여금','대여'];
+  const SEPARATE_CATS=separateCatsList;
 
   const catTotals={};
   const separateTotals={}; // 별도 표시용
@@ -3016,7 +3059,7 @@ function renderProfit(){
       // Sum expenses by category (within period up to baseDate)
       const catTotals={};
       const separateCatTotals={}; // 대여금 등 별도 항목
-      const PROFIT_SEPARATE=['대여금','대여'];
+      const PROFIT_SEPARATE=separateCatsList;
       Object.keys(combinedExp).forEach(date=>{
         if(date>=periodFrom&&date<=periodTo&&date<=baseDate){
           Object.entries(combinedExp[date]).forEach(([cat,amt])=>{
@@ -3212,19 +3255,26 @@ function renderProfit(){
 
         h+=`</table></div>`;
         // 별도 항목 (대여금 등)
-        if(Object.keys(separateCatTotals).length>0){
-          h+=`<div style="margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;">`;
-          h+=`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;">💰 별도 항목 (비용 합계 미포함)</div>`;
-          Object.entries(separateCatTotals).forEach(([cat,tot])=>{
-            h+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
-              <span>${cat}</span><span style="font-weight:700;color:var(--blue)">₹${tot.toLocaleString()}</span>
-            </div>`;
-          });
-          h+=`</div>`;
-        }
+        // 별도항목 설정 UI + 금액 표시
+      h+=`<div style="margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;">`;
+      h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--blue);font-weight:700;">💰 별도 항목 (비용 합계 미포함)</span>
+      </div>`;
+      h+=`<div id="separateCatsUI" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>`;
+      if(Object.keys(separateCatTotals).length>0){
+        Object.entries(separateCatTotals).forEach(([cat,tot])=>{
+          h+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
+            <span>${cat}</span><span style="font-weight:700;color:var(--blue)">₹${tot.toLocaleString()}</span>
+          </div>`;
+        });
+      } else {
+        h+=`<div style="font-size:12px;color:var(--text3);">해당 항목 없음</div>`;
+      }
+      h+=`</div>`;
         h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
         h+=`</div>`;
         document.getElementById('profitContent').innerHTML=h;
+        renderSeparateCatsUI();
       } // end buildTable
 
       // Load overrides from Firebase then build table
@@ -3250,9 +3300,8 @@ async function loadCashFlow(){
       cashFlowData = {
         balance: [
           {name:'시재', amt:0},
-          {name:'현금', amt:0},
-          {name:'계좌1', amt:0},
-          {name:'계좌2', amt:0}
+          {name:'김', amt:0},
+          {name:'은행', amt:0}
         ],
         expense: [
           {name:'급여', amt:0},
@@ -3274,36 +3323,32 @@ function renderCashFlow(){
   const available = balTotal - expTotal;
   const availColor = available>=0?'var(--green)':'var(--red)';
 
-  const rowStyle = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
-  const inputStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;text-align:right;width:120px;';
-  const nameStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;width:100px;';
+  const iStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;text-align:right;width:110px;outline:none;';
+  const nStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;width:90px;outline:none;';
   const delBtn = (type,idx) => `<button onclick="window.delCashFlowRow('${type}',${idx})" style="background:rgba(248,113,113,0.15);color:var(--red);border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;">✕</button>`;
+  const rowDiv = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+  const addBtn = (type) => `<button onclick="window.addCashFlowRow('${type}')" style="background:rgba(124,111,247,0.15);color:var(--accent2);border:1px solid rgba(124,111,247,0.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;margin-top:4px;">+ 추가</button>`;
 
-  let balRows = cashFlowData.balance.map((r,i)=>`
-    <div style="${rowStyle}">
-      <input value="${r.name}" onchange="window.updateCashFlow('balance',${i},'name',this.value)" style="${nameStyle}" placeholder="항목명">
-      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('balance',${i},'amt',this.value)" style="${inputStyle}" placeholder="0">
+  const balRows = cashFlowData.balance.map((r,i)=>`
+    <div style="${rowDiv}">
+      <input value="${r.name}" onchange="window.updateCashFlow('balance',${i},'name',this.value)" style="${nStyle}" placeholder="항목명">
+      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('balance',${i},'amt',this.value)" style="${iStyle}" placeholder="0">
       ${delBtn('balance',i)}
     </div>`).join('');
 
-  let expRows = cashFlowData.expense.map((r,i)=>`
-    <div style="${rowStyle}">
-      <input value="${r.name}" onchange="window.updateCashFlow('expense',${i},'name',this.value)" style="${nameStyle}" placeholder="항목명">
-      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('expense',${i},'amt',this.value)" style="${inputStyle}" placeholder="0">
+  const expRows = cashFlowData.expense.map((r,i)=>`
+    <div style="${rowDiv}">
+      <input value="${r.name}" onchange="window.updateCashFlow('expense',${i},'name',this.value)" style="${nStyle}" placeholder="항목명">
+      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('expense',${i},'amt',this.value)" style="${iStyle}" placeholder="0">
       ${delBtn('expense',i)}
     </div>`).join('');
-
-  const addBtn = (type) => `<button onclick="window.addCashFlowRow('${type}')" 
-    style="background:rgba(124,111,247,0.15);color:var(--accent2);border:1px solid rgba(124,111,247,0.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;margin-top:4px;">+ 항목 추가</button>`;
 
   document.getElementById('cashFlowContent').innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;max-width:620px;margin:0 auto;">
       <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:14px;">💵 Today's Report</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        
-        <!-- 잔고 -->
         <div>
-          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">잔고</div>
+          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;letter-spacing:0.5px;">🏦 잔고</div>
           ${balRows}
           ${addBtn('balance')}
           <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
@@ -3311,10 +3356,8 @@ function renderCashFlow(){
             <span style="font-size:14px;font-weight:700;color:var(--accent2);">₹${balTotal.toLocaleString()}</span>
           </div>
         </div>
-
-        <!-- 지출예상 -->
         <div>
-          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">지출예상</div>
+          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;letter-spacing:0.5px;">📋 지출예상</div>
           ${expRows}
           ${addBtn('expense')}
           <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
@@ -3323,10 +3366,8 @@ function renderCashFlow(){
           </div>
         </div>
       </div>
-
-      <!-- 가용자금 -->
       <div style="margin-top:14px;padding:12px;background:${available>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.08)'};border:1px solid ${availColor};border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:700;color:${availColor};">💰 가용자금 (잔고 - 지출예상)</span>
+        <span style="font-size:13px;font-weight:700;color:${availColor};">💰 가용자금</span>
         <span style="font-size:18px;font-weight:700;color:${availColor};">₹${Math.abs(available).toLocaleString()}${available<0?' (부족)':''}</span>
       </div>
     </div>`;
