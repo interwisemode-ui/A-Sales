@@ -598,6 +598,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div id="profitContent"></div>
+      <div id="cashFlowContent" style="margin-top:16px;"></div>
     </div>
 
   </div>
@@ -1878,7 +1879,7 @@ function switchTab(n){
   if(n==='manage')renderManageGrid();
   if(n==='booking')renderBookings();
   if(n==='expense'){const m=document.getElementById('expenseMonth').value;if(m)loadExpenseFromDB(m);}
-  if(n==='profit')renderProfit();
+  if(n==='profit'){renderProfit();loadCashFlow();}
 }
 window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
@@ -3236,6 +3237,117 @@ function renderProfit(){
 }
 
 // ── 수동 오버라이드 저장/리셋 ──
+// ── CASH FLOW (자본 흐름) ──────────────────────────────────
+let cashFlowData = { balance: [], expense: [] };
+
+async function loadCashFlow(){
+  onValue(ref(db,'cashFlow'), snap=>{
+    if(snap.exists()){
+      cashFlowData = snap.val();
+      if(!cashFlowData.balance) cashFlowData.balance=[];
+      if(!cashFlowData.expense) cashFlowData.expense=[];
+    } else {
+      cashFlowData = {
+        balance: [
+          {name:'시재', amt:0},
+          {name:'현금', amt:0},
+          {name:'계좌1', amt:0},
+          {name:'계좌2', amt:0}
+        ],
+        expense: [
+          {name:'급여', amt:0},
+          {name:'임대료', amt:0}
+        ]
+      };
+    }
+    renderCashFlow();
+  });
+}
+
+function saveCashFlow(){
+  set(ref(db,'cashFlow'), cashFlowData);
+}
+
+function renderCashFlow(){
+  const balTotal = cashFlowData.balance.reduce((s,r)=>s+(parseFloat(r.amt)||0),0);
+  const expTotal = cashFlowData.expense.reduce((s,r)=>s+(parseFloat(r.amt)||0),0);
+  const available = balTotal - expTotal;
+  const availColor = available>=0?'var(--green)':'var(--red)';
+
+  const rowStyle = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+  const inputStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;text-align:right;width:120px;';
+  const nameStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;width:100px;';
+  const delBtn = (type,idx) => `<button onclick="window.delCashFlowRow('${type}',${idx})" style="background:rgba(248,113,113,0.15);color:var(--red);border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;">✕</button>`;
+
+  let balRows = cashFlowData.balance.map((r,i)=>`
+    <div style="${rowStyle}">
+      <input value="${r.name}" onchange="window.updateCashFlow('balance',${i},'name',this.value)" style="${nameStyle}" placeholder="항목명">
+      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('balance',${i},'amt',this.value)" style="${inputStyle}" placeholder="0">
+      ${delBtn('balance',i)}
+    </div>`).join('');
+
+  let expRows = cashFlowData.expense.map((r,i)=>`
+    <div style="${rowStyle}">
+      <input value="${r.name}" onchange="window.updateCashFlow('expense',${i},'name',this.value)" style="${nameStyle}" placeholder="항목명">
+      <input type="number" value="${r.amt||''}" onchange="window.updateCashFlow('expense',${i},'amt',this.value)" style="${inputStyle}" placeholder="0">
+      ${delBtn('expense',i)}
+    </div>`).join('');
+
+  const addBtn = (type) => `<button onclick="window.addCashFlowRow('${type}')" 
+    style="background:rgba(124,111,247,0.15);color:var(--accent2);border:1px solid rgba(124,111,247,0.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;margin-top:4px;">+ 항목 추가</button>`;
+
+  document.getElementById('cashFlowContent').innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;max-width:620px;margin:0 auto;">
+      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:14px;">💵 Today's Report</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        
+        <!-- 잔고 -->
+        <div>
+          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">잔고</div>
+          ${balRows}
+          ${addBtn('balance')}
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
+            <span style="font-size:12px;color:var(--text3);">합계</span>
+            <span style="font-size:14px;font-weight:700;color:var(--accent2);">₹${balTotal.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <!-- 지출예상 -->
+        <div>
+          <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">지출예상</div>
+          ${expRows}
+          ${addBtn('expense')}
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
+            <span style="font-size:12px;color:var(--text3);">합계</span>
+            <span style="font-size:14px;font-weight:700;color:var(--red);">₹${expTotal.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 가용자금 -->
+      <div style="margin-top:14px;padding:12px;background:${available>=0?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.08)'};border:1px solid ${availColor};border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:700;color:${availColor};">💰 가용자금 (잔고 - 지출예상)</span>
+        <span style="font-size:18px;font-weight:700;color:${availColor};">₹${Math.abs(available).toLocaleString()}${available<0?' (부족)':''}</span>
+      </div>
+    </div>`;
+}
+
+window.updateCashFlow = function(type, idx, field, val){
+  cashFlowData[type][idx][field] = field==='amt' ? (parseFloat(val)||0) : val;
+  saveCashFlow();
+  renderCashFlow();
+};
+window.addCashFlowRow = function(type){
+  cashFlowData[type].push({name:'', amt:0});
+  saveCashFlow();
+  renderCashFlow();
+};
+window.delCashFlowRow = function(type, idx){
+  cashFlowData[type].splice(idx,1);
+  saveCashFlow();
+  renderCashFlow();
+};
+
 window.saveProfitOverride=function(monthVal,key,val,calcVal){
   const num=parseFloat(val);
   if(isNaN(num))return;
