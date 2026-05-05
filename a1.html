@@ -3323,8 +3323,8 @@ function renderCashFlow(){
   const available = balTotal - expTotal;
   const availColor = available>=0?'var(--green)':'var(--red)';
 
-  const iStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;text-align:right;width:110px;outline:none;';
-  const nStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;width:90px;outline:none;';
+  const iStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;text-align:right;width:100%;max-width:110px;outline:none;';
+  const nStyle = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:13px;padding:4px 8px;width:100%;max-width:90px;outline:none;';
   const delBtn = (type,idx) => `<button onclick="window.delCashFlowRow('${type}',${idx})" style="background:rgba(248,113,113,0.15);color:var(--red);border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;">✕</button>`;
   const rowDiv = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
   const addBtn = (type) => `<button onclick="window.addCashFlowRow('${type}')" style="background:rgba(124,111,247,0.15);color:var(--accent2);border:1px solid rgba(124,111,247,0.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;margin-top:4px;">+ 추가</button>`;
@@ -3344,9 +3344,9 @@ function renderCashFlow(){
     </div>`).join('');
 
   document.getElementById('cashFlowContent').innerHTML = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;max-width:620px;margin:0 auto;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin:0 auto;">
       <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:14px;">💵 Today's Report</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
         <div>
           <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:8px;letter-spacing:0.5px;">🏦 잔고</div>
           ${balRows}
