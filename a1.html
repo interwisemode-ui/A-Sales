@@ -1338,7 +1338,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       bMap[s].cnt++;bMap[s].tot+=share;bMap[s].dc+=dcShare;
       if(isShared)bMap[s].shared++;
       if(!dcMap[s])dcMap[s]={dc:0,cnt:0};
-      dcMap[s].dc+=(r.dc||0);dcMap[s].cnt++;
+      dcMap[s].dc+=dcShare;dcMap[s].cnt++;
     });
     // sel1 = 200 per session
     (r.staff||[]).forEach(s=>{
@@ -1623,7 +1623,7 @@ async function downloadStaffStatsXlsx(){
       bMap[s].cnt++;bMap[s].tot+=share;bMap[s].dc+=dcShare;
       if(isShared)bMap[s].shared++;
       if(!dcMap[s])dcMap[s]={dc:0,cnt:0};
-      dcMap[s].dc+=(r.dc||0);dcMap[s].cnt++;
+      dcMap[s].dc+=dcShare;dcMap[s].cnt++;
     });
     (r.staff||[]).forEach(s=>{if(!s)return;if(!sMap[s])sMap[s]={cnt1:0,cnt2:0};sMap[s].cnt1++;});
     (r.staff2||[]).forEach(s=>{if(!s)return;if(!sMap[s])sMap[s]={cnt1:0,cnt2:0};sMap[s].cnt2++;});
@@ -2777,33 +2777,58 @@ function renderExpenseTable(data, monthKey){
     });
   });
 
+  // 합계 제외 항목 (대여금 등)
+  const SEPARATE_CATS=['대여금','대여'];
+
   const catTotals={};
+  const separateTotals={}; // 별도 표시용
+
   allCats.forEach(cat=>{
+    const isSeparate=SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase()));
     let rowTotal=0;
     let hasData=false;
-    const isNew=!EXPENSE_CATEGORIES.includes(cat);
-    let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500;color:'+(isNew?'var(--yellow)':'')+'">'+(isNew?'★ ':'')+cat+'</td>';
+    const isNew=!EXPENSE_CATEGORIES.includes(cat)&&!isSeparate;
+    let rowStyle=isSeparate?'color:var(--blue);':'color:'+(isNew?'var(--yellow)':'')+'';
+    let rowPrefix=isSeparate?'💰 ':(isNew?'★ ':'');
+    let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500;'+rowStyle+'">'+rowPrefix+cat+'</td>';
     dates.forEach(d=>{
       const amt=(data[d]&&data[d][cat])||0;
       if(amt>0)hasData=true;
       rowTotal+=amt;
-      catTotals[cat]=(catTotals[cat]||0)+amt;
+      if(isSeparate){
+        separateTotals[cat]=(separateTotals[cat]||0)+amt;
+      } else {
+        catTotals[cat]=(catTotals[cat]||0)+amt;
+      }
       row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt>0?'var(--text)':'var(--text3)')+'">'+( amt>0?amt.toLocaleString():'-')+'</td>';
     });
-    row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--accent2)">'+(rowTotal>0?rowTotal.toLocaleString():'-')+'</td></tr>';
+    row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:'+(isSeparate?'var(--blue)':'var(--accent2)')+'">'+(rowTotal>0?rowTotal.toLocaleString():'-')+'</td></tr>';
     if(hasData)html+=row;
   });
 
-  // Total row
-  html+='<tr style="background:var(--bg3)"><td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;position:sticky;left:0;background:var(--bg3)">합계</td>';
+  // 합계 행 (대여금 제외)
+  html+='<tr style="background:var(--bg3)"><td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;position:sticky;left:0;background:var(--bg3)">경비 합계</td>';
   let grandTotal=0;
   dates.forEach(d=>{
-    const dayTotal=Object.values(data[d]||{}).reduce((s,v)=>s+v,0);
+    const dayTotal=Object.entries(data[d]||{})
+      .filter(([cat])=>!SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase())))
+      .reduce((s,[,v])=>s+v,0);
     grandTotal+=dayTotal;
     html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+(dayTotal>0?dayTotal.toLocaleString():'-')+'</td>';
   });
   html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+grandTotal.toLocaleString()+'</td></tr>';
   html+='</tbody></table></div>';
+
+  // 별도 항목 표시 (대여금 등)
+  if(Object.keys(separateTotals).length>0){
+    html+='<div style="margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;">';
+    html+='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;">💰 별도 항목 (경비 합계 미포함)</div>';
+    Object.entries(separateTotals).forEach(([cat,tot])=>{
+      html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">';
+      html+='<span>'+cat+'</span><span style="font-weight:700;color:var(--blue)">'+tot.toLocaleString()+'</span></div>';
+    });
+    html+='</div>';
+  }
 
   document.getElementById('expenseContent').innerHTML=html;
 }
@@ -2989,10 +3014,16 @@ function renderProfit(){
 
       // Sum expenses by category (within period up to baseDate)
       const catTotals={};
+      const separateCatTotals={}; // 대여금 등 별도 항목
+      const PROFIT_SEPARATE=['대여금','대여'];
       Object.keys(combinedExp).forEach(date=>{
         if(date>=periodFrom&&date<=periodTo&&date<=baseDate){
           Object.entries(combinedExp[date]).forEach(([cat,amt])=>{
-            catTotals[cat]=(catTotals[cat]||0)+amt;
+            if(PROFIT_SEPARATE.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+              separateCatTotals[cat]=(separateCatTotals[cat]||0)+amt;
+            } else {
+              catTotals[cat]=(catTotals[cat]||0)+amt;
+            }
           });
         }
       });
@@ -3179,6 +3210,17 @@ function renderProfit(){
         </tr>`;
 
         h+=`</table></div>`;
+        // 별도 항목 (대여금 등)
+        if(Object.keys(separateCatTotals).length>0){
+          h+=`<div style="margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;">`;
+          h+=`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;">💰 별도 항목 (비용 합계 미포함)</div>`;
+          Object.entries(separateCatTotals).forEach(([cat,tot])=>{
+            h+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
+              <span>${cat}</span><span style="font-weight:700;color:var(--blue)">₹${tot.toLocaleString()}</span>
+            </div>`;
+          });
+          h+=`</div>`;
+        }
         h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
         h+=`</div>`;
         document.getElementById('profitContent').innerHTML=h;
