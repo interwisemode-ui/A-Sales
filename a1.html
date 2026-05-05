@@ -3653,7 +3653,7 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
     const dow=['일','월','화','수','목','금','토'][date.getDay()];
     const isFriSat=date.getDay()===5||date.getDay()===6;
     const color=isFriSat?'color:var(--red)':'';
-    const dateStr=date.toISOString().split('T')[0];
+    const dateStr=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
     const hc=dailyHeadCount[dateStr];
     return `<th style="${color}">${date.getDate()}<br><span style="font-size:9px">${dow}</span>${hc?`<br><span style="font-size:9px;color:var(--green);font-weight:700">${hc}명</span>`:'&nbsp;'}</th>`;
   }).join('');
