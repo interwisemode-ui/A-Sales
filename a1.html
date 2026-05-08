@@ -2490,7 +2490,7 @@ function buildBarChart(items, maxVal, colorFn){
       <div class="chart-bar-track">
         <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};"><span class="chart-bar-val">${it.value.toLocaleString()}</span></div>
       </div>
-      <div style="font-size:10px;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;text-align:right;">${it.sub||''}</div>
+      <div style="font-size:10px;color:var(--text3);white-space:nowrap;width:70px;flex-shrink:0;text-align:right;overflow:hidden;text-overflow:ellipsis;">${it.sub||''}</div>
     </div>`;
   }).join('')+'</div>';
 }
