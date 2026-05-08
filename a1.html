@@ -180,7 +180,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .vt-btn.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.3);}
 /* Chart bars */
 .chart-wrap{margin-top:12px;}
-.chart-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.chart-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
 .chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;min-width:80px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chart-bar-track{flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;overflow:visible;}
 .chart-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;position:relative;min-width:0;}
@@ -1469,11 +1469,11 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
   if(staffView==='chart'){
     // Chart view
     if(bSorted.length){
-      const maxB=Math.round(bSorted[0][1].tot);
+      const maxB=Math.max(...bSorted.map(([,d])=>Math.round(d.tot)));
       const items=bSorted.map(([s,d])=>{
         const att=attMap[s]||0;
         const attStr=att>0?`(${att}일 출근)`:'';
-        return {label:(managerList.includes(s)?'🌟':'')+s,value:Math.round(d.tot),sub:d.cnt+'건 '+attStr};
+        return {label:(s==='WALKIN'?'🚶':managerList.includes(s)?'🌟':'')+s,value:Math.round(d.tot),sub:d.cnt+'건 '+attStr};
       });
       html+=`<div class="sum-sec"><div class="sum-sec-title">📌 부킹자 매출</div>${buildBarChart(items,maxB,it=>managerList.includes(it.label.replace('🌟',''))?'var(--yellow)':'var(--accent)')}</div>`;
     }
@@ -2488,11 +2488,9 @@ function buildBarChart(items, maxVal, colorFn){
     return `<div class="chart-bar-row">
       <div class="chart-bar-label" title="${it.label}">${it.label}</div>
       <div class="chart-bar-track">
-        <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};">
-          <span class="chart-bar-val">${it.value.toLocaleString()}</span>
-        </div>
+        <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};"><span class="chart-bar-val">${it.value.toLocaleString()}</span></div>
       </div>
-      ${it.sub?`<div style="font-size:10px;color:var(--text3);min-width:40px">${it.sub}</div>`:''}
+      <div style="font-size:10px;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;text-align:right;">${it.sub||''}</div>
     </div>`;
   }).join('')+'</div>';
 }
