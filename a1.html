@@ -182,9 +182,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .chart-wrap{margin-top:12px;}
 .chart-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;min-width:80px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.chart-bar-track{flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;}
-.chart-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;display:flex;align-items:center;padding-left:6px;}
-.chart-bar-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:#fff;font-weight:700;white-space:nowrap;}
+.chart-bar-track{flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;overflow:visible;}
+.chart-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;position:relative;min-width:0;}
+.chart-bar-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:#fff;font-weight:700;white-space:nowrap;position:absolute;left:6px;top:50%;transform:translateY(-50%);}
 
 
 /* Date range filter */
@@ -1331,6 +1331,13 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
   const bMap={},sMap={};
   const dcMap={};
   recs.forEach(r=>{
+    // WALKIN 별도 집계
+    const hasWalkin=(r.bookers||[]).includes('WALKIN');
+    const hasNone=(r.bookers||[]).filter(s=>s).length===0;
+    if(hasWalkin||hasNone){
+      if(!bMap['WALKIN'])bMap['WALKIN']={cnt:0,tot:0,shared:0,dc:0,isWalkin:true};
+      bMap['WALKIN'].cnt++;bMap['WALKIN'].tot+=(r.total||0);
+    }
     const bookers=(r.bookers||[]).filter(s=>s&&s!=='WALKIN');
     const isShared=bookers.length>1;
     const share=isShared?r.total/bookers.length:r.total;
@@ -1428,15 +1435,16 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
 
     rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
-      tableHtml+=`<tr style="background:${isManager?'rgba(167,154,248,0.05)':''}">
-        ${td((isManager?'🌟':'')+s,'font-weight:600;')}
+      const isWalkin=s==='WALKIN';
+      tableHtml+=`<tr style="background:${isWalkin?'rgba(192,132,252,0.05)':isManager?'rgba(167,154,248,0.05)':''}">
+        ${td((isWalkin?'🚶 ':isManager?'🌟':'')+s,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
         ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
-        ${td(att>0?att+'일':'-','text-align:center;color:var(--green);')}
-        ${td(sel.cnt1||'-','text-align:center;')}
-        ${td(sel.cnt2||'-','text-align:center;')}
-        ${td(selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
-        ${td(b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
+        ${td(isWalkin?'-':att>0?att+'일':'-','text-align:center;color:var(--green);')}
+        ${td(isWalkin?'-':sel.cnt1||'-','text-align:center;')}
+        ${td(isWalkin?'-':sel.cnt2||'-','text-align:center;')}
+        ${td(isWalkin?'-':selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
+        ${td(isWalkin?'-':b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
       </tr>`;
     });
 
@@ -1545,15 +1553,16 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
 
     rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
-      tableHtml+=`<tr style="background:${isManager?'rgba(167,154,248,0.05)':''}">
-        ${td((isManager?'🌟':'')+s,'font-weight:600;')}
+      const isWalkin=s==='WALKIN';
+      tableHtml+=`<tr style="background:${isWalkin?'rgba(192,132,252,0.05)':isManager?'rgba(167,154,248,0.05)':''}">
+        ${td((isWalkin?'🚶 ':isManager?'🌟':'')+s,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
         ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
-        ${td(att>0?att+'일':'-','text-align:center;color:var(--green);')}
-        ${td(sel.cnt1||'-','text-align:center;')}
-        ${td(sel.cnt2||'-','text-align:center;')}
-        ${td(selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
-        ${td(b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
+        ${td(isWalkin?'-':att>0?att+'일':'-','text-align:center;color:var(--green);')}
+        ${td(isWalkin?'-':sel.cnt1||'-','text-align:center;')}
+        ${td(isWalkin?'-':sel.cnt2||'-','text-align:center;')}
+        ${td(isWalkin?'-':selPts>0?selPts:'-','text-align:center;color:var(--yellow);font-weight:600;')}
+        ${td(isWalkin?'-':b.dc>0?Math.round(b.dc).toLocaleString():'-','text-align:right;color:var(--text3);')}
       </tr>`;
     });
 
@@ -1631,7 +1640,11 @@ async function downloadStaffStatsXlsx(){
     (r.staff2||[]).forEach(s=>{if(!s)return;if(!sMap[s])sMap[s]={cnt1:0,cnt2:0};sMap[s].cnt2++;});
   });
 
-  const bSorted=Object.entries(bMap).sort((a,b)=>Math.round(b[1].tot)-Math.round(a[1].tot));
+  const bSorted=Object.entries(bMap).sort((a,b)=>{
+    if(a[0]==='WALKIN') return 1;
+    if(b[0]==='WALKIN') return -1;
+    return Math.round(b[1].tot)-Math.round(a[1].tot);
+  });
   const sSorted=Object.entries(sMap).sort((a,b)=>((b[1].cnt1*200)+(b[1].cnt2*100))-((a[1].cnt1*200)+(a[1].cnt2*100)));
   const dcSorted=Object.entries(dcMap).filter(([,d])=>d.dc>0).sort((a,b)=>b[1].dc-a[1].dc);
 
@@ -3612,6 +3625,8 @@ function fmtMins(mins){
 }
 
 function renderAttFromFirebase(data){
+  console.log('stored dates[0..2]:', (data.dates||[]).slice(0,3).map(d=>d.dateStr));
+  console.log('dailyHeadCount keys:', Object.keys(data.dailyHeadCount||{}).slice(0,5));
   // Reconstruct dates array from Firebase data
   const dates=data.dates.map(d=>{
     const p=d.dateStr.split('-');
