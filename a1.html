@@ -2288,7 +2288,12 @@ function renderBookings(){
   let recs=[...bookings].filter(b=>!date||b.date===date);
   if(bkFilter==='confirmed') recs=recs.filter(b=>b.salesId);
   else if(bkFilter==='cancelled') recs=recs.filter(b=>b.status==='cancelled');
-  recs.sort((a,b)=>(a.date+String(a.room)).localeCompare(b.date+String(b.room)));
+  // 최신 입력이 맨 위 (createdAt 없으면 id 역순)
+  recs.sort((a,b)=>{
+    const tA=a.createdAt||a.id||'';
+    const tB=b.createdAt||b.id||'';
+    return tB.localeCompare(tA);
+  });
 
   if(!recs.length){
     document.getElementById('bkGrid').innerHTML='<div style="color:var(--text3);padding:30px;text-align:center">부킹 없음</div>';
@@ -2300,12 +2305,21 @@ function renderBookings(){
   recs.forEach(b=>{if(!grouped[b.date])grouped[b.date]=[];grouped[b.date].push(b);});
 
   let html='';
-  Object.keys(grouped).sort().forEach(date=>{
+  Object.keys(grouped).sort().reverse().forEach(date=>{
     const d=new Date(date);
     const dow=['일','월','화','수','목','금','토'][d.getDay()];
     html+=`<div class="bk-date-badge" style="margin:12px 0 8px;">📅 ${date} (${dow})</div>`;
     html+=`<div class="bk-grid">`;
+    // 날짜 내 순번: createdAt 오름차순으로 번호 부여
+    const dateBks=[...grouped[date]].sort((a,b)=>{
+      const tA=a.createdAt||a.id||'';
+      const tB=b.createdAt||b.id||'';
+      return tA.localeCompare(tB);
+    });
+    const numMap={};
+    dateBks.forEach((bk,i)=>{ numMap[bk.id]=i+1; });
     grouped[date].forEach(bk=>{
+      const bkNum=numMap[bk.id]||'';
       const isCancelled=bk.status==='cancelled';
       const isConfirmed=!!bk.salesId;
       const bookerHtml=(bk.bookers||[]).map(s=>managerList.includes(s)?`🌟${s}`:s).join(' / ')||'-';
@@ -2314,6 +2328,7 @@ function renderBookings(){
           <div style="display:flex;align-items:center;gap:8px;">
             ${bkSelectMode?`<input type="checkbox" class="bk-select-cb" data-bkid="${bk.id}" ${bkSelected.has(bk.id)?'checked':''}>`:``}
             <div class="bk-room">${bk.room?'R'+bk.room:'미정'}</div>
+            <div style="font-size:11px;color:var(--text3);font-weight:700;background:var(--bg4);border-radius:10px;padding:1px 7px;">#${bkNum}</div>
             ${isConfirmed?'<span class="bk-confirmed-tag">매출확정</span>':isCancelled?'<span class="bk-cancelled-tag">취소</span>':''}
           </div>
           <div class="bk-actions">
