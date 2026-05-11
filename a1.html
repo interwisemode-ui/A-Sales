@@ -1219,11 +1219,21 @@ function renderSummary(){
   const to3=document.getElementById('filterDate3To')?.value||'';
   const recs=records.filter(r=>(!from3||r.date>=from3)&&(!to3||r.date<=to3));
   const tot=recs.reduce((s,r)=>s+r.total,0),cash=recs.reduce((s,r)=>s+(r.cash||0),0),card=recs.reduce((s,r)=>s+(r.card||0),0),upi=recs.reduce((s,r)=>s+(r.upi||0),0),dc=recs.reduce((s,r)=>s+(r.dc||0),0);
-  const wk=recs.filter(r=>r.booking==='WALKIN').length,p1=recs.filter(r=>r.booking==='1P').length,p2=recs.filter(r=>r.booking==='2P').length;
+  const wk=recs.filter(r=>(r.bookers||[]).includes('WALKIN')||(r.booking==='WALKIN')).length;
+  const p1=recs.filter(r=>r.booking==='1P').length,p2=recs.filter(r=>r.booking==='2P').length;
   const rd=[];for(let i=1;i<=9;i++){const rs=recs.filter(r=>r.room==i);if(rs.length)rd.push({r:i,t:rs.reduce((s,r)=>s+r.total,0),c:rs.length});}rd.sort((a,b)=>b.t-a.t);
   // country stats
   const ctyMap={};COUNTRIES.forEach(c=>{const rs=recs.filter(r=>r.country===c);if(rs.length)ctyMap[c]={cnt:rs.length,tot:rs.reduce((s,r)=>s+r.total,0)};});
   const pct=v=>tot?Math.round(v/tot*100):0;
+
+  // 요일별 매출
+  const dowNames=['일','월','화','수','목','금','토'];
+  const dowColors=['var(--red)','var(--text2)','var(--text2)','var(--text2)','var(--text2)','var(--accent2)','var(--orange)'];
+  const dowData=dowNames.map((name,i)=>{
+    const rs=recs.filter(r=>{const d=new Date(r.date+'T00:00:00');return d.getDay()===i;});
+    return {name, idx:i, tot:rs.reduce((s,r)=>s+r.total,0), cnt:rs.length, color:dowColors[i]};
+  }).filter(d=>d.cnt>0);
+  dowData.sort((a,b)=>b.tot-a.tot);
   if(sumView==='chart'){
     // Chart view for summary
     const pmItems=[
@@ -1247,6 +1257,7 @@ function renderSummary(){
     <div class="stat-card" style="margin-bottom:12px;"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div><div class="stat-sub">DC율 ${tot>0?Math.round(dc/(tot+dc)*100):0}%</div></div>
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
+    <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건'})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
     `;
   } else {
   document.getElementById('summaryContent').innerHTML=`
@@ -1263,6 +1274,20 @@ function renderSummary(){
   </div>
   <div class="sum-sec"><div class="sum-sec-title">나라별</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${COUNTRIES.map(c=>ctyMap[c]?`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--blue)">${c}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${ctyMap[c].tot.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${ctyMap[c].cnt}건</span></div>`:'').join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
   <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div><div class="room-pills">${rd.map(d=>`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--text2)">R${d.r}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${d.t.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${d.c}건</span></div>`).join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
+  <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+    ${dowData.map(d=>`
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:24px;text-align:center;font-weight:700;color:${d.color};flex-shrink:0;">${d.name}</div>
+        <div style="flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;">
+          <div style="height:100%;border-radius:4px;background:${d.color};width:${tot?Math.round(d.tot/recs.reduce((mx,r)=>{const dd=new Date(r.date+'T00:00:00');return dd.getDay()===dowData[0].idx&&r.total>mx?r.total:mx;},0)*100/dowData[0].tot):0}%;opacity:0.8;position:relative;">
+            <span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:700;color:#fff;white-space:nowrap;">${d.tot.toLocaleString()}</span>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);width:40px;text-align:right;flex-shrink:0;">${d.cnt}건</div>
+      </div>`).join('')}
+    </div>
+  </div>
   <div class="sum-sec"><div class="sum-sec-title">결제 비율</div>
     <div style="display:flex;gap:14px;font-family:'JetBrains Mono',monospace;margin-bottom:9px;">
       <span style="color:var(--green)">CASH ${pct(cash)}%</span><span style="color:var(--blue)">CARD ${pct(card)}%</span><span style="color:var(--yellow)">UPI ${pct(upi)}%</span>
