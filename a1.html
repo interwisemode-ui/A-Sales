@@ -181,7 +181,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 /* Chart bars */
 .chart-wrap{margin-top:12px;}
 .chart-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
-.chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;min-width:80px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;width:40px;min-width:40px;max-width:40px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chart-bar-track{flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;overflow:visible;}
 .chart-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;position:relative;min-width:0;}
 .chart-bar-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:#fff;font-weight:700;white-space:nowrap;position:absolute;left:6px;top:50%;transform:translateY(-50%);}
@@ -1262,7 +1262,7 @@ function renderSummary(){
     <div class="sum-sec"><div class="sum-sec-title">결제 방식별</div>${buildBarChart(pmItems,maxPm,it=>pmColors[it.label]||'var(--accent)')}</div>
     <div class="stat-card" style="margin-bottom:12px;"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div><div class="stat-sub">DC율 ${tot>0?Math.round(dc/(tot+dc)*100):0}%</div></div>
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
-    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,sub:ctyMap[co].cnt+'건 avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
+    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,valExtra:' (avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()+')',sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건'})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
     `;
   } else {
@@ -2647,7 +2647,7 @@ function buildBarChart(items, maxVal, colorFn){
     return `<div class="chart-bar-row">
       <div class="chart-bar-label" title="${it.label}">${it.label}</div>
       <div class="chart-bar-track">
-        <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};"><span class="chart-bar-val">${it.value.toLocaleString()}</span></div>
+        <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};"><span class="chart-bar-val">${it.value.toLocaleString()}${it.valExtra||''}</span></div>
       </div>
       <div style="font-size:10px;color:var(--text3);white-space:nowrap;width:70px;flex-shrink:0;text-align:right;overflow:hidden;text-overflow:ellipsis;">${it.sub||''}</div>
     </div>`;
