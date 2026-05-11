@@ -511,6 +511,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div id="summaryContent"></div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-sm" onclick="window.showRoomChargeSimModal()" 
+          style="background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);">
+          💰 룸차지 방식 비교 시뮬레이션
+        </button>
+      </div>
     </div>
 
     <div id="tab-staffstats" class="tab-content">
@@ -1256,7 +1262,7 @@ function renderSummary(){
     <div class="sum-sec"><div class="sum-sec-title">결제 방식별</div>${buildBarChart(pmItems,maxPm,it=>pmColors[it.label]||'var(--accent)')}</div>
     <div class="stat-card" style="margin-bottom:12px;"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div><div class="stat-sub">DC율 ${tot>0?Math.round(dc/(tot+dc)*100):0}%</div></div>
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
-    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
+    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,sub:ctyMap[co].cnt+'건 avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건'})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
     `;
   } else {
@@ -1272,7 +1278,7 @@ function renderSummary(){
     <div class="stat-card"><div class="stat-label">WALKIN</div><div class="stat-value" style="color:#c084fc">${wk}</div><div class="stat-sub">건</div></div>
     <div class="stat-card"><div class="stat-label">평균 단가</div><div class="stat-value" style="color:var(--text)">${recs.length?Math.round(tot/recs.length).toLocaleString():0}</div><div class="stat-sub">per 건</div></div>
   </div>
-  <div class="sum-sec"><div class="sum-sec-title">나라별</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${COUNTRIES.map(c=>ctyMap[c]?`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--blue)">${c}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${ctyMap[c].tot.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${ctyMap[c].cnt}건</span></div>`:'').join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
+  <div class="sum-sec"><div class="sum-sec-title">나라별</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${COUNTRIES.map(c=>ctyMap[c]?`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--blue)">${c}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${ctyMap[c].tot.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${ctyMap[c].cnt}건</span><span style="font-size:11px;color:var(--yellow)">avg ${Math.round(ctyMap[c].tot/ctyMap[c].cnt).toLocaleString()}</span></div>`:'').join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
   <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div><div class="room-pills">${rd.map(d=>`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--text2)">R${d.r}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${d.t.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${d.c}건</span></div>`).join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
   <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>
     <div style="display:flex;flex-direction:column;gap:6px;">
@@ -1925,6 +1931,119 @@ window.loadExpenseFile=loadExpenseFile;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
 window.renderStaffStats=renderStaffStats;
+
+// ── 룸차지 시뮬레이션 ──────────────────────────────────────
+window.showRoomChargeSimModal = function(){
+  const from = document.getElementById('filterDate3From')?.value || '';
+  const to   = document.getElementById('filterDate3To')?.value   || '';
+  if(!from || !to){ showToast('⚠ 요약 탭에서 날짜 범위를 먼저 선택해주세요'); return; }
+
+  const recs = records.filter(r => r.date >= from && r.date <= to && r.pax > 0);
+
+  let oldTotal = 0, newTotal = 0;
+  const diff3plus = []; // 3명 이상 차이나는 건
+
+  recs.forEach(r => {
+    const pax  = parseInt(r.pax) || 0;
+    const room = parseInt(r.room) || 0;
+    const isPremium = room === 1 || room === 2; // R1, R2
+
+    // 기존 룸차지
+    let oldCharge = 0;
+    if(pax === 1) oldCharge = 2500;
+    else if(pax === 2) oldCharge = isPremium ? 3000 : 2500;
+    else oldCharge = isPremium ? 3000 : 2500; // 3명+ 기존은 동일
+
+    // 새 룸차지
+    let newCharge = 0;
+    if(pax === 1) newCharge = 2500;
+    else if(pax === 2) newCharge = isPremium ? 3000 : 2500;
+    else newCharge = pax * 1000; // 3명+
+
+    oldTotal += oldCharge;
+    newTotal += newCharge;
+
+    if(newCharge !== oldCharge){
+      diff3plus.push({date:r.date, room:'R'+room, pax, bookers:(r.bookers||[]).join('/'), oldCharge, newCharge, diff: newCharge - oldCharge});
+    }
+  });
+
+  const totalDiff = newTotal - oldTotal;
+  const diffColor = totalDiff >= 0 ? 'var(--green)' : 'var(--red)';
+
+  // 인원별 분포
+  const paxDist = {};
+  recs.forEach(r => {
+    const p = parseInt(r.pax)||0;
+    if(!paxDist[p]) paxDist[p] = 0;
+    paxDist[p]++;
+  });
+
+  let html = `
+    <div style="max-width:600px;margin:16px auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;">
+      <div style="font-size:14px;font-weight:700;color:var(--accent2);margin-bottom:14px;">💰 룸차지 방식 비교 (${from} ~ ${to})</div>
+
+      <!-- 요약 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);">기존 방식 합계</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);">₹${oldTotal.toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);">새 방식 합계</div>
+          <div style="font-size:16px;font-weight:700;color:var(--accent2);">₹${newTotal.toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);">차액</div>
+          <div style="font-size:16px;font-weight:700;color:${diffColor};">${totalDiff>=0?'+':''}₹${totalDiff.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <!-- 인원별 분포 -->
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px;font-weight:700;">인원별 건수</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+        ${Object.entries(paxDist).sort((a,b)=>+a[0]-+b[0]).map(([p,cnt])=>`
+          <div style="background:${+p>=3?'rgba(52,211,153,0.12)':'var(--bg3)'};border:1px solid ${+p>=3?'rgba(52,211,153,0.3)':'var(--border)'};border-radius:6px;padding:4px 10px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);">${p}명</div>
+            <div style="font-weight:700;color:${+p>=3?'var(--green)':'var(--text)'};">${cnt}건</div>
+            <div style="font-size:10px;color:var(--text3);">₹${(+p>=3?+p*1000:+p===1?2500:(+p===2?3000:2500)).toLocaleString()}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- 3명+ 상세 -->
+      ${diff3plus.length>0 ? `
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px;font-weight:700;">3명 이상 상세 (${diff3plus.length}건)</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <tr style="background:var(--bg3);">
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">날짜</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">룸</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">부킹자</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">인원</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">기존</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">새방식</th>
+            <th style="padding:5px 8px;border:1px solid var(--border);color:var(--text3);">차액</th>
+          </tr>
+          ${diff3plus.map(r=>`<tr>
+            <td style="padding:4px 8px;border:1px solid var(--border);">${r.date}</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);text-align:center;">${r.room}</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);">${r.bookers}</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);text-align:center;font-weight:700;">${r.pax}명</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);text-align:right;">₹${r.oldCharge.toLocaleString()}</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);text-align:right;color:var(--accent2);">₹${r.newCharge.toLocaleString()}</td>
+            <td style="padding:4px 8px;border:1px solid var(--border);text-align:right;color:var(--green);font-weight:700;">+₹${r.diff.toLocaleString()}</td>
+          </tr>`).join('')}
+        </table>
+      </div>` : '<div style="color:var(--text3);font-size:12px;">3명 이상 건수 없음</div>'}
+    </div>`;
+
+  document.getElementById('summaryContent').insertAdjacentHTML('afterend', '<div id="simResult">'+html+'</div>');
+  // Remove previous if exists
+  const prev = document.getElementById('simResult');
+  if(prev) prev.remove();
+  document.getElementById('summaryContent').insertAdjacentHTML('afterend', '<div id="simResult">'+html+'</div>');
+  document.getElementById('simResult').scrollIntoView({behavior:'smooth'});
+};
 window.openBulkDelete=openBulkDelete;
 window.deleteInvalidDates=deleteInvalidDates;
 window.setBulkDelQuick=setBulkDelQuick;
