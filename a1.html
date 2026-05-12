@@ -2900,9 +2900,26 @@ function parseExpense(raw, monthKey, colInfo=[]){
     return d;
   }
 
+  // 합계 열 감지: 헤더 행 이전 행들에서 "합계" 텍스트가 있는 열 제외
+  const totalCols=new Set();
+  for(let r=0;r<headerRowIdx;r++){
+    const row2=raw[r]||[];
+    row2.forEach((cell,ci)=>{
+      const s=String(cell||'').trim();
+      if(s.includes('합계')||s.includes('합 계')||s.toLowerCase().includes('total')) totalCols.add(ci);
+    });
+  }
+  // 헤더 행 자체에도 합계 텍스트 체크
+  headerRow.forEach((cell,ci)=>{
+    const s=String(cell||'').trim();
+    if(s.includes('합계')||s.includes('합 계')) totalCols.add(ci);
+  });
+
   for(let c=1;c<headerRow.length;c++){
     // 숨긴 열 건너뛰기
     if(colInfo[c]&&colInfo[c].hidden)continue;
+    // 합계 열 건너뛰기
+    if(totalCols.has(c))continue;
     const raw=headerRow[c];
     const v=String(raw||'').trim();
     if(!v||v==='')continue;
