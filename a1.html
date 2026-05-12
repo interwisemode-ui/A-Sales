@@ -2976,10 +2976,35 @@ function parseExpense(raw, monthKey, colInfo=[]){
     });
   }
 
-  // Save to Firebase
-  set(ref(db,'expenses/'+monthKey), {monthKey, year, month, data:result});
-  showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일치)');
-  renderExpenseTable(result, monthKey);
+  // 날짜별로 해당 월에 분리 저장
+  const byMonth={};
+  Object.entries(result).forEach(([dateStr,cats])=>{
+    const [y,m]=dateStr.split('-').map(Number);
+    const mk=y+'-'+String(m).padStart(2,'0');
+    if(!byMonth[mk]) byMonth[mk]={year:y,month:m,data:{}};
+    byMonth[mk].data[dateStr]=cats;
+  });
+
+  // 각 월별로 기존 데이터와 병합해서 저장
+  const months=Object.keys(byMonth);
+  let saved=0;
+  months.forEach(mk=>{
+    const {year:y,month:m,data:newData}=byMonth[mk];
+    onValue(ref(db,'expenses/'+mk),snap=>{
+      const existing=snap.exists()?(snap.val().data||{}):{};
+      // 새 데이터로 해당 날짜만 업데이트 (다른 날짜는 유지)
+      Object.assign(existing, newData);
+      set(ref(db,'expenses/'+mk),{monthKey:mk,year:y,month:m,data:existing});
+      saved++;
+      if(saved===months.length){
+        showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일, '+months.length+'개월)');
+        renderExpenseTable(result, monthKey);
+      }
+    },{onlyOnce:true});
+  });
+  if(!months.length){
+    showToast('⚠ 저장할 데이터 없음');
+  }
 }
 
 function renderExpenseTable(data, monthKey){
