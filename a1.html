@@ -2977,6 +2977,7 @@ function parseExpense(raw, monthKey, colInfo=[]){
   }
 
   // 날짜별로 해당 월에 분리 저장
+  console.log('result dates:', Object.keys(result).sort());
   const byMonth={};
   Object.entries(result).forEach(([dateStr,cats])=>{
     const [y,m]=dateStr.split('-').map(Number);
@@ -3019,8 +3020,14 @@ function renderExpenseTable(data, monthKey){
   // Header
   html+='<thead><tr><th style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);text-align:left;position:sticky;left:0;z-index:2">항목</th>';
   dates.forEach(d=>{
-    const day=d.split('-')[2];
-    html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;min-width:60px">'+parseInt(day)+'일</th>';
+    const parts=d.split('-');
+    const mon=parseInt(parts[1]);
+    const day=parseInt(parts[2]);
+    const dateObj=new Date(d+'T00:00:00');
+    const dow=['일','월','화','수','목','금','토'][dateObj.getDay()];
+    const isFriSat=dateObj.getDay()===5||dateObj.getDay()===6;
+    const color=isFriSat?'color:var(--red);':'';
+    html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;min-width:55px;'+color+'">'+mon+'/'+day+'<br><span style="font-size:9px;">'+dow+'</span></th>';
   });
   html+='<th style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);text-align:center;color:var(--accent2)">합계</th>';
   html+='</tr></thead><tbody>';
