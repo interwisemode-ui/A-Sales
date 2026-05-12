@@ -580,7 +580,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="rec-header">
         <div class="rec-title">경비</div>
         <div class="filter-bar">
-          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;">
+          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;" onchange="loadExpenseFromDB(this.value)">
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
           <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
           <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
@@ -3007,7 +3007,8 @@ function parseExpense(raw, monthKey, colInfo=[]){
 
   Promise.all(savePromises).then(()=>{
     showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일, '+months.length+'개월)');
-    renderExpenseTable(result, monthKey);
+    // 선택한 월 데이터만 표시
+    loadExpenseFromDB(monthKey);
   });
 
   if(!months.length){
