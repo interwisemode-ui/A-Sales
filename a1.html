@@ -580,7 +580,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="rec-header">
         <div class="rec-title">경비</div>
         <div class="filter-bar">
-          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;" onchange="loadExpenseFromDB(this.value)">
+          <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;" onchange="window.loadExpenseFromDB(this.value)">
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
           <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
           <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
@@ -3017,7 +3017,14 @@ function parseExpense(raw, monthKey, colInfo=[]){
 }
 
 function renderExpenseTable(data, monthKey){
-  const dates=Object.keys(data).sort();
+  // 선택한 월의 11일 ~ 익월 10일 필터링
+  const [year,month]=monthKey.split('-').map(Number);
+  const periodFrom=monthKey+'-11';
+  const nextDate=new Date(year,month,1);
+  const nextMonthKey=nextDate.getFullYear()+'-'+String(nextDate.getMonth()+1).padStart(2,'0');
+  const periodTo=nextMonthKey+'-10';
+  const allDates=Object.keys(data).sort();
+  const dates=allDates.filter(d=>d>=periodFrom&&d<=periodTo);
   if(!dates.length){
     document.getElementById('expenseContent').innerHTML='<div style="color:var(--text3);padding:20px">데이터 없음</div>';
     return;
@@ -3105,12 +3112,20 @@ function renderExpenseTable(data, monthKey){
 }
 
 // Load expense from Firebase when tab opens
-function loadExpenseFromDB(monthKey){
+window.loadExpenseFromDB=function loadExpenseFromDB(monthKey){
+  const [year,month]=monthKey.split('-').map(Number);
+  // 익월 계산
+  const nextDate=new Date(year,month,1);
+  const nextMonthKey=nextDate.getFullYear()+'-'+String(nextDate.getMonth()+1).padStart(2,'0');
+
+  // 현재월 + 익월 데이터 합쳐서 로드
   onValue(ref(db,'expenses/'+monthKey),snap=>{
-    if(snap.exists()){
-      const d=snap.val();
-      renderExpenseTable(d.data||{}, monthKey);
-    }
+    const data1=snap.exists()?(snap.val().data||{}):{};
+    onValue(ref(db,'expenses/'+nextMonthKey),snap2=>{
+      const data2=snap2.exists()?(snap2.val().data||{}):{};
+      const combined=Object.assign({},data1,data2);
+      renderExpenseTable(combined, monthKey);
+    },{onlyOnce:true});
   },{onlyOnce:true});
 }
 
