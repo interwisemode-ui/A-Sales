@@ -470,6 +470,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="rec-header">
         <div class="rec-title">전체 장부</div>
         <div class="filter-bar">
+          <div class="view-toggle">
+            <button class="vt-btn active" id="recViewTable" onclick="window.setRecView('table')">📋 표</button>
+            <button class="vt-btn" id="recViewGraph" onclick="window.setRecView('graph')">📊 그래프</button>
+          </div>
           <input class="input-field" type="date" id="filterDate2From" style="font-size:11px;width:auto;">
           <span style="color:var(--text3);font-size:11px">~</span>
           <input class="input-field" type="date" id="filterDate2To" style="font-size:11px;width:auto;">
@@ -484,7 +488,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div class="total-bar" id="totalBar2"></div>
-      <div class="table-wrap"><table>
+      <!-- 목표 입력 (그래프 뷰일때만 표시) -->
+      <div id="recGraphOptions" style="display:none;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text3);">🎯 목표 매출:</span>
+        <input type="number" id="recGraphTarget" placeholder="목표 금액" 
+          style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:4px 10px;width:130px;"
+          onchange="window.renderRecGraph()">
+      </div>
+      <div id="recGraphContent" style="display:none;"></div>
+      <div class="table-wrap" id="recTableWrap"><table>
         <thead><tr><th>#</th><th>날짜</th><th>룸</th><th>부킹자</th><th>결제금액</th><th>나라</th><th>인원</th><th>DC</th><th>셀렉션1</th><th>셀렉션2</th><th>체크인</th><th>체크아웃</th><th>메모</th><th></th></tr></thead>
         <tbody id="recordsBody2"></tbody>
       </table></div>
@@ -1137,7 +1149,12 @@ function buildRow(r,i,_rowTotal){
 
 const EMPTY='<tr><td colspan="14" style="text-align:center;color:var(--text3);padding:26px">기록 없음</td></tr>';
 function renderTable(){const r=filteredRecs('filterDateFrom','filterDateTo',null);renderTotalBar(r,'totalBar');document.getElementById('recordsBody').innerHTML=r.map((x,i)=>buildRow(x,i,r.length)).join('')||EMPTY;}
-function renderTable2(){const r=filteredRecs('filterDate2From','filterDate2To','filterRoom2');renderTotalBar(r,'totalBar2');document.getElementById('recordsBody2').innerHTML=r.map((x,i)=>buildRow(x,i,r.length)).join('')||EMPTY;}
+function renderTable2(){
+  const r=filteredRecs('filterDate2From','filterDate2To','filterRoom2');
+  renderTotalBar(r,'totalBar2');
+  document.getElementById('recordsBody2').innerHTML=r.map((x,i)=>buildRow(x,i,r.length)).join('')||EMPTY;
+  if(recView==='graph') window.renderRecGraph();
+}
 
 // INLINE AMOUNT EDIT
 function inlineEditAmt(id){
@@ -1931,6 +1948,329 @@ window.loadExpenseFile=loadExpenseFile;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
 window.renderStaffStats=renderStaffStats;
+
+// ── GRAPH TAB ──────────────────────────────────────────────
+function setGraphQuick(type){
+  const today=new Date();
+  const todayStr=localDateStr(today);
+  let from='',to='';
+  if(type==='today'){ from=to=todayStr; }
+  else if(type==='this'){
+    // 이번달 11일~익월10일
+    const y=today.getFullYear(), m=today.getMonth()+1;
+    from=y+'-'+String(m).padStart(2,'0')+'-11';
+    const nd=new Date(y,m,1);
+    to=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-10';
+  } else if(type==='last'){
+    const nd=new Date(today.getFullYear(),today.getMonth()-1,1);
+    const y=nd.getFullYear(), m=nd.getMonth()+1;
+    from=y+'-'+String(m).padStart(2,'0')+'-11';
+    const nd2=new Date(y,m,1);
+    to=nd2.getFullYear()+'-'+String(nd2.getMonth()+1).padStart(2,'0')+'-10';
+  } else if(type==='all'){ from=''; to=''; }
+  document.getElementById('graphFrom').value=from;
+  document.getElementById('graphTo').value=to;
+  ['graphBtnThis','graphBtnLast'].forEach(id=>document.getElementById(id)?.classList.remove('active'));
+  if(type==='this') document.getElementById('graphBtnThis')?.classList.add('active');
+  if(type==='last') document.getElementById('graphBtnLast')?.classList.add('active');
+  renderGraph();
+}
+window.setGraphQuick=setGraphQuick;
+
+function renderGraph(){
+  const from=document.getElementById('graphFrom')?.value||'';
+  const to=document.getElementById('graphTo')?.value||'';
+  const target=parseFloat(document.getElementById('graphTarget')?.value)||0;
+  const recs=records.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+  const el=document.getElementById('graphContent');
+  if(!el)return;
+  if(!recs.length){ el.innerHTML='<div style="color:var(--text3);padding:20px;text-align:center;">데이터 없음</div>'; return; }
+
+  // 일별 매출 집계
+  const byDate={};
+  recs.forEach(r=>{ byDate[r.date]=(byDate[r.date]||0)+(r.total||0); });
+  const dates=Object.keys(byDate).sort();
+  const vals=dates.map(d=>byDate[d]);
+  const totalSales=vals.reduce((s,v)=>s+v,0);
+  const avgSales=Math.round(totalSales/dates.length);
+  const maxVal=Math.max(...vals);
+
+  // 전월 같은 기간 데이터
+  let prevByDate={};
+  if(from&&to){
+    const fd=new Date(from+'T00:00:00'), td=new Date(to+'T00:00:00');
+    const diff=Math.round((td-fd)/(86400000));
+    const pf=new Date(fd); pf.setMonth(pf.getMonth()-1);
+    const pt=new Date(td); pt.setMonth(pt.getMonth()-1);
+    const pfStr=localDateStr(pf), ptStr=localDateStr(pt);
+    records.filter(r=>r.date>=pfStr&&r.date<=ptStr).forEach(r=>{
+      // 날짜를 1달 뒤로 매핑해서 비교
+      const d=new Date(r.date+'T00:00:00');
+      d.setMonth(d.getMonth()+1);
+      const mapped=localDateStr(d);
+      prevByDate[mapped]=(prevByDate[mapped]||0)+(r.total||0);
+    });
+  }
+
+  // SVG 라인 차트
+  const W=600, H=220, PL=10, PR=10, PT=20, PB=40;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const n=dates.length;
+  const xStep=n>1?cW/(n-1):cW;
+  const yMax=Math.max(maxVal, target||0)*1.1||1;
+
+  const toX=(i)=>PL+(n>1?i*cW/(n-1):cW/2);
+  const toY=(v)=>PT+cH-(v/yMax*cH);
+
+  // 현재월 라인
+  const pts=dates.map((d,i)=>toX(i)+','+toY(vals[i])).join(' ');
+  // 전월 라인
+  const prevPts=dates.map((d,i)=>{
+    const v=prevByDate[d]||0;
+    return toX(i)+','+toY(v);
+  }).join(' ');
+  // 평균선 y
+  const avgY=toY(avgSales);
+  // 목표선 y
+  const targetY=target?toY(target/dates.length):null;
+
+  // X축 레이블 (날짜 - 일만)
+  const xLabels=dates.map((d,i)=>{
+    if(n<=15||i===0||i===n-1||i%Math.ceil(n/8)===0){
+      const day=parseInt(d.split('-')[2]);
+      return `<text x="${toX(i)}" y="${H-5}" text-anchor="middle" font-size="9" fill="var(--text3)">${day}</text>`;
+    }
+    return '';
+  }).join('');
+
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:240px;" xmlns="http://www.w3.org/2000/svg">
+    <!-- 그리드 -->
+    ${[0.25,0.5,0.75,1].map(r=>`<line x1="${PL}" y1="${PT+cH*(1-r)}" x2="${W-PR}" y2="${PT+cH*(1-r)}" stroke="var(--border)" stroke-width="0.5"/>`).join('')}
+    <!-- 전월 라인 -->
+    <polyline points="${prevPts}" fill="none" stroke="rgba(148,163,184,0.4)" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <!-- 현재월 라인 -->
+    <polyline points="${pts}" fill="none" stroke="var(--accent2)" stroke-width="2"/>
+    <!-- 평균선 -->
+    <line x1="${PL}" y1="${avgY}" x2="${W-PR}" y2="${avgY}" stroke="var(--yellow)" stroke-width="1" stroke-dasharray="6,3"/>
+    <text x="${W-PR+2}" y="${avgY+4}" font-size="8" fill="var(--yellow)">avg</text>
+    ${targetY?`<line x1="${PL}" y1="${targetY}" x2="${W-PR}" y2="${targetY}" stroke="var(--green)" stroke-width="1" stroke-dasharray="6,3"/>
+    <text x="${W-PR+2}" y="${targetY+4}" font-size="8" fill="var(--green)">목표</text>`:''}
+    <!-- 데이터 포인트 -->
+    ${dates.map((d,i)=>`<circle cx="${toX(i)}" cy="${toY(vals[i])}" r="3" fill="var(--accent2)">
+      <title>${d}: ₹${vals[i].toLocaleString()}</title></circle>`).join('')}
+    <!-- X축 레이블 -->
+    ${xLabels}
+  </svg>`;
+
+  // 목표 달성률
+  let targetHtml='';
+  if(target>0){
+    const pct=Math.round(totalSales/target*100);
+    const color=pct>=100?'var(--green)':pct>=70?'var(--yellow)':'var(--red)';
+    targetHtml=`<div style="background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:var(--text3);">🎯 목표 달성률</span>
+      <div style="flex:1;background:var(--bg4);border-radius:4px;height:12px;position:relative;">
+        <div style="width:${Math.min(pct,100)}%;height:100%;border-radius:4px;background:${color};"></div>
+      </div>
+      <span style="font-weight:700;color:${color};">${pct}%</span>
+      <span style="font-size:11px;color:var(--text3);">₹${totalSales.toLocaleString()} / ₹${target.toLocaleString()}</span>
+    </div>`;
+  }
+
+  // 통계 카드
+  const statsHtml=`<div class="stats-grid" style="margin-bottom:12px;">
+    <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2);">₹${totalSales.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">일 평균</div><div class="stat-value" style="color:var(--yellow);">₹${avgSales.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">최고 매출</div><div class="stat-value" style="color:var(--green);">₹${maxVal.toLocaleString()}</div><div class="stat-sub">${dates[vals.indexOf(maxVal)]}</div></div>
+    <div class="stat-card"><div class="stat-label">최저 매출</div><div class="stat-value" style="color:var(--red);">₹${Math.min(...vals).toLocaleString()}</div><div class="stat-sub">${dates[vals.indexOf(Math.min(...vals))]}</div></div>
+  </div>`;
+
+  // 범례
+  const legendHtml=`<div style="display:flex;gap:16px;font-size:11px;color:var(--text3);margin-bottom:8px;flex-wrap:wrap;">
+    <span><span style="display:inline-block;width:20px;height:2px;background:var(--accent2);vertical-align:middle;margin-right:4px;"></span>이번 기간</span>
+    <span><span style="display:inline-block;width:20px;height:2px;background:rgba(148,163,184,0.4);vertical-align:middle;margin-right:4px;border-top:2px dashed rgba(148,163,184,0.4);"></span>전월 동기</span>
+    <span><span style="display:inline-block;width:20px;height:1px;background:var(--yellow);vertical-align:middle;margin-right:4px;"></span>평균</span>
+    ${target?`<span><span style="display:inline-block;width:20px;height:1px;background:var(--green);vertical-align:middle;margin-right:4px;"></span>일목표</span>`:''}
+  </div>`;
+
+  el.innerHTML=targetHtml+statsHtml+
+    `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;">📈 일별 매출 추이</div>
+      ${legendHtml}${svg}
+    </div>`;
+}
+window.renderGraph=renderGraph;
+
+// ── 전체장부 그래프 뷰 ──────────────────────────────────────
+let recView='table';
+window.setRecView=function(v){
+  recView=v;
+  document.getElementById('recViewTable')?.classList.toggle('active',v==='table');
+  document.getElementById('recViewGraph')?.classList.toggle('active',v==='graph');
+  document.getElementById('recTableWrap').style.display=v==='table'?'':'none';
+  document.getElementById('recGraphContent').style.display=v==='graph'?'':'none';
+  document.getElementById('recGraphOptions').style.display=v==='graph'?'flex':'none';
+  if(v==='graph') window.renderRecGraph();
+};
+
+window.renderRecGraph=function(){
+  const from=document.getElementById('filterDate2From')?.value||'';
+  const to=document.getElementById('filterDate2To')?.value||'';
+  const target=parseFloat(document.getElementById('recGraphTarget')?.value)||0;
+  const el=document.getElementById('recGraphContent');
+  if(!el)return;
+
+  const recs=records.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+  if(!recs.length){ el.innerHTML='<div style="color:var(--text3);padding:20px;text-align:center;">데이터 없음</div>'; return; }
+
+  // 일별 매출
+  const byDate={};
+  recs.forEach(r=>{ byDate[r.date]=(byDate[r.date]||0)+(r.total||0); });
+  const dates=Object.keys(byDate).sort();
+  const vals=dates.map(d=>byDate[d]);
+  const totalSales=vals.reduce((s,v)=>s+v,0);
+  const avgSales=Math.round(totalSales/dates.length);
+  const maxVal=Math.max(...vals);
+  const minVal=Math.min(...vals);
+
+  // 전월 동기
+  let prevByDate={};
+  if(from&&to){
+    const fd=new Date(from+'T00:00:00');
+    const td=new Date(to+'T00:00:00');
+    const pf=new Date(fd); pf.setMonth(pf.getMonth()-1);
+    const pt=new Date(td); pt.setMonth(pt.getMonth()-1);
+    const pfStr=localDateStr(pf), ptStr=localDateStr(pt);
+    records.filter(r=>r.date>=pfStr&&r.date<=ptStr).forEach(r=>{
+      const d=new Date(r.date+'T00:00:00');
+      d.setMonth(d.getMonth()+1);
+      const mapped=localDateStr(d);
+      prevByDate[mapped]=(prevByDate[mapped]||0)+(r.total||0);
+    });
+  }
+
+  // 막대 차트 SVG
+  const n=dates.length;
+  const W=560, H=200, PL=8, PR=8, PT=15, PB=35;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const barW=Math.max(2, Math.floor(cW/n)-2);
+  const gap=(cW-(barW*n))/(n+1);
+  const yMax=Math.max(maxVal, Object.values(prevByDate).length?Math.max(...Object.values(prevByDate)):0)*1.1||1;
+  const toY=v=>PT+cH-(v/yMax*cH);
+  const toX=i=>PL+gap+(barW+gap)*i;
+
+  const bars=dates.map((d,i)=>{
+    const v=vals[i];
+    const pv=prevByDate[d]||0;
+    const x=toX(i);
+    const bh=v/yMax*cH;
+    const ph=pv/yMax*cH;
+    const isMax=v===maxVal;
+    const dow=new Date(d+'T00:00:00').getDay();
+    const isFriSat=dow===5||dow===6;
+    const barColor=isMax?'var(--green)':isFriSat?'var(--orange)':'var(--accent)';
+    const day=parseInt(d.split('-')[2]);
+    return `
+      <!-- 전월 막대 -->
+      ${pv>0?`<rect x="${x}" y="${toY(pv)}" width="${barW}" height="${ph}" fill="rgba(148,163,184,0.25)" rx="2"/>`:''}
+      <!-- 현재 막대 -->
+      <rect x="${x}" y="${toY(v)}" width="${barW}" height="${bh}" fill="${barColor}" rx="2" opacity="0.85">
+        <title>${d}: ₹${v.toLocaleString()}</title>
+      </rect>
+      ${barW>12?`<text x="${x+barW/2}" y="${H-PB+12}" text-anchor="middle" font-size="8" fill="var(--text3)">${day}</text>`:''}
+    `;
+  }).join('');
+
+  // 평균선
+  const avgY=toY(avgSales);
+  // 일목표선
+  const dayTarget=target>0?target/n:0;
+  const targetY=dayTarget?toY(dayTarget):null;
+
+  const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:220px;" xmlns="http://www.w3.org/2000/svg">
+    ${[0.25,0.5,0.75,1].map(r=>`<line x1="${PL}" y1="${PT+cH*(1-r)}" x2="${W-PR}" y2="${PT+cH*(1-r)}" stroke="var(--border)" stroke-width="0.5"/>`).join('')}
+    ${bars}
+    <line x1="${PL}" y1="${avgY}" x2="${W-PR}" y2="${avgY}" stroke="var(--yellow)" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="${W-PR-2}" y="${avgY-3}" font-size="8" fill="var(--yellow)" text-anchor="end">avg ₹${avgSales.toLocaleString()}</text>
+    ${targetY?`<line x1="${PL}" y1="${targetY}" x2="${W-PR}" y2="${targetY}" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="${W-PR-2}" y="${targetY-3}" font-size="8" fill="var(--green)" text-anchor="end">목표 ₹${Math.round(dayTarget).toLocaleString()}/일</text>`:''}
+  </svg>`;
+
+  // 목표 달성률
+  let targetHtml='';
+  if(target>0){
+    const pct=Math.round(totalSales/target*100);
+    const color=pct>=100?'var(--green)':pct>=70?'var(--yellow)':'var(--red)';
+    targetHtml=`<div style="background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--text3);">🎯 달성률</span>
+      <div style="flex:1;min-width:80px;background:var(--bg4);border-radius:4px;height:10px;">
+        <div style="width:${Math.min(pct,100)}%;height:100%;border-radius:4px;background:${color};"></div>
+      </div>
+      <span style="font-weight:700;color:${color};font-size:14px;">${pct}%</span>
+      <span style="font-size:11px;color:var(--text3);">₹${totalSales.toLocaleString()} / ₹${target.toLocaleString()}</span>
+    </div>`;
+  }
+
+  el.innerHTML=`
+    ${targetHtml}
+    <div class="stats-grid" style="margin-bottom:10px;">
+      <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2);">₹${totalSales.toLocaleString()}</div><div class="stat-sub">${recs.length}건</div></div>
+      <div class="stat-card"><div class="stat-label">일 평균</div><div class="stat-value" style="color:var(--yellow);">₹${avgSales.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">최고</div><div class="stat-value" style="color:var(--green);">₹${maxVal.toLocaleString()}</div><div class="stat-sub">${dates[vals.indexOf(maxVal)].slice(5)}</div></div>
+      <div class="stat-card"><div class="stat-label">최저</div><div class="stat-value" style="color:var(--red);">₹${minVal.toLocaleString()}</div><div class="stat-sub">${dates[vals.indexOf(minVal)].slice(5)}</div></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3);margin-bottom:8px;flex-wrap:wrap;">
+        <span>■ <span style="color:var(--accent);">이번 기간</span></span>
+        <span>■ <span style="color:var(--orange);">금/토</span></span>
+        <span>■ <span style="color:var(--green);">최고 매출일</span></span>
+      </div>
+      ${svg}
+    </div>
+
+    <!-- 누적 매출 비교 차트 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">📈 누적 매출 비교 (이번달 vs 전월)</div>
+      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3);margin-bottom:8px;">
+        <span>— <span style="color:var(--accent2);">이번 기간</span></span>
+        <span>-- <span style="color:rgba(148,163,184,0.7);">전월 동기</span></span>
+      </div>
+      ${(()=>{
+        // 누적 계산
+        const cumVals=[], cumPrev=[];
+        let runThis=0, runPrev=0;
+        dates.forEach(d=>{
+          runThis+=byDate[d]||0;
+          runPrev+=prevByDate[d]||0;
+          cumVals.push(runThis);
+          cumPrev.push(runPrev);
+        });
+        const cumMax=Math.max(...cumVals,...cumPrev)*1.05||1;
+        const W2=560,H2=160,PL2=8,PR2=50,PT2=10,PB2=25;
+        const cW2=W2-PL2-PR2, cH2=H2-PT2-PB2;
+        const toX2=i=>PL2+(n>1?i*cW2/(n-1):cW2/2);
+        const toY2=v=>PT2+cH2-(v/cumMax*cH2);
+        const pts2=dates.map((d,i)=>toX2(i)+','+toY2(cumVals[i])).join(' ');
+        const prev2=dates.map((d,i)=>toX2(i)+','+toY2(cumPrev[i])).join(' ');
+        // 차이 표시 (마지막 날)
+        const lastThis=cumVals[cumVals.length-1];
+        const lastPrev=cumPrev[cumPrev.length-1];
+        const diff=lastThis-lastPrev;
+        const diffColor=diff>=0?'var(--green)':'var(--red)';
+        const lastX=toX2(dates.length-1);
+        return \`<svg viewBox="0 0 \${W2} \${H2}" style="width:100%;max-height:180px;" xmlns="http://www.w3.org/2000/svg">
+          \${[0.25,0.5,0.75,1].map(r=>\`<line x1="\${PL2}" y1="\${PT2+cH2*(1-r)}" x2="\${W2-PR2}" y2="\${PT2+cH2*(1-r)}" stroke="var(--border)" stroke-width="0.5"/>\`).join('')}
+          <polyline points="\${prev2}" fill="none" stroke="rgba(148,163,184,0.5)" stroke-width="2" stroke-dasharray="5,3"/>
+          <polyline points="\${pts2}" fill="none" stroke="var(--accent2)" stroke-width="2.5"/>
+          <circle cx="\${lastX}" cy="\${toY2(lastThis)}" r="4" fill="var(--accent2)"/>
+          <circle cx="\${lastX}" cy="\${toY2(lastPrev)}" r="4" fill="rgba(148,163,184,0.7)"/>
+          <text x="\${lastX+6}" y="\${toY2(lastThis)+4}" font-size="9" fill="var(--accent2)">₹\${(lastThis/1000).toFixed(0)}k</text>
+          <text x="\${lastX+6}" y="\${toY2(lastPrev)+4}" font-size="9" fill="rgba(148,163,184,0.8)">₹\${(lastPrev/1000).toFixed(0)}k</text>
+          <text x="\${W2-PR2+4}" y="\${H2/2}" font-size="9" fill="\${diffColor}" font-weight="bold">\${diff>=0?'+':''}\${(diff/1000).toFixed(0)}k</text>
+        </svg>\`;
+      })()}
+    </div>`;
+};
 
 // ── 룸차지 시뮬레이션 ──────────────────────────────────────
 window.showRoomChargeSimModal = function(){
