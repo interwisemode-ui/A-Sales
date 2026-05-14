@@ -2225,7 +2225,10 @@ window.renderRecGraph=function(){
     const canvas=document.getElementById('cumChart');
     if(!canvas)return;
     const dpr=window.devicePixelRatio||1;
-    const W=canvas.offsetWidth||560, H=180;
+    // 부모 컨테이너 폭에서 실제 크기 가져오기
+    const parent=canvas.parentElement||canvas;
+    const W=Math.floor(parent.getBoundingClientRect().width)||parent.offsetWidth||560;
+    const H=180;
     canvas.width=W*dpr; canvas.height=H*dpr;
     canvas.style.width=W+'px'; canvas.style.height=H+'px';
     const ctx=canvas.getContext('2d');
@@ -2295,9 +2298,8 @@ window.renderRecGraph=function(){
         ro.observe(canvas.closest('div')||canvas.parentElement||document.body);
       }
       // orientationchange - 모바일 회전 감지
-      window.addEventListener('orientationchange',()=>{ setTimeout(drawCumChart,300); },{once:false});
-      // resize - 일반 창 크기 변화
-      window.addEventListener('resize',()=>{ setTimeout(drawCumChart,100); });
+      window.addEventListener('orientationchange',()=>{ setTimeout(drawCumChart,500); });
+      window.addEventListener('resize',()=>{ setTimeout(drawCumChart,150); });
     }
   },80);
 
@@ -2325,7 +2327,7 @@ window.renderRecGraph=function(){
         <span style="color:var(--accent2);">— 이번 기간</span>
         <span style="color:rgba(148,163,184,0.7);">-- 전월 동기</span>
       </div>
-      <canvas id="cumChart" style="width:100%;height:160px;"></canvas>
+      <canvas id="cumChart" style="display:block;width:100%;height:180px;"></canvas>
     </div>`;
 };
 
