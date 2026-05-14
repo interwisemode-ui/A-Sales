@@ -2284,7 +2284,15 @@ window.renderRecGraph=function(){
     ctx.fillStyle=diffColor; ctx.font='bold 10px monospace'; ctx.textAlign='left';
     ctx.fillText((diff>=0?'+':'')+Math.round(diff/1000)+'k', Math.min(bx2,W-PR-30), Math.max(toY(cumThis[n-1])-4,PT+10));
   }
-  setTimeout(drawCumChart,80);
+  setTimeout(()=>{
+    drawCumChart();
+    // 화면 크기 바뀔 때마다 다시 그리기
+    const canvas=document.getElementById('cumChart');
+    if(canvas&&window.ResizeObserver){
+      const ro=new ResizeObserver(()=>drawCumChart());
+      ro.observe(canvas.parentElement||canvas);
+    }
+  },80);
 
   el.innerHTML=`
     ${targetHtml}
