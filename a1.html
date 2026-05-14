@@ -2286,11 +2286,18 @@ window.renderRecGraph=function(){
   }
   setTimeout(()=>{
     drawCumChart();
-    // 화면 크기 바뀔 때마다 다시 그리기
+    // 화면 크기/회전 시 다시 그리기
     const canvas=document.getElementById('cumChart');
-    if(canvas&&window.ResizeObserver){
-      const ro=new ResizeObserver(()=>drawCumChart());
-      ro.observe(canvas.parentElement||canvas);
+    if(canvas){
+      // ResizeObserver - 요소 크기 변화 감지
+      if(window.ResizeObserver){
+        const ro=new ResizeObserver(()=>{ setTimeout(drawCumChart,50); });
+        ro.observe(canvas.closest('div')||canvas.parentElement||document.body);
+      }
+      // orientationchange - 모바일 회전 감지
+      window.addEventListener('orientationchange',()=>{ setTimeout(drawCumChart,300); },{once:false});
+      // resize - 일반 창 크기 변화
+      window.addEventListener('resize',()=>{ setTimeout(drawCumChart,100); });
     }
   },80);
 
