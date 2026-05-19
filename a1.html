@@ -576,13 +576,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <div id="tab-attendance" class="tab-content">
       <div class="rec-header">
         <div class="rec-title">출근부</div>
-        <span class="att-month-badge" id="attMonthBadge">-</span>
-      </div>
-      <div class="att-upload-area" onclick="document.getElementById('attFileInput').click()">
-        <div style="font-size:28px;margin-bottom:8px;">📂</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text2)">출근부 엑셀 파일 업로드</div>
-        <div style="font-size:12px;margin-top:4px;">Petpooja 출근부 .xlsx 파일을 선택하세요</div>
-        <input type="file" id="attFileInput" accept=".xlsx,.xls" style="display:none;" onchange="loadAttendanceFile(this)">
+        <div class="filter-bar">
+          <div class="view-toggle">
+            <button class="vt-btn active" id="attViewTable" onclick="window.setAttView('table')">📋 표</button>
+            <button class="vt-btn" id="attViewCard" onclick="window.setAttView('card')">🃏 카드</button>
+          </div>
+          <span class="att-month-badge" id="attMonthBadge">-</span>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('attFileInput').click()">📊 엑셀 업로드</button>
+          <input type="file" id="attFileInput" accept=".xlsx,.xls" style="display:none;" onchange="loadAttendanceFile(this)">
+        </div>
       </div>
       <div id="attContent"></div>
     </div>
@@ -4252,7 +4254,19 @@ function fmtMins(mins){
   return `${h}:${String(m).padStart(2,'0')}`;
 }
 
+// 출근부 뷰 상태
+let attView='table';
+let _lastAttData=null;
+
+window.setAttView=function(v){
+  attView=v;
+  document.getElementById('attViewTable')?.classList.toggle('active',v==='table');
+  document.getElementById('attViewCard')?.classList.toggle('active',v==='card');
+  if(_lastAttData) renderAttFromFirebase(_lastAttData);
+};
+
 function renderAttFromFirebase(data){
+  _lastAttData=data;
   console.log('stored dates[0..2]:', (data.dates||[]).slice(0,3).map(d=>d.dateStr));
   console.log('dailyHeadCount keys:', Object.keys(data.dailyHeadCount||{}).slice(0,5));
   // Reconstruct dates array from Firebase data
@@ -4270,26 +4284,42 @@ function renderAttFromFirebase(data){
     entries:s.entries.map(e=>({time:e.time,type:e.type,booking:e.booking,date:new Date()}))
   }));
   document.getElementById('attMonthBadge').textContent=`${data.year}년 ${data.month}월`;
-  renderAttTable(staffData,dates,data.dailyHeadCount||{});
+  if(attView==='card'){
+    renderAttCards(staffData);
+  } else {
+    renderAttTable(staffData,dates,data.dailyHeadCount||{});
+  }
+}
+
+function renderAttCards(staffData){
+  const el=document.getElementById('attContent');
+  if(!staffData.length){ el.innerHTML='<div style="color:var(--text3);padding:20px">데이터 없음</div>'; return; }
+  const sorted=[...staffData].sort((a,b)=>b.presentCnt-a.presentCnt);
+  el.innerHTML='<div class="stats-grid">'+sorted.map(s=>`
+    <div class="stat-card">
+      <div class="stat-label">${s.name}</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:4px;">
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--text3);">출근</div>
+          <div class="stat-present" style="font-size:18px;">${s.presentCnt}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--yellow);">지각</div>
+          <div style="font-size:18px;font-weight:700;color:var(--yellow);">${s.lateCnt}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--red);">결근</div>
+          <div style="font-size:18px;font-weight:700;color:var(--red);">${s.absentCnt}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">평균 ${s.avgTime}</div>
+    </div>`).join('')+'</div>';
 }
 
 function renderAttTable(staffData,dates,dailyHeadCount={}){
   if(!staffData.length){document.getElementById('attContent').innerHTML='<div style="color:var(--text3);padding:20px">데이터 없음</div>';return;}
-
-  // Summary cards
-  let summaryHtml=`<div class="stats-grid" style="margin-bottom:16px;">`;
-  staffData.forEach(s=>{
-    summaryHtml+=`<div class="stat-card">
-      <div class="stat-label">${s.name}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;">
-        <div><div style="font-size:9px;color:var(--text3)">출근</div><div class="stat-present">${s.presentCnt}</div></div>
-        <div><div style="font-size:9px;color:var(--text3)">지각</div><div class="stat-late">${s.lateCnt}</div></div>
-        <div><div style="font-size:9px;color:var(--text3)">결근</div><div class="stat-absent">${s.absentCnt}</div></div>
-        <div><div style="font-size:9px;color:var(--text3)">평균</div><div class="stat-avg" style="font-size:12px">${s.avgTime}</div></div>
-      </div>
-    </div>`;
-  });
-  summaryHtml+=`</div>`;
+  // 카드 뷰면 별도 렌더
+  if(attView==='card'){ renderAttCards(staffData); return; }
 
   // Detail table
   const dayHeaders=dates.map(({date})=>{
@@ -4320,7 +4350,7 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
     </tr>`;
   }).join('');
 
-  document.getElementById('attContent').innerHTML=summaryHtml+`
+  document.getElementById('attContent').innerHTML=`
   <div class="att-table-wrap">
     <table class="att-table">
       <thead><tr>
