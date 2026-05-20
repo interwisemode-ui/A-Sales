@@ -554,6 +554,32 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
       <div id="staffStatsContent"></div>
+
+      <!-- 스태프 상세 분석 -->
+      <div style="margin-top:20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:14px;">🔍 스태프 상세 분석</div>
+        
+        <!-- 스태프 선택 -->
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+          <select id="anaStaff" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 10px;">
+            <option value="">스태프 선택...</option>
+          </select>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--text3);">기간 A:</span>
+            <input type="date" id="anaFromA" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;padding:4px 8px;">
+            <span style="font-size:11px;color:var(--text3);">~</span>
+            <input type="date" id="anaToA" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;padding:4px 8px;">
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--yellow);">기간 B:</span>
+            <input type="date" id="anaFromB" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--yellow);font-size:11px;padding:4px 8px;border-color:rgba(251,191,36,0.3);">
+            <span style="font-size:11px;color:var(--text3);">~</span>
+            <input type="date" id="anaToB" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--yellow);font-size:11px;padding:4px 8px;border-color:rgba(251,191,36,0.3);">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="window.runStaffAnalysis()">📊 분석</button>
+        </div>
+        <div id="anaContent"><div style="color:var(--text3);font-size:12px;text-align:center;padding:20px;">스태프를 선택하고 기간을 설정한 후 분석 버튼을 눌러주세요</div></div>
+      </div>
     </div>
 
     <div id="tab-manage" class="tab-content">
@@ -1949,6 +1975,180 @@ window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
 window.setProfitMonth=setProfitMonth;
 window.renderProfit=renderProfit;
+window.renderStaffStats=renderStaffStats;
+
+// ── 스태프 상세 분석 ────────────────────────────────────────
+function populateAnaStaffSelect(){
+  const sel=document.getElementById('anaStaff');
+  if(!sel||sel.options.length>1)return;
+  const names=[...new Set(records.flatMap(r=>r.bookers||[]).filter(s=>s&&s!=='WALKIN'))].sort();
+  names.forEach(n=>{ const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o); });
+}
+
+window.runStaffAnalysis=function(){
+  const staff=document.getElementById('anaStaff')?.value;
+  const fromA=document.getElementById('anaFromA')?.value;
+  const toA=document.getElementById('anaToA')?.value;
+  const fromB=document.getElementById('anaFromB')?.value;
+  const toB=document.getElementById('anaToB')?.value;
+  const el=document.getElementById('anaContent');
+  if(!staff){el.innerHTML='<div style="color:var(--red);padding:10px;">스태프를 선택해주세요</div>';return;}
+  if(!fromA||!toA){el.innerHTML='<div style="color:var(--red);padding:10px;">기간 A를 설정해주세요</div>';return;}
+
+  // 데이터 필터링
+  const getStaffRecs=(from,to)=>records.filter(r=>r.date>=from&&r.date<=to&&(r.bookers||[]).includes(staff));
+  const getAllRecs=(from,to)=>records.filter(r=>r.date>=from&&r.date<=to);
+
+  const recsA=getStaffRecs(fromA,toA);
+  const allA=getAllRecs(fromA,toA);
+  const recsB=fromB&&toB?getStaffRecs(fromB,toB):null;
+  const allB=fromB&&toB?getAllRecs(fromB,toB):null;
+
+  // 분석 함수들
+  function calcPayment(recs){
+    let card=0,upi=0,cash=0,tot=0;
+    recs.forEach(r=>{ card+=(r.card||0); upi+=(r.upi||0); cash+=(r.cash||0); tot+=(r.total||0); });
+    const t=tot||1;
+    return {card,upi,cash,tot,cardPct:Math.round(card/t*100),upiPct:Math.round(upi/t*100),cashPct:Math.round(cash/t*100)};
+  }
+  function calcCountry(recs){
+    const m={};
+    recs.forEach(r=>{ const c=r.country||r.nationality||'-'; m[c]=(m[c]||0)+(r.total||0); });
+    const tot=Object.values(m).reduce((s,v)=>s+v,0)||1;
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({k,v,pct:Math.round(v/tot*100)}));
+  }
+  function calcPax(recs){
+    const m={};
+    recs.forEach(r=>{ const p=r.pax||0; m[p]=(m[p]||0)+1; });
+    const tot=recs.length||1;
+    return Object.entries(m).sort((a,b)=>+a[0]-+b[0]).map(([k,v])=>({k,v,pct:Math.round(v/tot*100)}));
+  }
+  function calcRoom(recs){
+    const m={};
+    recs.forEach(r=>{ const rm='R'+(r.room||'?'); m[rm]=(m[rm]||0)+1; });
+    const tot=recs.length||1;
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>({k,v,pct:Math.round(v/tot*100)}));
+  }
+  function calcDow(recs){
+    const m=[0,0,0,0,0,0,0];
+    recs.forEach(r=>{ if(r.date){ const d=new Date(r.date+'T00:00:00'); m[d.getDay()]+=(r.total||0); } });
+    const tot=m.reduce((s,v)=>s+v,0)||1;
+    const names=['일','월','화','수','목','금','토'];
+    return m.map((v,i)=>({k:names[i],v,pct:Math.round(v/tot*100)}));
+  }
+
+  // 미니 바 차트 렌더
+  function miniBar(pct,color){
+    return `<div style="flex:1;background:var(--bg4);border-radius:3px;height:12px;position:relative;">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div>
+    </div>`;
+  }
+
+  // 비교 섹션 렌더
+  function renderCompare(titleA,titleB,dataA,dataAllA,dataB,dataAllB,type){
+    let html=`<div style="margin-bottom:16px;">`;
+    
+    if(type==='payment'){
+      const rows=[
+        {label:'카드',color:'var(--blue)',keyA:'cardPct',keyB:'cardPct'},
+        {label:'UPI',color:'var(--accent2)',keyA:'upiPct',keyB:'upiPct'},
+        {label:'현금',color:'var(--green)',keyA:'cashPct',keyB:'cashPct'},
+      ];
+      html+=`<table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <tr>
+          <th style="padding:5px;text-align:left;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">항목</th>
+          <th style="padding:5px;text-align:center;color:var(--accent2);font-size:10px;border-bottom:1px solid var(--border);">${staff}<br>${titleA}</th>
+          <th style="padding:5px;text-align:center;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">전체<br>${titleA}</th>
+          ${dataB?`<th style="padding:5px;text-align:center;color:var(--yellow);font-size:10px;border-bottom:1px solid var(--border);">${staff}<br>${titleB}</th>
+          <th style="padding:5px;text-align:center;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">전체<br>${titleB}</th>`:''}
+        </tr>`;
+      rows.forEach(({label,color,keyA,keyB})=>{
+        html+=`<tr>
+          <td style="padding:5px;color:${color};font-weight:600;">${label}</td>
+          <td style="padding:5px;text-align:center;">${dataA[keyA]}%</td>
+          <td style="padding:5px;text-align:center;color:var(--text3);">${dataAllA[keyA]}%</td>
+          ${dataB?`<td style="padding:5px;text-align:center;color:var(--yellow);">${dataB[keyB]}%</td>
+          <td style="padding:5px;text-align:center;color:var(--text3);">${dataAllB[keyB]}%</td>`:''}
+        </tr>`;
+      });
+      html+=`</table>`;
+    } else if(type==='bar'){
+      // dataA = [{k,v,pct}]
+      const allKeys=[...new Set([...dataA.map(d=>d.k),...(dataB||[]).map(d=>d.k)])];
+      const mapA=Object.fromEntries(dataA.map(d=>[d.k,d]));
+      const mapAllA=Object.fromEntries(dataAllA.map(d=>[d.k,d]));
+      const mapB=dataB?Object.fromEntries(dataB.map(d=>[d.k,d])):{};
+      html+=`<div style="display:flex;flex-direction:column;gap:6px;">`;
+      allKeys.forEach(k=>{
+        const a=mapA[k]?.pct||0, aa=mapAllA[k]?.pct||0;
+        const b=mapB[k]?.pct||0;
+        html+=`<div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:30px;font-size:11px;color:var(--text2);text-align:right;flex-shrink:0;">${k}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:40px;font-size:9px;color:var(--accent2);">${staff}</div>
+              ${miniBar(a,'var(--accent2)')}
+              <div style="width:28px;font-size:9px;color:var(--accent2);text-align:right;">${a}%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:40px;font-size:9px;color:var(--text3);">전체</div>
+              ${miniBar(aa,'rgba(148,163,184,0.4)')}
+              <div style="width:28px;font-size:9px;color:var(--text3);text-align:right;">${aa}%</div>
+            </div>
+            ${dataB?`<div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:40px;font-size:9px;color:var(--yellow);">B기간</div>
+              ${miniBar(b,'var(--yellow)')}
+              <div style="width:28px;font-size:9px;color:var(--yellow);text-align:right;">${b}%</div>
+            </div>`:''}
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+    return html;
+  }
+
+  // 전체 렌더
+  const pmA=calcPayment(recsA), pmAllA=calcPayment(allA);
+  const pmB=recsB?calcPayment(recsB):null, pmAllB=allB?calcPayment(allB):null;
+  const ctyA=calcCountry(recsA), ctyAllA=calcCountry(allA);
+  const ctyB=recsB?calcCountry(recsB):null, ctyAllB=allB?calcCountry(allB):null;
+  const paxA=calcPax(recsA), paxAllA=calcPax(allA);
+  const paxB=recsB?calcPax(recsB):null, paxAllB=allB?calcPax(allB):null;
+  const roomA=calcRoom(recsA);
+  const roomB=recsB?calcRoom(recsB):null;
+  const dowA=calcDow(recsA), dowAllA=calcDow(allA);
+  const dowB=recsB?calcDow(recsB):null, dowAllB=allB?calcDow(allB):null;
+
+  const labelA=`${fromA}~${toA}`;
+  const labelB=fromB&&toB?`${fromB}~${toB}`:'';
+
+  const secStyle='background:var(--bg3);border-radius:8px;padding:12px;margin-bottom:10px;';
+  const secTitle=(t)=>`<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">${t}</div>`;
+
+  // 요약 카드
+  const summary=`<div class="stats-grid" style="margin-bottom:12px;">
+    <div class="stat-card"><div class="stat-label">${staff} 건수 (A)</div><div class="stat-value" style="color:var(--accent2);">${recsA.length}건</div><div class="stat-sub">₹${pmA.tot.toLocaleString()}</div></div>
+    ${recsB?`<div class="stat-card"><div class="stat-label">${staff} 건수 (B)</div><div class="stat-value" style="color:var(--yellow);">${recsB.length}건</div><div class="stat-sub">₹${pmB.tot.toLocaleString()}</div></div>`:''}
+    <div class="stat-card"><div class="stat-label">전체 건수 (A)</div><div class="stat-value" style="color:var(--text2);">${allA.length}건</div><div class="stat-sub">₹${pmAllA.tot.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">점유율 (A)</div><div class="stat-value" style="color:var(--green);">${allA.length?Math.round(recsA.length/allA.length*100):0}%</div><div class="stat-sub">건수 기준</div></div>
+  </div>`;
+
+  el.innerHTML=summary+
+    `<div style="${secStyle}">${secTitle('💳 결제방법 비율')}${renderCompare(labelA,labelB,pmA,pmAllA,pmB,pmAllB,'payment')}</div>`+
+    `<div style="${secStyle}">${secTitle('🌍 나라별 비율')}${renderCompare(labelA,labelB,ctyA,ctyAllA,ctyB,ctyAllB,'bar')}</div>`+
+    `<div style="${secStyle}">${secTitle('👥 인원별 비율')}${renderCompare(labelA,labelB,paxA,paxAllA,paxB,paxAllB,'bar')}</div>`+
+    `<div style="${secStyle}">${secTitle('🏠 룸 선호도')}${renderCompare(labelA,labelB,roomA,[],roomB,[],'bar')}</div>`+
+    `<div style="${secStyle}">${secTitle('📅 요일별 매출 비율')}${renderCompare(labelA,labelB,dowA,dowAllA,dowB,dowAllB,'bar')}</div>`;
+};
+
+// 스태프 통계 탭 열릴 때 셀렉트 채우기
+const _origRenderStaffStats=renderStaffStats;
+renderStaffStats=function(...args){
+  _origRenderStaffStats(...args);
+  setTimeout(populateAnaStaffSelect,100);
+};
 window.renderStaffStats=renderStaffStats;
 
 // ── GRAPH TAB ──────────────────────────────────────────────
