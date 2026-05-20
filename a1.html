@@ -2054,49 +2054,52 @@ window.runStaffAnalysis=function(){
         {label:'UPI',color:'var(--accent2)',keyA:'upiPct',keyB:'upiPct'},
         {label:'현금',color:'var(--green)',keyA:'cashPct',keyB:'cashPct'},
       ];
-      html+=`<table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <tr>
-          <th style="padding:5px;text-align:left;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">항목</th>
-          <th style="padding:5px;text-align:center;color:var(--accent2);font-size:10px;border-bottom:1px solid var(--border);">${staff}<br>${titleA}</th>
-          <th style="padding:5px;text-align:center;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">전체<br>${titleA}</th>
-          ${dataB?`<th style="padding:5px;text-align:center;color:var(--yellow);font-size:10px;border-bottom:1px solid var(--border);">${staff}<br>${titleB}</th>
-          <th style="padding:5px;text-align:center;color:var(--text3);font-size:10px;border-bottom:1px solid var(--border);">전체<br>${titleB}</th>`:''}
-        </tr>`;
-      rows.forEach(({label,color,keyA,keyB})=>{
-        html+=`<tr>
-          <td style="padding:5px;color:${color};font-weight:600;">${label}</td>
-          <td style="padding:5px;text-align:center;">${dataA[keyA]}%</td>
-          <td style="padding:5px;text-align:center;color:var(--text3);">${dataAllA[keyA]}%</td>
-          ${dataB?`<td style="padding:5px;text-align:center;color:var(--yellow);">${dataB[keyB]}%</td>
-          <td style="padding:5px;text-align:center;color:var(--text3);">${dataAllB[keyB]}%</td>`:''}
-        </tr>`;
+      html+=`<div style="display:flex;flex-direction:column;gap:8px;">`;
+      rows.forEach(({label,color,keyA})=>{
+        html+=`<div style="background:var(--bg4);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px;">${label}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:6px;padding:6px 10px;">
+              <div style="font-size:9px;color:var(--accent2);margin-bottom:2px;">${staff} · A기간</div>
+              <div style="font-size:16px;font-weight:700;color:var(--accent2);">${dataA[keyA]}%</div>
+              <div style="font-size:9px;color:var(--text3);">전체 ${dataAllA[keyA]}%</div>
+            </div>
+            ${dataB?`<div style="flex:1;min-width:120px;background:var(--bg3);border-radius:6px;padding:6px 10px;">
+              <div style="font-size:9px;color:var(--yellow);margin-bottom:2px;">${staff} · B기간</div>
+              <div style="font-size:16px;font-weight:700;color:var(--yellow);">${dataB[keyA]}%</div>
+              <div style="font-size:9px;color:var(--text3);">전체 ${dataAllB[keyA]}%</div>
+            </div>`:''}
+          </div>
+        </div>`;
       });
-      html+=`</table>`;
+      html+=`</div>`;
     } else if(type==='bar'){
-      // 결제방법과 동일한 테이블 형식
       const allKeys=[...new Set([...dataA.map(d=>d.k),...(dataB||[]).map(d=>d.k),...(dataAllA||[]).map(d=>d.k)])].slice(0,10);
       const mapA=Object.fromEntries(dataA.map(d=>[d.k,d]));
       const mapAllA=Object.fromEntries((dataAllA||[]).map(d=>[d.k,d]));
       const mapB=dataB?Object.fromEntries(dataB.map(d=>[d.k,d])):{};
       const mapAllB=dataAllB?Object.fromEntries(dataAllB.map(d=>[d.k,d])):{};
-      const thStyle='padding:6px 10px;text-align:center;font-size:10px;border-bottom:1px solid var(--border);';
-      const tdStyle='padding:5px 10px;text-align:center;font-size:12px;border-bottom:1px solid var(--border2);';
-      html+=`<table style="width:100%;border-collapse:collapse;">
-        <tr>
-          <th style="${thStyle}text-align:left;color:var(--text3);">항목</th>
-          <th style="${thStyle}color:var(--accent2);">${staff}<br><span style="font-weight:400;font-size:9px;">${labelA}</span></th>
-          <th style="${thStyle}color:var(--text3);">전체<br><span style="font-weight:400;font-size:9px;">${labelA}</span></th>
-          ${dataB?`<th style="${thStyle}color:var(--yellow);">${staff}<br><span style="font-weight:400;font-size:9px;">${labelB}</span></th>
-          <th style="${thStyle}color:var(--text3);">전체<br><span style="font-weight:400;font-size:9px;">${labelB}</span></th>`:''}
-        </tr>
-        ${allKeys.map(k=>`<tr>
-          <td style="${tdStyle}text-align:left;font-weight:600;color:var(--text2);">${k}</td>
-          <td style="${tdStyle}color:var(--accent2);">${mapA[k]?.pct||0}%</td>
-          <td style="${tdStyle}color:var(--text3);">${mapAllA[k]?.pct||0}%</td>
-          ${dataB?`<td style="${tdStyle}color:var(--yellow);">${mapB[k]?.pct||0}%</td>
-          <td style="${tdStyle}color:var(--text3);">${mapAllB[k]?.pct||0}%</td>`:''}
-        </tr>`).join('')}
-      </table>`;
+      html+=`<div style="display:flex;flex-direction:column;gap:8px;">`;
+      allKeys.forEach(k=>{
+        const a=mapA[k]?.pct||0, aa=mapAllA[k]?.pct||0;
+        const b=mapB[k]?.pct||0, ab=mapAllB[k]?.pct||0;
+        html+=`<div style="background:var(--bg4);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">${k}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:6px;padding:6px 10px;">
+              <div style="font-size:9px;color:var(--accent2);margin-bottom:2px;">${staff} · A기간</div>
+              <div style="font-size:16px;font-weight:700;color:var(--accent2);">${a}%</div>
+              <div style="font-size:9px;color:var(--text3);">전체 ${aa}%</div>
+            </div>
+            ${dataB?`<div style="flex:1;min-width:120px;background:var(--bg3);border-radius:6px;padding:6px 10px;">
+              <div style="font-size:9px;color:var(--yellow);margin-bottom:2px;">${staff} · B기간</div>
+              <div style="font-size:16px;font-weight:700;color:var(--yellow);">${b}%</div>
+              <div style="font-size:9px;color:var(--text3);">전체 ${ab}%</div>
+            </div>`:''}
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
     }
     html+=`</div>`;
     return html;
