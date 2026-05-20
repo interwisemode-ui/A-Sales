@@ -2073,37 +2073,30 @@ window.runStaffAnalysis=function(){
       });
       html+=`</table>`;
     } else if(type==='bar'){
-      // dataA = [{k,v,pct}]
-      const allKeys=[...new Set([...dataA.map(d=>d.k),...(dataB||[]).map(d=>d.k)])];
+      // 결제방법과 동일한 테이블 형식
+      const allKeys=[...new Set([...dataA.map(d=>d.k),...(dataB||[]).map(d=>d.k),...(dataAllA||[]).map(d=>d.k)])].slice(0,10);
       const mapA=Object.fromEntries(dataA.map(d=>[d.k,d]));
-      const mapAllA=Object.fromEntries(dataAllA.map(d=>[d.k,d]));
+      const mapAllA=Object.fromEntries((dataAllA||[]).map(d=>[d.k,d]));
       const mapB=dataB?Object.fromEntries(dataB.map(d=>[d.k,d])):{};
-      html+=`<div style="display:flex;flex-direction:column;gap:6px;">`;
-      allKeys.forEach(k=>{
-        const a=mapA[k]?.pct||0, aa=mapAllA[k]?.pct||0;
-        const b=mapB[k]?.pct||0;
-        html+=`<div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:30px;font-size:11px;color:var(--text2);text-align:right;flex-shrink:0;">${k}</div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
-            <div style="display:flex;align-items:center;gap:4px;">
-              <div style="width:40px;font-size:9px;color:var(--accent2);">${staff}</div>
-              ${miniBar(a,'var(--accent2)')}
-              <div style="width:28px;font-size:9px;color:var(--accent2);text-align:right;">${a}%</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <div style="width:40px;font-size:9px;color:var(--text3);">전체</div>
-              ${miniBar(aa,'rgba(148,163,184,0.4)')}
-              <div style="width:28px;font-size:9px;color:var(--text3);text-align:right;">${aa}%</div>
-            </div>
-            ${dataB?`<div style="display:flex;align-items:center;gap:4px;">
-              <div style="width:40px;font-size:9px;color:var(--yellow);">B기간</div>
-              ${miniBar(b,'var(--yellow)')}
-              <div style="width:28px;font-size:9px;color:var(--yellow);text-align:right;">${b}%</div>
-            </div>`:''}
-          </div>
-        </div>`;
-      });
-      html+=`</div>`;
+      const mapAllB=dataAllB?Object.fromEntries(dataAllB.map(d=>[d.k,d])):{};
+      const thStyle='padding:6px 10px;text-align:center;font-size:10px;border-bottom:1px solid var(--border);';
+      const tdStyle='padding:5px 10px;text-align:center;font-size:12px;border-bottom:1px solid var(--border2);';
+      html+=`<table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <th style="${thStyle}text-align:left;color:var(--text3);">항목</th>
+          <th style="${thStyle}color:var(--accent2);">${staff}<br><span style="font-weight:400;font-size:9px;">${labelA}</span></th>
+          <th style="${thStyle}color:var(--text3);">전체<br><span style="font-weight:400;font-size:9px;">${labelA}</span></th>
+          ${dataB?`<th style="${thStyle}color:var(--yellow);">${staff}<br><span style="font-weight:400;font-size:9px;">${labelB}</span></th>
+          <th style="${thStyle}color:var(--text3);">전체<br><span style="font-weight:400;font-size:9px;">${labelB}</span></th>`:''}
+        </tr>
+        ${allKeys.map(k=>`<tr>
+          <td style="${tdStyle}text-align:left;font-weight:600;color:var(--text2);">${k}</td>
+          <td style="${tdStyle}color:var(--accent2);">${mapA[k]?.pct||0}%</td>
+          <td style="${tdStyle}color:var(--text3);">${mapAllA[k]?.pct||0}%</td>
+          ${dataB?`<td style="${tdStyle}color:var(--yellow);">${mapB[k]?.pct||0}%</td>
+          <td style="${tdStyle}color:var(--text3);">${mapAllB[k]?.pct||0}%</td>`:''}
+        </tr>`).join('')}
+      </table>`;
     }
     html+=`</div>`;
     return html;
@@ -2129,10 +2122,10 @@ window.runStaffAnalysis=function(){
 
   // 요약 카드
   const summary=`<div class="stats-grid" style="margin-bottom:12px;">
-    <div class="stat-card"><div class="stat-label">${staff} 건수 (A)</div><div class="stat-value" style="color:var(--accent2);">${recsA.length}건</div><div class="stat-sub">₹${pmA.tot.toLocaleString()}</div></div>
-    ${recsB?`<div class="stat-card"><div class="stat-label">${staff} 건수 (B)</div><div class="stat-value" style="color:var(--yellow);">${recsB.length}건</div><div class="stat-sub">₹${pmB.tot.toLocaleString()}</div></div>`:''}
-    <div class="stat-card"><div class="stat-label">전체 건수 (A)</div><div class="stat-value" style="color:var(--text2);">${allA.length}건</div><div class="stat-sub">₹${pmAllA.tot.toLocaleString()}</div></div>
-    <div class="stat-card"><div class="stat-label">점유율 (A)</div><div class="stat-value" style="color:var(--green);">${allA.length?Math.round(recsA.length/allA.length*100):0}%</div><div class="stat-sub">건수 기준</div></div>
+    <div class="stat-card"><div class="stat-label">${staff} (A기간)</div><div class="stat-value" style="color:var(--accent2);">${recsA.length}건</div><div class="stat-sub">₹${pmA.tot.toLocaleString()}</div><div class="stat-sub">점유율 ${allA.length?Math.round(recsA.length/allA.length*100):0}%</div></div>
+    <div class="stat-card"><div class="stat-label">전체 (A기간)</div><div class="stat-value" style="color:var(--text2);">${allA.length}건</div><div class="stat-sub">₹${pmAllA.tot.toLocaleString()}</div></div>
+    ${recsB?`<div class="stat-card"><div class="stat-label">${staff} (B기간)</div><div class="stat-value" style="color:var(--yellow);">${recsB.length}건</div><div class="stat-sub">₹${pmB.tot.toLocaleString()}</div><div class="stat-sub">점유율 ${allB.length?Math.round(recsB.length/allB.length*100):0}%</div></div>`:''}
+    ${allB?`<div class="stat-card"><div class="stat-label">전체 (B기간)</div><div class="stat-value" style="color:var(--text3);">${allB.length}건</div><div class="stat-sub">₹${pmAllB.tot.toLocaleString()}</div></div>`:''}
   </div>`;
 
   el.innerHTML=summary+
