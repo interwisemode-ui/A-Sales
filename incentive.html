@@ -251,8 +251,10 @@ input:focus,select:focus{border-color:var(--accent);}
 
       <button class="calc-key k-dash" onclick="calcInput('-dash')">—</button>
       <button class="calc-key k-num" onclick="calcInput('0')">0</button>
-      <button class="calc-key k-num" onclick="calcDel()">⌫</button>
-      <button class="calc-key k-eq" onclick="calcEval()">=</button>
+      <button class="calc-key k-num" onclick="calcInput('.')">.</button>
+      <button class="calc-key k-op" onclick="calcPercent()">%</button>
+      <button class="calc-key k-num" style="grid-column:span 2;" onclick="calcDel()">⌫</button>
+      <button class="calc-key k-eq" style="grid-column:span 2;" onclick="calcEval()">=</button>
     </div>
   </div>
 </div>
@@ -330,10 +332,10 @@ function renderStaffGrid(){
   if(!monthKey){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">월을 선택해주세요</div>'; return; }
 
   const [y,m] = monthKey.split('-').map(Number);
-  // 영업월 기준: 해당월 11일 ~ 익월 10일
-  const fromDate = `${y}-${String(m).padStart(2,'0')}-11`;
-  const nextM = new Date(y, m, 1);
-  const toDate = `${nextM.getFullYear()}-${String(nextM.getMonth()+1).padStart(2,'0')}-10`;
+  // 일반 달력 기준: 1일 ~ 말일
+  const fromDate = `${y}-${String(m).padStart(2,'0')}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const toDate = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
 
   grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px 0;">불러오는 중...</div>';
 
@@ -676,6 +678,18 @@ window.calcInput = function(v){
     const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
     const result = eval(expr);
     if(!isNaN(result)) document.getElementById('calcResult').textContent = result.toLocaleString();
+  }catch(e){}
+};
+
+window.calcPercent = function(){
+  try{
+    const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
+    const result = eval(expr);
+    if(!isNaN(result)){
+      calcExpr = String(result/100);
+      document.getElementById('calcResult').textContent = (result/100).toLocaleString();
+      document.getElementById('calcExpr').textContent = '';
+    }
   }catch(e){}
 };
 
