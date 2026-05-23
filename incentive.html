@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>A+ Incentive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--bg4:#20202a;
+  --border:#2a2a38;--border2:#38384a;
+  --accent:#7c6ff7;--accent2:#a99ef8;
+  --green:#34d399;--red:#f87171;--yellow:#fbbf24;--blue:#60a5fa;--orange:#fb923c;
+  --text:#e8e8f0;--text2:#9898b0;--text3:#606078;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+/* HEADER */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.header-title{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--accent2);}
+.header-right{display:flex;align-items:center;gap:8px;}
+
+/* BTN */
+.btn{padding:7px 14px;border-radius:6px;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#6b5ee0;}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border2);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-green{background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);}
+
+/* SCREEN */
+.screen{display:none;padding:16px;}
+.screen.active{display:block;}
+
+/* STAFF GRID */
+.staff-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:12px;}
+.staff-btn{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;font-size:13px;font-weight:600;}
+.staff-btn:hover,.staff-btn:active{border-color:var(--accent);background:rgba(124,111,247,0.1);color:var(--accent2);}
+.staff-btn.manager{border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+
+/* SECTION TITLE */
+.sec-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;}
+
+/* MONTH BAR */
+.month-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.month-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:12px;cursor:pointer;}
+.month-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* TABLE */
+.inc-table-wrap{overflow-x:auto;margin-bottom:12px;}
+.inc-table{border-collapse:collapse;width:100%;min-width:600px;font-size:12px;}
+.inc-table th{background:var(--bg3);border:1px solid var(--border);padding:7px 8px;text-align:center;color:var(--text3);font-weight:700;white-space:nowrap;position:sticky;top:0;}
+.inc-table th:first-child{position:sticky;left:0;z-index:2;background:var(--bg3);}
+.inc-table td{border:1px solid var(--border);padding:0;text-align:center;position:relative;}
+.inc-table td:first-child{background:var(--bg2);font-weight:600;padding:6px 8px;white-space:nowrap;position:sticky;left:0;z-index:1;}
+.inc-table tr:hover td{background:rgba(124,111,247,0.04);}
+.inc-table tr:hover td:first-child{background:var(--bg2);}
+.cell-input{width:100%;height:36px;background:transparent;border:none;color:var(--text);font-size:12px;text-align:center;font-family:'JetBrains Mono',monospace;padding:0 4px;outline:none;}
+.cell-input:focus{background:rgba(124,111,247,0.1);}
+.total-row td{background:var(--bg3)!important;font-weight:700;color:var(--accent2);font-family:'JetBrains Mono',monospace;}
+.total-row td:first-child{color:var(--text2);}
+
+/* CALC BTN in cell */
+.calc-trigger{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:3px;background:rgba(124,111,247,0.2);border:none;color:var(--accent2);font-size:9px;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;}
+td:hover .calc-trigger{display:flex;}
+
+/* SUMMARY CARDS */
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:14px;}
+.sum-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.sum-label{font-size:10px;color:var(--text3);margin-bottom:4px;}
+.sum-value{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent2);}
+
+/* CALCULATOR MODAL */
+.calc-modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:flex-end;justify-content:center;}
+.calc-modal.show{display:flex;}
+.calc-box{background:var(--bg2);border-radius:16px 16px 0 0;border:1px solid var(--border);width:100%;max-width:360px;padding:16px;}
+.calc-display{background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:right;}
+.calc-expr{font-size:11px;color:var(--text3);min-height:16px;}
+.calc-result{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text);}
+.calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.calc-key{height:52px;border-radius:8px;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .1s;}
+.calc-key:active{transform:scale(0.95);}
+.k-num{background:var(--bg3);color:var(--text);}
+.k-op{background:rgba(124,111,247,0.2);color:var(--accent2);}
+.k-eq{background:var(--accent);color:#fff;}
+.k-clear{background:rgba(248,113,113,0.2);color:var(--red);}
+.k-ok{background:var(--green);color:#000;font-size:13px;}
+.k-dash{background:var(--bg3);color:var(--text3);}
+
+/* ADD ROW */
+.add-row-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+.date-input{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;font-family:'Noto Sans KR',sans-serif;}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* STAFF MGMT */
+.staff-mgmt{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.staff-tag{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:12px;}
+.staff-tag.mgr{border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.del-tag{background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;padding:0 2px;}
+
+input[type=text],input[type=date],select{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;font-family:'Noto Sans KR',sans-serif;outline:none;}
+input:focus,select:focus{border-color:var(--accent);}
+
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:14px;}
+.back-btn:hover{color:var(--accent2);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">💰 A+ Incentive</div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="showScreen('manage')">⚙ 스태프</button>
+    <button class="btn btn-green btn-sm" id="xlsxBtn" onclick="downloadXlsx()" style="display:none;">⬇ 엑셀</button>
+  </div>
+</div>
+
+<!-- SCREEN 1: 스태프 선택 -->
+<div class="screen active" id="screen-home">
+  <div class="month-bar" style="margin-top:4px;">
+    <span style="font-size:12px;color:var(--text3);">월 선택:</span>
+    <input type="month" id="homeMonth" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 10px;">
+    <button class="month-btn active" onclick="setHomeMonth('this')">이번달</button>
+    <button class="month-btn" onclick="setHomeMonth('last')">지난달</button>
+  </div>
+  <div class="sec-title">스태프 선택</div>
+  <div class="staff-grid" id="staffGrid"></div>
+</div>
+
+<!-- SCREEN 2: 인센티브 입력 -->
+<div class="screen" id="screen-entry">
+  <div class="back-btn" onclick="goHome()">← 스태프 목록</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <div style="font-size:18px;font-weight:700;" id="entryName"></div>
+      <div style="font-size:12px;color:var(--text3);" id="entryMonth"></div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-primary btn-sm" onclick="addRow()">+ 날짜 추가</button>
+      <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ 엑셀</button>
+    </div>
+  </div>
+
+  <!-- 요약 -->
+  <div class="sum-grid" id="sumGrid"></div>
+
+  <!-- 테이블 -->
+  <div class="inc-table-wrap">
+    <table class="inc-table" id="incTable">
+      <thead>
+        <tr>
+          <th>DATE</th>
+          <th>BOOK</th>
+          <th>JUICE</th>
+          <th>BEER</th>
+          <th>FOOD</th>
+          <th>SELECT</th>
+          <th>SALES</th>
+          <th style="width:36px;"></th>
+        </tr>
+      </thead>
+      <tbody id="incBody"></tbody>
+      <tfoot>
+        <tr class="total-row" id="totalRow">
+          <td>합계</td>
+          <td id="tot-book">-</td>
+          <td id="tot-juice">-</td>
+          <td id="tot-beer">-</td>
+          <td id="tot-food">-</td>
+          <td id="tot-select">-</td>
+          <td id="tot-sales">-</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- SCREEN 3: 스태프 관리 -->
+<div class="screen" id="screen-manage">
+  <div class="back-btn" onclick="showScreen('home')">← 돌아가기</div>
+  <div class="sec-title">스태프 관리</div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <input type="text" id="newStaffName" placeholder="이름 입력" style="width:120px;">
+    <select id="newStaffRole">
+      <option value="staff">스태프</option>
+      <option value="manager">매니저</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="addStaff()">추가</button>
+  </div>
+  <div id="staffTagList"></div>
+</div>
+
+<!-- 계산기 모달 -->
+<div class="calc-modal" id="calcModal" onclick="closeCalc(event)">
+  <div class="calc-box">
+    <div class="calc-display">
+      <div class="calc-expr" id="calcExpr"></div>
+      <div class="calc-result" id="calcResult">0</div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="applyCalc()">✓ 입력</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('calcModal').classList.remove('show')">취소</button>
+    </div>
+    <div class="calc-grid">
+      <button class="calc-key k-clear" onclick="calcClear()">C</button>
+      <button class="calc-key k-op" onclick="calcInput('(')">(</button>
+      <button class="calc-key k-op" onclick="calcInput(')')">)</button>
+      <button class="calc-key k-op" onclick="calcInput('÷')">÷</button>
+
+      <button class="calc-key k-num" onclick="calcInput('7')">7</button>
+      <button class="calc-key k-num" onclick="calcInput('8')">8</button>
+      <button class="calc-key k-num" onclick="calcInput('9')">9</button>
+      <button class="calc-key k-op" onclick="calcInput('×')">×</button>
+
+      <button class="calc-key k-num" onclick="calcInput('4')">4</button>
+      <button class="calc-key k-num" onclick="calcInput('5')">5</button>
+      <button class="calc-key k-num" onclick="calcInput('6')">6</button>
+      <button class="calc-key k-op" onclick="calcInput('-')">−</button>
+
+      <button class="calc-key k-num" onclick="calcInput('1')">1</button>
+      <button class="calc-key k-num" onclick="calcInput('2')">2</button>
+      <button class="calc-key k-num" onclick="calcInput('3')">3</button>
+      <button class="calc-key k-op" onclick="calcInput('+')">+</button>
+
+      <button class="calc-key k-dash" onclick="calcInput('-dash')">—</button>
+      <button class="calc-key k-num" onclick="calcInput('0')">0</button>
+      <button class="calc-key k-num" onclick="calcDel()">⌫</button>
+      <button class="calc-key k-eq" onclick="calcEval()">=</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC0MehTEqcHuBIHEBjYGbwoirJhYP7Mo6o",
+  authDomain: "aplus-sales-ledger.firebaseapp.com",
+  databaseURL: "https://aplus-sales-ledger-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aplus-sales-ledger",
+  storageBucket: "aplus-sales-ledger.appspot.com",
+  messagingSenderId: "868312671950",
+  appId: "1:868312671950:web:abc123"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ── STATE ──────────────────────────────────────────────────
+let staffList = []; // [{name, role}]
+let currentStaff = '';
+let currentMonthKey = '';
+let incData = {}; // {rowId: {date, book, juice, beer, food, select, sales}}
+
+// ── INIT ──────────────────────────────────────────────────
+const today = new Date();
+const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+document.getElementById('homeMonth').value = thisMonth;
+
+// Load staff list
+onValue(ref(db,'incentive/staffList'), snap=>{
+  staffList = snap.exists() ? snap.val() : [];
+  if(!Array.isArray(staffList)) staffList = Object.values(staffList);
+  renderStaffGrid();
+  renderStaffTags();
+});
+
+// ── SCREEN ────────────────────────────────────────────────
+window.showScreen = function(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.getElementById('xlsxBtn').style.display = name==='entry'?'':'none';
+};
+
+window.goHome = function(){
+  showScreen('home');
+  currentStaff = '';
+};
+
+// ── MONTH ─────────────────────────────────────────────────
+window.setHomeMonth = function(type){
+  const t = new Date();
+  let mk;
+  if(type==='this') mk = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+  else { const d=new Date(t.getFullYear(),t.getMonth()-1,1); mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  document.getElementById('homeMonth').value = mk;
+  document.querySelectorAll('.month-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+};
+
+// ── STAFF GRID ────────────────────────────────────────────
+function renderStaffGrid(){
+  const grid = document.getElementById('staffGrid');
+  if(!staffList.length){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">스태프를 추가해주세요 (⚙ 스태프 버튼)</div>'; return; }
+  grid.innerHTML = staffList.map(s=>`
+    <div class="staff-btn ${s.role==='manager'?'manager':''}" onclick="openStaff('${s.name}')">
+      ${s.role==='manager'?'🌟':''}${s.name}
+    </div>`).join('');
+}
+
+// ── OPEN STAFF ────────────────────────────────────────────
+window.openStaff = function(name){
+  currentStaff = name;
+  currentMonthKey = document.getElementById('homeMonth').value;
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  document.getElementById('entryName').textContent = name;
+  document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
+  showScreen('entry');
+  loadIncData();
+};
+
+function loadIncData(){
+  const path = `incentive/data/${currentStaff}/${currentMonthKey}`;
+  onValue(ref(db,path), snap=>{
+    incData = snap.exists() ? snap.val() : {};
+    renderTable();
+  },{onlyOnce:true});
+}
+
+function saveIncData(){
+  const path = `incentive/data/${currentStaff}/${currentMonthKey}`;
+  set(ref(db,path), incData);
+}
+
+// ── TABLE RENDER ──────────────────────────────────────────
+const COLS = ['book','juice','beer','food','select','sales'];
+
+function renderTable(){
+  const tbody = document.getElementById('incBody');
+  const rows = Object.entries(incData).sort((a,b)=>a[1].date?.localeCompare(b[1].date||'')||0);
+
+  tbody.innerHTML = rows.map(([id,row])=>`
+    <tr id="row-${id}">
+      <td>${row.date||'-'}</td>
+      ${COLS.map(col=>`<td>
+        <input class="cell-input" type="text" value="${row[col]||''}"
+          onchange="updateCell('${id}','${col}',this.value)"
+          onfocus="this.select()"
+          inputmode="decimal">
+        <button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>
+      </td>`).join('')}
+      <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
+    </tr>`).join('');
+
+  renderTotals();
+  renderSummary();
+}
+
+function renderTotals(){
+  COLS.forEach(col=>{
+    const tot = Object.values(incData).reduce((s,r)=>{
+      const v = parseFloat(String(r[col]||'').replace(/[^0-9.\-]/g,''))||0;
+      return s+v;
+    },0);
+    const el = document.getElementById('tot-'+col);
+    if(el) el.textContent = tot>0 ? tot.toLocaleString() : '-';
+  });
+}
+
+function renderSummary(){
+  const grid = document.getElementById('sumGrid');
+  const labels = {book:'BOOK',juice:'JUICE',beer:'BEER',food:'FOOD',select:'SELECT',sales:'SALES'};
+  const colors = {book:'var(--accent2)',juice:'var(--blue)',beer:'var(--yellow)',food:'var(--green)',select:'var(--orange)',sales:'var(--red)'};
+  grid.innerHTML = COLS.map(col=>{
+    const tot = Object.values(incData).reduce((s,r)=>{
+      return s+(parseFloat(String(r[col]||'').replace(/[^0-9.\-]/g,''))||0);
+    },0);
+    return `<div class="sum-card">
+      <div class="sum-label">${labels[col]}</div>
+      <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tot>0?tot.toLocaleString():'-'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ROW ACTIONS ───────────────────────────────────────────
+window.addRow = function(){
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const dateStr = prompt('날짜 입력 (예: 1, 15, 30)',String(new Date().getDate()));
+  if(!dateStr) return;
+  const day = parseInt(dateStr);
+  if(isNaN(day)||day<1||day>31){ showToast('올바른 날짜를 입력해주세요'); return; }
+  const fullDate = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const id = Date.now().toString();
+  incData[id] = {date: fullDate};
+  saveIncData();
+  renderTable();
+};
+
+window.updateCell = function(id, col, val){
+  if(!incData[id]) return;
+  incData[id][col] = val;
+  saveIncData();
+  renderTotals();
+  renderSummary();
+};
+
+window.deleteRow = function(id){
+  if(!confirm('이 행을 삭제할까요?')) return;
+  delete incData[id];
+  saveIncData();
+  renderTable();
+};
+
+// ── STAFF MANAGE ──────────────────────────────────────────
+window.showScreen('manage'); // preload
+window.showScreen('home');
+
+window.addStaff = function(){
+  const name = document.getElementById('newStaffName').value.trim().toUpperCase();
+  const role = document.getElementById('newStaffRole').value;
+  if(!name){ showToast('이름을 입력해주세요'); return; }
+  if(staffList.find(s=>s.name===name)){ showToast('이미 있는 이름이에요'); return; }
+  staffList.push({name,role});
+  set(ref(db,'incentive/staffList'), staffList);
+  document.getElementById('newStaffName').value='';
+  showToast('✓ 추가됨: '+name);
+};
+
+window.deleteStaff = function(name){
+  if(!confirm(name+'을(를) 삭제할까요?')) return;
+  staffList = staffList.filter(s=>s.name!==name);
+  set(ref(db,'incentive/staffList'), staffList);
+};
+
+function renderStaffTags(){
+  const el = document.getElementById('staffTagList');
+  if(!staffList.length){ el.innerHTML='<div style="color:var(--text3);">스태프 없음</div>'; return; }
+  el.innerHTML = '<div class="staff-mgmt">'+staffList.map(s=>`
+    <div class="staff-tag ${s.role==='manager'?'mgr':''}">
+      ${s.role==='manager'?'🌟':''}${s.name}
+      <button class="del-tag" onclick="deleteStaff('${s.name}')">✕</button>
+    </div>`).join('')+'</div>';
+}
+
+// ── CALCULATOR ────────────────────────────────────────────
+let calcExpr = '';
+let calcTargetInput = null;
+let calcTargetId = '';
+let calcTargetCol = '';
+
+window.openCalc = function(id, col, input){
+  calcTargetInput = input;
+  calcTargetId = id;
+  calcTargetCol = col;
+  calcExpr = input.value || '';
+  document.getElementById('calcExpr').textContent = calcExpr;
+  document.getElementById('calcResult').textContent = calcExpr || '0';
+  document.getElementById('calcModal').classList.add('show');
+};
+
+window.closeCalc = function(e){
+  if(e.target===document.getElementById('calcModal'))
+    document.getElementById('calcModal').classList.remove('show');
+};
+
+window.calcInput = function(v){
+  if(v==='-dash'){ calcExpr='-'; }
+  else { calcExpr += v; }
+  document.getElementById('calcExpr').textContent = calcExpr;
+  try{
+    const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
+    const result = eval(expr);
+    if(!isNaN(result)) document.getElementById('calcResult').textContent = result.toLocaleString();
+  }catch(e){}
+};
+
+window.calcDel = function(){
+  calcExpr = calcExpr.slice(0,-1);
+  document.getElementById('calcExpr').textContent = calcExpr;
+  document.getElementById('calcResult').textContent = calcExpr||'0';
+};
+
+window.calcClear = function(){
+  calcExpr='';
+  document.getElementById('calcExpr').textContent='';
+  document.getElementById('calcResult').textContent='0';
+};
+
+window.calcEval = function(){
+  try{
+    const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
+    const result = eval(expr);
+    if(!isNaN(result)){
+      calcExpr = String(result);
+      document.getElementById('calcResult').textContent = result.toLocaleString();
+      document.getElementById('calcExpr').textContent = '';
+    }
+  }catch(e){}
+};
+
+window.applyCalc = function(){
+  try{
+    const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
+    let val = calcExpr==='-' ? '-' : eval(expr);
+    if(calcTargetInput){
+      calcTargetInput.value = calcExpr==='-' ? '-' : String(val);
+      updateCell(calcTargetId, calcTargetCol, calcTargetInput.value);
+    }
+    document.getElementById('calcModal').classList.remove('show');
+  }catch(e){ showToast('계산 오류'); }
+};
+
+// ── EXCEL DOWNLOAD ────────────────────────────────────────
+const XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+function loadXLSX(cb){
+  if(window.XLSX){ cb(); return; }
+  const s=document.createElement('script'); s.src=XLSX_CDN; s.onload=cb; document.head.appendChild(s);
+}
+
+window.downloadXlsxSingle = function(){
+  loadXLSX(()=>{
+    const [y,m] = currentMonthKey.split('-').map(Number);
+    const rows = Object.values(incData).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const data = [
+      [`${currentStaff} - ${y}년 ${m}월 인센티브`],
+      [],
+      ['DATE','BOOK','JUICE','BEER','FOOD','SELECT','SALES']
+    ];
+    rows.forEach(r=>data.push([r.date||'',r.book||'',r.juice||'',r.beer||'',r.food||'',r.select||'',r.sales||'']));
+    // 합계
+    const totRow = ['합계'];
+    COLS.forEach(col=>{
+      const t=Object.values(incData).reduce((s,r)=>s+(parseFloat(String(r[col]||'').replace(/[^0-9.\-]/g,''))||0),0);
+      totRow.push(t||'');
+    });
+    data.push([]);
+    data.push(totRow);
+    const wb=window.XLSX.utils.book_new();
+    const ws=window.XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12}];
+    window.XLSX.utils.book_append_sheet(wb,ws,currentStaff);
+    window.XLSX.writeFile(wb,`${currentStaff}_${currentMonthKey}_incentive.xlsx`);
+    showToast('✓ 엑셀 다운로드 완료!');
+  });
+};
+
+// ── TOAST ─────────────────────────────────────────────────
+window.showToast = function(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+};
+
+// expose
+window.updateCell=updateCell;
+window.deleteRow=deleteRow;
+window.addRow=addRow;
+</script>
+</body>
+</html>
