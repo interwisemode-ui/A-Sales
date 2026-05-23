@@ -198,6 +198,25 @@ input:focus,select:focus{border-color:var(--accent);}
   <div id="staffTagList"></div>
 </div>
 
+<!-- 빠른 입력 모달 -->
+<div class="calc-modal" id="quickModal" onclick="closeQuickModal(event)">
+  <div class="calc-box">
+    <div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:4px;" id="quickModalTitle"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;" id="quickModalDate"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;" id="quickModalFields"></div>
+    <div style="display:flex;gap:6px;margin-top:12px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveQuickInput()">✓ 저장</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('quickModal').classList.remove('show')">취소</button>
+    </div>
+    <div style="margin-top:8px;text-align:center;">
+      <button onclick="window.openStaff(window._quickStaff)" 
+        style="background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;text-decoration:underline;">
+        → 이 스태프 디테일로 이동
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- 계산기 모달 -->
 <div class="calc-modal" id="calcModal" onclick="closeCalc(event)">
   <div class="calc-box">
@@ -389,34 +408,65 @@ function loadFromRecords(name){
   onValue(ref(db,'records'), snap=>{
     if(!snap.exists()){ loadIncData(); return; }
 
-    // 날짜별 집계
-    const byDate = {}; // {date: {book, sales}}
+    // 날짜별 집계 + 부킹자/셀렉션 정보
+    const byDate = {};
+    const dateRoomInfo = {}; // {date: [{room, bookers, sel1, sel2}]}
+
     snap.forEach(child=>{
       const r = child.val();
       if(!r.date || r.date < fromDate || r.date > toDate) return;
       const bookers = (r.bookers||[]).filter(s=>s&&s!=='WALKIN');
-      if(!bookers.includes(name)) return;
-      const share = (r.total||0) / (bookers.length||1);
-      if(!byDate[r.date]) byDate[r.date] = {book:0, sales:0};
-      byDate[r.date].book++;
-      byDate[r.date].sales += share;
+      const sel1 = (r.staff||[]).filter(Boolean);
+      const sel2 = (r.staff2||[]).filter(Boolean);
+      const allSel = [...new Set([...sel1,...sel2])];
+
+      // 이 사람이 부킹자이거나 셀렉션인 경우
+      const isBooker = bookers.includes(name);
+      const isSel = allSel.includes(name);
+      if(!isBooker && !isSel) return;
+
+      // 부킹자로 있을 때만 SALES 집계
+      if(isBooker){
+        const share = (r.total||0) / (bookers.length||1);
+        if(!byDate[r.date]) byDate[r.date] = {book:0, sales:0};
+        byDate[r.date].book++;
+        byDate[r.date].sales += share;
+      }
+
+      // 날짜+룸별 정보 저장 (같은 룸 명단용)
+      if(!dateRoomInfo[r.date]) dateRoomInfo[r.date] = [];
+      dateRoomInfo[r.date].push({
+        room: r.room||'?',
+        bookers: bookers,
+        sel: allSel
+      });
     });
 
-    // incData 생성 (기존 수동입력 데이터와 병합)
+    window._dateRoomInfo = dateRoomInfo;
+
     onValue(ref(db,`incentive/data/${name}/${currentMonthKey}`), snap2=>{
       const saved = snap2.exists() ? snap2.val() : {};
-
-      // records 기반 데이터로 업데이트
       const newData = {...saved};
+
       Object.entries(byDate).forEach(([date, {book, sales}])=>{
-        // 해당 날짜의 기존 row 찾기
         const existingId = Object.keys(newData).find(id=>newData[id].date===date);
         if(existingId){
-          newData[existingId].book = book;
+          newData[existingId].book = newData[existingId].book || book;
           newData[existingId].sales = Math.round(sales);
         } else {
           const id = 'r_'+date.replace(/-/g,'');
-          newData[id] = {date, book, sales: Math.round(sales)};
+          newData[id] = {date, sales: Math.round(sales)};
+        }
+      });
+
+      // 셀렉션만 있는 날짜도 행 추가
+      Object.keys(dateRoomInfo).forEach(date=>{
+        if(!byDate[date]){
+          const existingId = Object.keys(newData).find(id=>newData[id].date===date);
+          if(!existingId){
+            const id = 's_'+date.replace(/-/g,'');
+            newData[id] = {date};
+          }
         }
       });
 
@@ -446,9 +496,42 @@ function renderTable(){
   const tbody = document.getElementById('incBody');
   const rows = Object.entries(incData).sort((a,b)=>a[1].date?.localeCompare(b[1].date||'')||0);
 
-  tbody.innerHTML = rows.map(([id,row])=>`
-    <tr id="row-${id}">
-      <td>${row.date||'-'}</td>
+  tbody.innerHTML = rows.map(([id,row])=>{
+    const date = row.date||'';
+    const roomInfo = (window._dateRoomInfo||{})[date]||[];
+
+    // 부킹자/셀렉션 정보 패널
+    let infoHtml='';
+    if(roomInfo.length){
+      const bookerSet = new Set(), selSet = new Set();
+      roomInfo.forEach(r=>{
+        r.bookers.forEach(b=>{ if(b!==currentStaff) bookerSet.add(b); });
+        r.sel.forEach(s=>{ if(s!==currentStaff) selSet.add(s); });
+      });
+      // 현재 스태프 본인도 포함
+      roomInfo.forEach(r=>{
+        if(r.bookers.includes(currentStaff)) r.bookers.forEach(b=>bookerSet.add(b));
+        if(r.sel.includes(currentStaff)) r.sel.forEach(s=>selSet.add(s));
+      });
+
+      const bookerNames=[...bookerSet].filter(Boolean);
+      const selNames=[...selSet].filter(Boolean);
+
+      const makeStaffBtn=(name)=>`<button onclick="window.quickInputModal('${name}','${date}')"
+        style="background:var(--bg4);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:10px;color:var(--text2);cursor:pointer;margin:1px;">
+        ${name}
+      </button>`;
+
+      infoHtml=`<td colspan="8" style="padding:4px 8px;background:rgba(124,111,247,0.04);border-top:none;">
+        <div style="font-size:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${bookerNames.length?`<span style="color:var(--accent2);">📌 부킹:</span> ${bookerNames.map(makeStaffBtn).join('')}`:''}
+          ${selNames.length?`<span style="color:var(--yellow);">✦ 셀렉션:</span> ${selNames.map(makeStaffBtn).join('')}`:''}
+        </div>
+      </td>`;
+    }
+
+    return `<tr id="row-${id}">
+      <td>${date||'-'}</td>
       ${COLS.map(col=>{
         const isAuto = col==='sales';
         return `<td>
@@ -461,7 +544,9 @@ function renderTable(){
         </td>`;
       }).join('')}
       <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
-    </tr>`).join('');
+    </tr>
+    ${infoHtml?`<tr>${infoHtml}</tr>`:''}`;
+  }).join('');
 
   renderTotals();
   renderSummary();
@@ -639,6 +724,77 @@ function loadXLSX(cb){
 
 // ── BOOK 엑셀 업로드 ─────────────────────────────────────
 // 엑셀 형식: A열=날짜(YYYY-MM-DD 또는 M/D), B열=BOOK금액
+// ── 빠른 입력 모달 ──────────────────────────────────────
+window._quickStaff = '';
+window._quickDate = '';
+window._quickInputs = {};
+
+window.quickInputModal = function(staffName, date){
+  window._quickStaff = staffName;
+  window._quickDate = date;
+  window._quickInputs = {};
+
+  document.getElementById('quickModalTitle').textContent = staffName;
+  document.getElementById('quickModalDate').textContent = date;
+
+  // 기존 저장된 값 불러오기
+  onValue(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), snap=>{
+    const saved = snap.exists() ? snap.val() : {};
+    const existRow = Object.values(saved).find(r=>r.date===date)||{};
+
+    const MANUAL_COLS = ['book','juice','beer','food','select'];
+    const labels = {book:'BOOK',juice:'JUICE',beer:'BEER',food:'FOOD',select:'SELECT'};
+    document.getElementById('quickModalFields').innerHTML = MANUAL_COLS.map(col=>`
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:60px;font-size:12px;color:var(--text3);font-weight:600;">${labels[col]}</span>
+        <input type="number" id="qi_${col}" value="${existRow[col]||''}" placeholder="0"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:14px;padding:6px 10px;text-align:right;"
+          inputmode="decimal"
+          onchange="window._quickInputs['${col}']=this.value">
+      </div>`).join('');
+
+    // 현재 값 초기화
+    MANUAL_COLS.forEach(col=>{
+      window._quickInputs[col] = existRow[col]||'';
+    });
+
+    document.getElementById('quickModal').classList.add('show');
+  },{onlyOnce:true});
+};
+
+window.closeQuickModal = function(e){
+  if(e.target===document.getElementById('quickModal'))
+    document.getElementById('quickModal').classList.remove('show');
+};
+
+window.saveQuickInput = function(){
+  const staffName = window._quickStaff;
+  const date = window._quickDate;
+  const MANUAL_COLS = ['book','juice','beer','food','select'];
+
+  // 입력값 수집
+  const vals = {};
+  MANUAL_COLS.forEach(col=>{
+    const el = document.getElementById('qi_'+col);
+    if(el && el.value) vals[col] = el.value;
+  });
+
+  // Firebase에서 기존 데이터 가져와서 병합
+  onValue(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), snap=>{
+    const saved = snap.exists() ? snap.val() : {};
+    const newData = {...saved};
+    const existId = Object.keys(newData).find(id=>newData[id].date===date);
+    if(existId){
+      Object.assign(newData[existId], vals);
+    } else {
+      newData['q_'+date.replace(/-/g,'')+Math.random().toString(36).slice(2,5)] = {date, ...vals};
+    }
+    set(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), newData);
+    document.getElementById('quickModal').classList.remove('show');
+    showToast(`✓ ${staffName} ${date} 저장됨`);
+  },{onlyOnce:true});
+};
+
 window.loadBookXlsx = function(input){
   const file = input.files[0]; if(!file) return;
   loadXLSX(()=>{
