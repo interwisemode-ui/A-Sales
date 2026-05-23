@@ -265,13 +265,18 @@ const today = new Date();
 const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
 document.getElementById('homeMonth').value = thisMonth;
 
-// Load staff list
-onValue(ref(db,'incentive/staffList'), snap=>{
-  staffList = snap.exists() ? snap.val() : [];
-  if(!Array.isArray(staffList)) staffList = Object.values(staffList);
-  renderStaffGrid();
-  renderStaffTags();
-});
+// 매출장부의 스태프/매니저 목록 불러오기
+onValue(ref(db,'config/staffList'), snap=>{
+  const sNames = snap.exists() ? snap.val() : [];
+  onValue(ref(db,'config/managerList'), snap2=>{
+    const mNames = snap2.exists() ? snap2.val() : [];
+    // 중복 제거하고 role 부여
+    const all = [...new Set([...sNames,...mNames])].filter(Boolean).sort();
+    staffList = all.map(name=>({ name, role: mNames.includes(name)?'manager':'staff' }));
+    renderStaffGrid();
+    renderStaffTags();
+  },{onlyOnce:true});
+},{onlyOnce:true});
 
 // ── SCREEN ────────────────────────────────────────────────
 window.showScreen = function(name){
@@ -419,7 +424,7 @@ window.addStaff = function(){
   if(!name){ showToast('이름을 입력해주세요'); return; }
   if(staffList.find(s=>s.name===name)){ showToast('이미 있는 이름이에요'); return; }
   staffList.push({name,role});
-  set(ref(db,'incentive/staffList'), staffList);
+  saveStaffToConfig();
   document.getElementById('newStaffName').value='';
   showToast('✓ 추가됨: '+name);
 };
@@ -427,8 +432,17 @@ window.addStaff = function(){
 window.deleteStaff = function(name){
   if(!confirm(name+'을(를) 삭제할까요?')) return;
   staffList = staffList.filter(s=>s.name!==name);
-  set(ref(db,'incentive/staffList'), staffList);
+  saveStaffToConfig();
 };
+
+function saveStaffToConfig(){
+  const allNames = staffList.map(s=>s.name);
+  const mgrNames = staffList.filter(s=>s.role==='manager').map(s=>s.name);
+  set(ref(db,'config/staffList'), allNames);
+  set(ref(db,'config/managerList'), mgrNames);
+  renderStaffGrid();
+  renderStaffTags();
+}
 
 function renderStaffTags(){
   const el = document.getElementById('staffTagList');
