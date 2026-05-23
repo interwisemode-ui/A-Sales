@@ -155,12 +155,12 @@ input:focus,select:focus{border-color:var(--accent);}
       <thead>
         <tr>
           <th>DATE</th>
-          <th>BOOK</th>
+          <th title="매출장부 자동" style="color:var(--green);">BOOK 📌</th>
+          <th title="매출장부 자동" style="color:var(--green);">SALES 📌</th>
           <th>JUICE</th>
           <th>BEER</th>
           <th>FOOD</th>
           <th>SELECT</th>
-          <th>SALES</th>
           <th style="width:36px;"></th>
         </tr>
       </thead>
@@ -264,6 +264,7 @@ let incData = {}; // {rowId: {date, book, juice, beer, food, select, sales}}
 const today = new Date();
 const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
 document.getElementById('homeMonth').value = thisMonth;
+document.getElementById('homeMonth').addEventListener('change', ()=>renderStaffGrid());
 
 // 매출장부의 스태프/매니저 목록 불러오기
 onValue(ref(db,'config/staffList'), snap=>{
@@ -304,11 +305,68 @@ window.setHomeMonth = function(type){
 // ── STAFF GRID ────────────────────────────────────────────
 function renderStaffGrid(){
   const grid = document.getElementById('staffGrid');
-  if(!staffList.length){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">스태프를 추가해주세요 (⚙ 스태프 버튼)</div>'; return; }
-  grid.innerHTML = staffList.map(s=>`
-    <div class="staff-btn ${s.role==='manager'?'manager':''}" onclick="openStaff('${s.name}')">
-      ${s.role==='manager'?'🌟':''}${s.name}
-    </div>`).join('');
+  const monthKey = document.getElementById('homeMonth').value;
+  if(!monthKey){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">월을 선택해주세요</div>'; return; }
+
+  const [y,m] = monthKey.split('-').map(Number);
+  // 영업월 기준: 해당월 11일 ~ 익월 10일
+  const fromDate = `${y}-${String(m).padStart(2,'0')}-11`;
+  const nextM = new Date(y, m, 1);
+  const toDate = `${nextM.getFullYear()}-${String(nextM.getMonth()+1).padStart(2,'0')}-10`;
+
+  grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px 0;">불러오는 중...</div>';
+
+  onValue(ref(db,'records'), snap=>{
+    if(!snap.exists()){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">데이터 없음</div>'; return; }
+
+    // 기간 내 레코드에서 부킹자/셀렉션 스태프 집계
+    const staffStats = {}; // {name: {bookCnt, selCnt, totalSales}}
+    snap.forEach(child=>{
+      const r = child.val();
+      if(!r.date || r.date < fromDate || r.date > toDate) return;
+
+      // 부킹자
+      (r.bookers||[]).filter(s=>s&&s!=='WALKIN').forEach(s=>{
+        if(!staffStats[s]) staffStats[s]={bookCnt:0,selCnt:0,totalSales:0};
+        staffStats[s].bookCnt++;
+        staffStats[s].totalSales += (r.total||0) / ((r.bookers||[]).filter(x=>x&&x!=='WALKIN').length||1);
+      });
+
+      // 셀렉션1
+      (r.staff||[]).filter(Boolean).forEach(s=>{
+        if(!staffStats[s]) staffStats[s]={bookCnt:0,selCnt:0,totalSales:0};
+        staffStats[s].selCnt++;
+      });
+      // 셀렉션2
+      (r.staff2||[]).filter(Boolean).forEach(s=>{
+        if(!staffStats[s]) staffStats[s]={bookCnt:0,selCnt:0,totalSales:0};
+        staffStats[s].selCnt++;
+      });
+    });
+
+    const activeNames = Object.keys(staffStats).sort();
+    if(!activeNames.length){
+      grid.innerHTML='<div style="color:var(--text3);padding:20px;font-size:12px;">선택한 월에 실적이 있는 스태프가 없어요</div>';
+      return;
+    }
+
+    grid.innerHTML = activeNames.map(name=>{
+      const s = staffStats[name];
+      const isManager = staffList.find(x=>x.name===name)?.role==='manager';
+      return `<div class="staff-btn ${isManager?'manager':''}" onclick="openStaff('${name}')">
+        ${isManager?'🌟':''}${name}
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">
+          ${s.bookCnt>0?`📌 ${s.bookCnt}건`:''}
+          ${s.selCnt>0?` ✦ ${s.selCnt}sel`:''}
+        </div>
+      </div>`;
+    }).join('');
+
+    // 전역에 저장 (디테일에서 활용)
+    window._staffStats = staffStats;
+    window._periodFrom = fromDate;
+    window._periodTo = toDate;
+  },{onlyOnce:true});
 }
 
 // ── OPEN STAFF ────────────────────────────────────────────
@@ -319,8 +377,52 @@ window.openStaff = function(name){
   document.getElementById('entryName').textContent = name;
   document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
   showScreen('entry');
-  loadIncData();
+  loadFromRecords(name);
 };
+
+function loadFromRecords(name){
+  const fromDate = window._periodFrom;
+  const toDate = window._periodTo;
+
+  onValue(ref(db,'records'), snap=>{
+    if(!snap.exists()){ loadIncData(); return; }
+
+    // 날짜별 집계
+    const byDate = {}; // {date: {book, sales}}
+    snap.forEach(child=>{
+      const r = child.val();
+      if(!r.date || r.date < fromDate || r.date > toDate) return;
+      const bookers = (r.bookers||[]).filter(s=>s&&s!=='WALKIN');
+      if(!bookers.includes(name)) return;
+      const share = (r.total||0) / (bookers.length||1);
+      if(!byDate[r.date]) byDate[r.date] = {book:0, sales:0};
+      byDate[r.date].book++;
+      byDate[r.date].sales += share;
+    });
+
+    // incData 생성 (기존 수동입력 데이터와 병합)
+    onValue(ref(db,`incentive/data/${name}/${currentMonthKey}`), snap2=>{
+      const saved = snap2.exists() ? snap2.val() : {};
+
+      // records 기반 데이터로 업데이트
+      const newData = {...saved};
+      Object.entries(byDate).forEach(([date, {book, sales}])=>{
+        // 해당 날짜의 기존 row 찾기
+        const existingId = Object.keys(newData).find(id=>newData[id].date===date);
+        if(existingId){
+          newData[existingId].book = book;
+          newData[existingId].sales = Math.round(sales);
+        } else {
+          const id = 'r_'+date.replace(/-/g,'');
+          newData[id] = {date, book, sales: Math.round(sales)};
+        }
+      });
+
+      incData = newData;
+      renderTable();
+    },{onlyOnce:true});
+  },{onlyOnce:true});
+}
 
 function loadIncData(){
   const path = `incentive/data/${currentStaff}/${currentMonthKey}`;
@@ -336,7 +438,7 @@ function saveIncData(){
 }
 
 // ── TABLE RENDER ──────────────────────────────────────────
-const COLS = ['book','juice','beer','food','select','sales'];
+const COLS = ['book','sales','juice','beer','food','select'];
 
 function renderTable(){
   const tbody = document.getElementById('incBody');
@@ -345,13 +447,17 @@ function renderTable(){
   tbody.innerHTML = rows.map(([id,row])=>`
     <tr id="row-${id}">
       <td>${row.date||'-'}</td>
-      ${COLS.map(col=>`<td>
-        <input class="cell-input" type="text" value="${row[col]||''}"
-          onchange="updateCell('${id}','${col}',this.value)"
-          onfocus="this.select()"
-          inputmode="decimal">
-        <button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>
-      </td>`).join('')}
+      ${COLS.map(col=>{
+        const isAuto = col==='book'||col==='sales';
+        return `<td>
+          <input class="cell-input" type="text" value="${row[col]||''}"
+            onchange="updateCell('${id}','${col}',this.value)"
+            onfocus="this.select()"
+            inputmode="decimal"
+            ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}>
+          ${!isAuto?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
+        </td>`;
+      }).join('')}
       <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
     </tr>`).join('');
 
