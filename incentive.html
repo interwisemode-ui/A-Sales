@@ -127,8 +127,13 @@ input:focus,select:focus{border-color:var(--accent);}
     <input type="month" id="homeMonth" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 10px;">
     <button class="month-btn active" onclick="setHomeMonth('this')">이번달</button>
     <button class="month-btn" onclick="setHomeMonth('last')">지난달</button>
+    <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ 전체 엑셀</button>
   </div>
-  <div class="sec-title">스태프 선택</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="sec-title" style="margin-bottom:0;">스태프 선택</div>
+    <button class="btn btn-ghost btn-sm" onclick="toggleSummaryTable()">📊 전체 요약</button>
+  </div>
+  <div id="summaryTableWrap" style="display:none;margin-bottom:16px;"></div>
   <div class="staff-grid" id="staffGrid"></div>
 </div>
 
@@ -287,7 +292,10 @@ let incData = {}; // {rowId: {date, book, juice, beer, food, select, sales}}
 const today = new Date();
 const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
 document.getElementById('homeMonth').value = thisMonth;
-document.getElementById('homeMonth').addEventListener('change', ()=>renderStaffGrid());
+document.getElementById('homeMonth').addEventListener('change', ()=>{
+  renderStaffGrid();
+  if(summaryTableVisible) renderSummaryTable();
+});
 
 // 매출장부의 스태프/매니저 목록 불러오기
 onValue(ref(db,'config/staffList'), snap=>{
@@ -567,17 +575,29 @@ function renderTotals(){
 
 function renderSummary(){
   const grid = document.getElementById('sumGrid');
-  const labels = {book:'BOOK',juice:'JUICE',beer:'BEER',food:'FOOD',select:'SELECT',sales:'SALES'};
-  const colors = {book:'var(--accent2)',juice:'var(--blue)',beer:'var(--yellow)',food:'var(--green)',select:'var(--orange)',sales:'var(--red)'};
-  grid.innerHTML = COLS.map(col=>{
-    const tot = Object.values(incData).reduce((s,r)=>{
+  const labels = {book:'BOOK',juice:'JUICE',beer:'BEER',food:'FOOD',select:'SELECT'};
+  const colors = {book:'var(--accent2)',juice:'var(--blue)',beer:'var(--yellow)',food:'var(--green)',select:'var(--orange)'};
+  const incCols = ['book','juice','beer','food','select'];
+
+  // 항목별 합계
+  const tots = {};
+  COLS.forEach(col=>{
+    tots[col] = Object.values(incData).reduce((s,r)=>{
       return s+(parseFloat(String(r[col]||'').replace(/[^0-9.\-]/g,''))||0);
     },0);
-    return `<div class="sum-card">
+  });
+  const incTotal = incCols.reduce((s,col)=>s+tots[col],0);
+
+  grid.innerHTML = incCols.map(col=>`
+    <div class="sum-card">
       <div class="sum-label">${labels[col]}</div>
-      <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tot>0?tot.toLocaleString():'-'}</div>
+      <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tots[col]>0?tots[col].toLocaleString():'-'}</div>
+    </div>`).join('')+`
+    <div class="sum-card" style="border-color:var(--accent);background:rgba(124,111,247,0.08);">
+      <div class="sum-label" style="color:var(--accent2);">💰 인센티브 합계</div>
+      <div class="sum-value" style="color:var(--accent2);font-size:16px;">${incTotal>0?incTotal.toLocaleString():'-'}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px;">SALES: ${tots['sales']>0?tots['sales'].toLocaleString():'-'}</div>
     </div>`;
-  }).join('');
 }
 
 // ── ROW ACTIONS ───────────────────────────────────────────
@@ -853,6 +873,184 @@ window.loadBookXlsx = function(input){
       input.value='';
     };
     reader.readAsArrayBuffer(file);
+  });
+};
+
+// ── 전체 스태프 엑셀 다운로드 ───────────────────────────────
+// ── 전체 요약표 화면 출력 ────────────────────────────────
+let summaryTableVisible = false;
+window.toggleSummaryTable = function(){
+  summaryTableVisible = !summaryTableVisible;
+  const wrap = document.getElementById('summaryTableWrap');
+  if(!summaryTableVisible){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  renderSummaryTable();
+};
+
+function renderSummaryTable(){
+  const monthKey = document.getElementById('homeMonth').value;
+  if(!monthKey) return;
+  const [y,m] = monthKey.split('-').map(Number);
+  const wrap = document.getElementById('summaryTableWrap');
+  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
+
+  onValue(ref(db,'incentive/data'), snap=>{
+    const allData = snap.exists() ? snap.val() : {};
+    const INC_COLS = ['book','juice','beer','food','select'];
+    const names = Object.keys(allData).filter(name=>{
+      const md = allData[name]?.[monthKey];
+      return md && Object.keys(md).length>0;
+    }).sort();
+
+    if(!names.length){ wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">해당 월 데이터 없음</div>'; return; }
+
+    // 스태프별 합계 계산
+    const staffTots = names.map(name=>{
+      const md = allData[name]?.[monthKey]||{};
+      const tots = {};
+      INC_COLS.forEach(col=>{
+        tots[col] = Object.values(md).reduce((s,r)=>
+          s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0);
+      });
+      tots.incTotal = INC_COLS.reduce((s,col)=>s+tots[col],0);
+      tots.sales = Object.values(md).reduce((s,r)=>
+        s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0);
+      return {name, ...tots};
+    });
+
+    // 전체 합계
+    const grandTot = {};
+    [...INC_COLS,'incTotal','sales'].forEach(col=>{
+      grandTot[col] = staffTots.reduce((s,r)=>s+(r[col]||0),0);
+    });
+
+    const thS = 'padding:7px 10px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text3);white-space:nowrap;text-align:center;';
+    const tdS = 'padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:"JetBrains Mono",monospace;';
+    const tdN = 'padding:6px 10px;border:1px solid var(--border);font-size:12px;font-weight:700;position:sticky;left:0;background:var(--bg2);';
+
+    wrap.innerHTML=`
+      <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:8px;">${y}년 ${m}월 전체 인센티브</div>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;width:100%;min-width:500px;">
+          <thead>
+            <tr>
+              <th style="${thS}text-align:left;position:sticky;left:0;z-index:2;">이름</th>
+              <th style="${thS}color:var(--accent2);">BOOK</th>
+              <th style="${thS}color:var(--blue);">JUICE</th>
+              <th style="${thS}color:var(--yellow);">BEER</th>
+              <th style="${thS}color:var(--green);">FOOD</th>
+              <th style="${thS}color:var(--orange);">SELECT</th>
+              <th style="${thS}color:var(--accent);border-left:2px solid var(--accent);">💰 합계</th>
+              <th style="${thS}color:var(--red);">SALES</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${staffTots.map(r=>`<tr onclick="openStaff('${r.name}')" style="cursor:pointer;" onmouseover="this.style.background='rgba(124,111,247,0.06)'" onmouseout="this.style.background=''">
+              <td style="${tdN}">${staffList.find(s=>s.name===r.name)?.role==='manager'?'🌟':''}${r.name}</td>
+              <td style="${tdS}color:var(--accent2);">${r.book?r.book.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--blue);">${r.juice?r.juice.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--yellow);">${r.beer?r.beer.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--green);">${r.food?r.food.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--orange);">${r.select?r.select.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--accent);font-weight:700;border-left:2px solid var(--accent);">${r.incTotal?r.incTotal.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--red);">${r.sales?r.sales.toLocaleString():'-'}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--bg3);">
+              <td style="${tdN}color:var(--text3);">합계</td>
+              <td style="${tdS}font-weight:700;">${grandTot.book?grandTot.book.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.juice?grandTot.juice.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.beer?grandTot.beer.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.food?grandTot.food.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.select?grandTot.select.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;color:var(--accent);border-left:2px solid var(--accent);">${grandTot.incTotal?grandTot.incTotal.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;color:var(--red);">${grandTot.sales?grandTot.sales.toLocaleString():'-'}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  },{onlyOnce:true});
+}
+
+window.downloadAllXlsx = function(){
+  const monthKey = document.getElementById('homeMonth').value;
+  if(!monthKey){ showToast('월을 선택해주세요'); return; }
+  const [y,m] = monthKey.split('-').map(Number);
+
+  loadXLSX(()=>{
+    showToast('데이터 불러오는 중...');
+    onValue(ref(db,'incentive/data'), snap=>{
+      const allData = snap.exists() ? snap.val() : {};
+      const INC_COLS = ['book','juice','beer','food','select'];
+      const labels = {book:'BOOK',juice:'JUICE',beer:'BEER',food:'FOOD',select:'SELECT'};
+
+      // 알파벳순 정렬
+      const names = Object.keys(allData).filter(name=>{
+        const md = allData[name]?.[monthKey];
+        return md && Object.keys(md).length>0;
+      }).sort();
+
+      if(!names.length){ showToast('⚠ 해당 월 데이터 없음'); return; }
+
+      // 헤더
+      const headerRow = ['이름','BOOK','JUICE','BEER','FOOD','SELECT','💰 인센티브합계','SALES'];
+      const rows = [
+        [`${y}년 ${m}월 스태프 인센티브 전체`],
+        [],
+        headerRow
+      ];
+
+      names.forEach(name=>{
+        const md = allData[name]?.[monthKey]||{};
+        const tots = {};
+        INC_COLS.forEach(col=>{
+          tots[col] = Object.values(md).reduce((s,r)=>
+            s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0);
+        });
+        const incTotal = INC_COLS.reduce((s,col)=>s+tots[col],0);
+        const salesTot = Object.values(md).reduce((s,r)=>
+          s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0);
+
+        rows.push([
+          name,
+          tots['book']||'',
+          tots['juice']||'',
+          tots['beer']||'',
+          tots['food']||'',
+          tots['select']||'',
+          incTotal||'',
+          salesTot||''
+        ]);
+      });
+
+      // 합계행
+      const totRow = ['합계'];
+      [...INC_COLS,'incTotal','sales'].forEach((col,i)=>{
+        if(col==='incTotal'){
+          const t = names.reduce((s,name)=>{
+            const md=allData[name]?.[monthKey]||{};
+            return s+INC_COLS.reduce((ss,c)=>ss+(parseFloat(String(Object.values(md).reduce((sv,r)=>sv+(parseFloat(String(r[c]||'').replace(/[^0-9.-]/g,''))||0),0))||0)),0);
+          },0);
+          totRow.push(t||'');
+        } else {
+          const t = names.reduce((s,name)=>{
+            const md=allData[name]?.[monthKey]||{};
+            return s+Object.values(md).reduce((ss,r)=>ss+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0);
+          },0);
+          totRow.push(t||'');
+        }
+      });
+      rows.push([]);
+      rows.push(totRow);
+
+      const wb = window.XLSX.utils.book_new();
+      const ws = window.XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols']=[{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:14},{wch:12}];
+      window.XLSX.utils.book_append_sheet(wb, ws, `${y}-${String(m).padStart(2,'0')}`);
+      window.XLSX.writeFile(wb, `전체인센티브_${monthKey}.xlsx`);
+      showToast('✓ 전체 엑셀 다운로드 완료!');
+    },{onlyOnce:true});
   });
 };
 
