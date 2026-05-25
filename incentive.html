@@ -430,12 +430,11 @@ function loadFromRecords(name){
       const sel2 = (r.staff2||[]).filter(Boolean);
       const allSel = [...new Set([...sel1,...sel2])];
 
-      // 이 사람이 부킹자이거나 셀렉션인 경우
       const isBooker = bookers.includes(name);
       const isSel = allSel.includes(name);
       if(!isBooker && !isSel) return;
 
-      // 부킹자로 있을 때만 SALES 집계
+      // 부킹자로 있을 때만 SALES 집계 (날짜별)
       if(isBooker){
         const share = (r.total||0) / (bookers.length||1);
         if(!byDate[r.date]) byDate[r.date] = {book:0, sales:0};
@@ -443,12 +442,13 @@ function loadFromRecords(name){
         byDate[r.date].sales += share;
       }
 
-      // 날짜+룸별 정보 저장 (같은 룸 명단용)
+      // 날짜+룸별 정보 저장
       if(!dateRoomInfo[r.date]) dateRoomInfo[r.date] = [];
       dateRoomInfo[r.date].push({
         room: r.room||'?',
         bookers: bookers,
-        sel: allSel
+        sel: allSel,
+        recordId: child.key
       });
     });
 
@@ -458,26 +458,31 @@ function loadFromRecords(name){
       const saved = snap2.exists() ? snap2.val() : {};
       const newData = {...saved};
 
-      Object.entries(byDate).forEach(([date, {book, sales}])=>{
-        const existingId = Object.keys(newData).find(id=>newData[id].date===date);
-        if(existingId){
-          newData[existingId].book = newData[existingId].book || book;
-          newData[existingId].sales = Math.round(sales);
-        } else {
-          const id = 'r_'+date.replace(/-/g,'');
-          newData[id] = {date, sales: Math.round(sales)};
-        }
-      });
+      // 날짜+부킹자별 행 생성 (룸별로 분리)
+      Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
+        const myBookRooms = rooms.filter(r=>r.bookers.includes(name));
+        const salesPerRoom = myBookRooms.length>0 ? Math.round((byDate[date]?.sales||0)/myBookRooms.length) : 0;
 
-      // 셀렉션만 있는 날짜도 행 추가
-      Object.keys(dateRoomInfo).forEach(date=>{
-        if(!byDate[date]){
-          const existingId = Object.keys(newData).find(id=>newData[id].date===date);
-          if(!existingId){
-            const id = 's_'+date.replace(/-/g,'');
-            newData[id] = {date};
+        rooms.forEach(({room, bookers, sel})=>{
+          const bookerStr = bookers.join('/');
+          const safeKey = (date+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
+          const rowId = 'r_'+safeKey;
+          const isMyBook = bookers.includes(name);
+
+          if(!newData[rowId]){
+            newData[rowId] = {
+              date,
+              booker: bookerStr,
+              room: 'R'+room,
+              ...(isMyBook && salesPerRoom ? {sales: salesPerRoom} : {})
+            };
+          } else {
+            // booker/room 정보는 항상 최신으로
+            newData[rowId].booker = bookerStr;
+            newData[rowId].room = 'R'+room;
+            if(isMyBook && salesPerRoom) newData[rowId].sales = salesPerRoom;
           }
-        }
+        });
       });
 
       incData = newData;
@@ -506,56 +511,60 @@ function renderTable(){
   const tbody = document.getElementById('incBody');
   const rows = Object.entries(incData).sort((a,b)=>a[1].date?.localeCompare(b[1].date||'')||0);
 
-  tbody.innerHTML = rows.map(([id,row])=>{
-    const date = row.date||'';
-    const roomInfo = (window._dateRoomInfo||{})[date]||[];
+  // 날짜별로 그룹화해서 렌더
+  const grouped = {};
+  rows.forEach(([id,row])=>{
+    const d = row.date||'_';
+    if(!grouped[d]) grouped[d]=[];
+    grouped[d].push([id,row]);
+  });
 
-    // 부킹자/셀렉션 정보 패널
-    let infoHtml='';
-    if(roomInfo.length){
-      const bookerSet = new Set(), selSet = new Set();
-      roomInfo.forEach(r=>{
-        r.bookers.forEach(b=>{ if(b!==currentStaff) bookerSet.add(b); });
-        r.sel.forEach(s=>{ if(s!==currentStaff) selSet.add(s); });
-      });
-      // 현재 스태프 본인도 포함
-      roomInfo.forEach(r=>{
-        if(r.bookers.includes(currentStaff)) r.bookers.forEach(b=>bookerSet.add(b));
-        if(r.sel.includes(currentStaff)) r.sel.forEach(s=>selSet.add(s));
-      });
+  tbody.innerHTML = Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([date, dateRows])=>{
+    // 날짜 그룹의 셀렉션 명단 (모든 룸 합산)
+    const allSelNames = new Set();
+    const allBookerNames = new Set();
+    (window._dateRoomInfo||{})[date]?.forEach(r=>{
+      r.sel.filter(s=>s!==currentStaff).forEach(s=>allSelNames.add(s));
+      r.bookers.filter(b=>b!==currentStaff).forEach(b=>allBookerNames.add(b));
+    });
 
-      const bookerNames=[...bookerSet].filter(Boolean);
-      const selNames=[...selSet].filter(Boolean);
+    const makeStaffBtn=(name)=>`<button onclick="window.quickInputModal('${name}','${date}')"
+      style="background:var(--bg4);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:10px;color:var(--text2);cursor:pointer;margin:1px;">${name}</button>`;
 
-      const makeStaffBtn=(name)=>`<button onclick="window.quickInputModal('${name}','${date}')"
-        style="background:var(--bg4);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:10px;color:var(--text2);cursor:pointer;margin:1px;">
-        ${name}
-      </button>`;
+    return dateRows.map(([id,row],rowIdx)=>{
+      const bookerLabel = row.booker ? `<span style="font-size:10px;color:var(--accent2);background:rgba(124,111,247,0.12);border-radius:4px;padding:1px 6px;">${row.room||''} ${row.booker}</span>` : '';
 
-      infoHtml=`<td colspan="8" style="padding:4px 8px;background:rgba(124,111,247,0.04);border-top:none;">
-        <div style="font-size:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          ${bookerNames.length?`<span style="color:var(--accent2);">📌 부킹:</span> ${bookerNames.map(makeStaffBtn).join('')}`:''}
-          ${selNames.length?`<span style="color:var(--yellow);">✦ 셀렉션:</span> ${selNames.map(makeStaffBtn).join('')}`:''}
-        </div>
-      </td>`;
-    }
+      // 셀렉션 명단은 마지막 행 아래에만 표시
+      const isLastRow = rowIdx===dateRows.length-1;
+      const selHtml = isLastRow && (allSelNames.size>0||allBookerNames.size>0) ? `
+        <tr>
+          <td colspan="8" style="padding:3px 8px 6px;background:rgba(124,111,247,0.03);border-top:none;">
+            <div style="font-size:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              ${allBookerNames.size?`<span style="color:var(--accent2);">📌 부킹:</span> ${[...allBookerNames].map(makeStaffBtn).join('')}`:''}
+              ${allSelNames.size?`<span style="color:var(--yellow);">✦ 셀렉션:</span> ${[...allSelNames].map(makeStaffBtn).join('')}`:''}
+            </div>
+          </td>
+        </tr>` : '';
 
-    return `<tr id="row-${id}">
-      <td>${date||'-'}</td>
-      ${COLS.map(col=>{
-        const isAuto = col==='sales';
-        return `<td>
-          <input class="cell-input" type="text" value="${row[col]||''}"
-            onchange="updateCell('${id}','${col}',this.value)"
-            onfocus="this.select()"
-            inputmode="decimal"
-            ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}>
-          ${!isAuto?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
-        </td>`;
-      }).join('')}
-      <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
-    </tr>
-    ${infoHtml?`<tr>${infoHtml}</tr>`:''}`;
+      return `<tr id="row-${id}">
+        <td style="vertical-align:middle;">
+          ${rowIdx===0?`<div style="font-size:12px;font-weight:600;">${date}</div>`:'<div style="color:var(--text3);font-size:10px;">↳</div>'}
+          ${bookerLabel}
+        </td>
+        ${COLS.map(col=>{
+          const isAuto = col==='sales';
+          return `<td>
+            <input class="cell-input" type="text" value="${row[col]||''}"
+              onchange="updateCell('${id}','${col}',this.value)"
+              onfocus="this.select()"
+              inputmode="decimal"
+              ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}>
+            ${!isAuto?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
+          </td>`;
+        }).join('')}
+        <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
+      </tr>${selHtml}`;
+    }).join('');
   }).join('');
 
   renderTotals();
