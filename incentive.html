@@ -939,11 +939,11 @@ function renderSummaryTable(){
 
     wrap.innerHTML=`
       <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:8px;">${y}년 ${m}월 전체 인센티브</div>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;overflow-y:auto;max-height:60vh;">
         <table style="border-collapse:collapse;width:100%;min-width:500px;">
-          <thead>
+          <thead style="position:sticky;top:0;z-index:3;">
             <tr>
-              <th style="${thS}text-align:left;position:sticky;left:0;z-index:2;">이름</th>
+              <th style="${thS}text-align:left;position:sticky;left:0;z-index:4;background:var(--bg3);">이름</th>
               <th style="${thS}color:var(--accent2);">BOOK</th>
               <th style="${thS}color:var(--blue);">JUICE</th>
               <th style="${thS}color:var(--yellow);">BEER</th>
@@ -955,7 +955,7 @@ function renderSummaryTable(){
           </thead>
           <tbody>
             ${staffTots.map(r=>`<tr onclick="openStaff('${r.name}')" style="cursor:pointer;" onmouseover="this.style.background='rgba(124,111,247,0.06)'" onmouseout="this.style.background=''">
-              <td style="${tdN}">${staffList.find(s=>s.name===r.name)?.role==='manager'?'🌟':''}${r.name}</td>
+              <td style="${tdN}position:sticky;left:0;z-index:1;">${staffList.find(s=>s.name===r.name)?.role==='manager'?'🌟':''}${r.name}</td>
               <td style="${tdS}color:var(--accent2);">${r.book?r.book.toLocaleString():'-'}</td>
               <td style="${tdS}color:var(--blue);">${r.juice?r.juice.toLocaleString():'-'}</td>
               <td style="${tdS}color:var(--yellow);">${r.beer?r.beer.toLocaleString():'-'}</td>
@@ -967,7 +967,7 @@ function renderSummaryTable(){
           </tbody>
           <tfoot>
             <tr style="background:var(--bg3);">
-              <td style="${tdN}color:var(--text3);">합계</td>
+              <td style="${tdN}color:var(--text3);position:sticky;left:0;z-index:1;">합계</td>
               <td style="${tdS}font-weight:700;">${grandTot.book?grandTot.book.toLocaleString():'-'}</td>
               <td style="${tdS}font-weight:700;">${grandTot.juice?grandTot.juice.toLocaleString():'-'}</td>
               <td style="${tdS}font-weight:700;">${grandTot.beer?grandTot.beer.toLocaleString():'-'}</td>
