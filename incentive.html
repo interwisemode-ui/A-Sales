@@ -214,7 +214,7 @@ input:focus,select:focus{border-color:var(--accent);}
       <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('quickModal').classList.remove('show')">취소</button>
     </div>
     <div style="margin-top:8px;text-align:center;">
-      <button onclick="window.openStaff(window._quickStaff)" 
+      <button onclick="goToStaffDetail()" 
         style="background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;text-decoration:underline;">
         → 이 스태프 디테일로 이동
       </button>
@@ -794,6 +794,19 @@ window.quickInputModal = function(staffName, date){
 
     document.getElementById('quickModal').classList.add('show');
   },{onlyOnce:true});
+};
+
+window.goToStaffDetail = function(){
+  const name = window._quickStaff;
+  const date = window._quickDate;
+  document.getElementById('quickModal').classList.remove('show');
+  // homeMonth와 _periodFrom/To 유지하면서 이동
+  currentStaff = name;
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  document.getElementById('entryName').textContent = name;
+  document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
+  showScreen('entry');
+  loadFromRecords(name);
 };
 
 window.closeQuickModal = function(e){
