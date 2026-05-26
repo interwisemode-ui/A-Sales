@@ -229,9 +229,13 @@ input:focus,select:focus{border-color:var(--accent);}
       <div class="calc-expr" id="calcExpr"></div>
       <div class="calc-result" id="calcResult">0</div>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:8px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="applyCalc()">✓ 입력</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('calcModal').classList.remove('show')">취소</button>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-primary" style="flex:1;font-size:12px;" onclick="applyCalc('self')">✓ 본인만</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="document.getElementById('calcModal').classList.remove('show')">취소</button>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--yellow);border-color:rgba(251,191,36,0.3);" onclick="applyCalc('sel')">✦ 같은룸 셀렉션 모두 저장</button>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--accent2);border-color:rgba(124,111,247,0.3);" onclick="applyCalc('all')">📌 같은룸 부킹+셀렉션 모두 저장</button>
     </div>
     <div class="calc-grid">
       <button class="calc-key k-clear" onclick="calcClear()">C</button>
@@ -529,7 +533,13 @@ function renderTable(){
 
     return dateRows.map(([id,row],rowIdx)=>{
       const selNames = roomSelMap[row.booker||'']||[];
-      const bookerLabel = row.booker ? `<div style="font-size:10px;color:var(--accent2);font-weight:600;margin-bottom:2px;">📌 ${row.room||''} ${row.booker}</div>` : '';
+      // 부킹자 버튼 (각 부킹자 클릭 → 디테일 이동)
+      const bookerNames = (row.booker||'').split('/').filter(Boolean);
+      const bookerBtns = bookerNames.map(b=>
+        `<button onclick="window.quickInputModal('${b}','${date}')"
+          style="background:rgba(124,111,247,0.12);border:1px solid rgba(124,111,247,0.3);border-radius:12px;padding:2px 8px;font-size:10px;color:var(--accent2);cursor:pointer;margin:1px;">${b}</button>`
+      ).join('');
+      const bookerLabel = row.booker ? `<div style="font-size:10px;color:var(--accent2);font-weight:600;margin-bottom:2px;">📌 ${row.room||''} ${bookerBtns}</div>` : '';
       const selLabel = selNames.length ? `<div style="display:flex;flex-wrap:wrap;gap:2px;">${selNames.map(makeStaffBtn).join('')}</div>` : '';
 
       return `<tr id="row-${id}">
@@ -733,14 +743,55 @@ window.calcEval = function(){
   }catch(e){}
 };
 
-window.applyCalc = function(){
+window.applyCalc = function(mode='self'){
   try{
     const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
-    let val = calcExpr==='-' ? '-' : eval(expr);
+    const val = calcExpr==='-' ? '-' : String(eval(expr));
+
+    // 본인 입력
     if(calcTargetInput){
-      calcTargetInput.value = calcExpr==='-' ? '-' : String(val);
-      updateCell(calcTargetId, calcTargetCol, calcTargetInput.value);
+      calcTargetInput.value = val;
+      updateCell(calcTargetId, calcTargetCol, val);
     }
+
+    // 같은 룸 스태프에게도 적용
+    if(mode==='sel'||mode==='all'){
+      const date = (incData[calcTargetId]||{}).date;
+      const bookerStr = (incData[calcTargetId]||{}).booker||'';
+      const roomInfo = (window._dateRoomInfo||{})[date]||[];
+      const myRoom = roomInfo.find(r=>r.bookers.join('/')=== bookerStr);
+
+      if(myRoom){
+        // 셀렉션 스태프
+        const targets = [...(myRoom.sel||[])];
+        // all이면 부킹자도 포함
+        if(mode==='all') myRoom.bookers.forEach(b=>{ if(!targets.includes(b)) targets.push(b); });
+
+        let saved=0;
+        const toSave = targets.filter(s=>s&&s!==currentStaff);
+        if(!toSave.length){ showToast('적용할 스태프 없음'); document.getElementById('calcModal').classList.remove('show'); return; }
+
+        toSave.forEach(staffName=>{
+          onValue(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), snap=>{
+            const saved2 = snap.exists() ? snap.val() : {};
+            const newData = {...saved2};
+            // 해당 날짜+같은룸 행 찾기
+            const safeKey = (date+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
+            const rowId = 'r_'+safeKey;
+            if(!newData[rowId]) newData[rowId] = {date, booker:bookerStr};
+            newData[rowId][calcTargetCol] = val;
+            set(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), newData);
+            saved++;
+            if(saved===toSave.length){
+              showToast(`✓ ${toSave.length}명에게 ${calcTargetCol.toUpperCase()} ${val} 저장됨`);
+            }
+          },{onlyOnce:true});
+        });
+      } else {
+        showToast('같은 룸 정보 없음');
+      }
+    }
+
     document.getElementById('calcModal').classList.remove('show');
   }catch(e){ showToast('계산 오류'); }
 };
