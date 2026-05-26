@@ -455,10 +455,20 @@ function loadFromRecords(name){
       const saved = snap2.exists() ? snap2.val() : {};
       const newData = {...saved};
 
-      // 기존 booker 없는 레거시 행 제거 (구버전 데이터)
+      // 레거시 행 제거 (구버전 데이터 - room 없거나 새 키 형식 아닌 것)
       Object.keys(newData).forEach(id=>{
         const row = newData[id];
-        if(row.date && !row.booker && dateRoomInfo[row.date]){
+        if(!row.date) return;
+        if(!dateRoomInfo[row.date]) return;
+        // booker 없거나, room 없는 구버전 행 제거
+        if(!row.booker || !row.room){
+          delete newData[id]; return;
+        }
+        // 새 키 형식: r_{date}_{room}_{booker} 인지 확인
+        // 구버전 키: r_{date}_{booker} → room이 키에 없음
+        const expectedSafeKey = (row.date+'_'+row.room+'_'+row.booker).replace(/[^a-zA-Z0-9]/g,'_');
+        const expectedId = 'r_'+expectedSafeKey;
+        if(id !== expectedId){
           delete newData[id];
         }
       });
@@ -467,7 +477,7 @@ function loadFromRecords(name){
       Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
         rooms.forEach(({room, bookers, sel, sales})=>{
           const bookerStr = bookers.join('/');
-          const safeKey = (date+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
+          const safeKey = (date+'_R'+room+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
           const rowId = 'r_'+safeKey;
           const isMyBook = bookers.includes(name);
 
@@ -776,7 +786,8 @@ window.applyCalc = function(mode='self'){
             const saved2 = snap.exists() ? snap.val() : {};
             const newData = {...saved2};
             // 해당 날짜+같은룸 행 찾기
-            const safeKey = (date+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
+            const myRoomNum = (incData[calcTargetId]||{}).room||'';
+            const safeKey = (date+'_'+myRoomNum+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
             const rowId = 'r_'+safeKey;
             if(!newData[rowId]) newData[rowId] = {date, booker:bookerStr};
             newData[rowId][calcTargetCol] = val;
