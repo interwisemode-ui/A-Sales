@@ -459,6 +459,18 @@ function loadFromRecords(name){
       const saved = snap2.exists() ? snap2.val() : {};
       const newData = {...saved};
 
+      // b_ 행(BOOK 업로드)의 값을 r_ 행으로 병합
+      Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
+        const bRow = newData[bid];
+        if(!bRow?.date) return;
+        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_')&&newData[id].date===bRow.date);
+        if(rRows.length>0){
+          // r_ 행들에 book 값 복사
+          rRows.forEach(rid=>{ if(bRow.book && !newData[rid].book) newData[rid].book = bRow.book; });
+          delete newData[bid]; // b_ 행 삭제
+        }
+      });
+
       // 레거시 행 마이그레이션 (데이터 보존하면서 새 키로 이동)
       Object.keys(newData).forEach(id=>{
         const row = newData[id];
