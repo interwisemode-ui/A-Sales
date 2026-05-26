@@ -911,45 +911,86 @@ window.saveQuickInput = function(){
 
 window.loadBookXlsx = function(input){
   const file = input.files[0]; if(!file) return;
+  const monthKey = currentMonthKey || document.getElementById('homeMonth').value;
+  if(!monthKey){ showToast('월을 선택해주세요'); input.value=''; return; }
+  const [y,m] = monthKey.split('-').map(Number);
+
   loadXLSX(()=>{
     const reader = new FileReader();
     reader.onload = e=>{
       const wb = window.XLSX.read(e.target.result, {type:'array', cellDates:false});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = window.XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
-      const [y,m] = currentMonthKey.split('-').map(Number);
-      let updated = 0;
-      raw.forEach(row=>{
-        if(!row[0]||!row[1]) return;
-        // 날짜 파싱
-        let dateStr='';
-        const v = String(row[0]).trim();
-        const mSlash = v.match(/^(\d+)\/(\d+)/);
-        if(mSlash){
-          dateStr=`${y}-${String(parseInt(mSlash[1])).padStart(2,'0')}-${String(parseInt(mSlash[2])).padStart(2,'0')}`;
-        } else if(typeof row[0]==='number' && row[0]>40000){
-          const ms=(row[0]-25569)*86400*1000+19800000;
-          const d=new Date(ms);
-          dateStr=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-        } else if(v.match(/^\d{4}-\d{2}-\d{2}/)){
-          dateStr=v.slice(0,10);
-        }
-        if(!dateStr) return;
-        const amt = parseFloat(String(row[1]).replace(/[^0-9.\-]/g,''))||0;
-        if(!amt) return;
-        // 해당 날짜 row 찾아서 업데이트
-        const existId = Object.keys(incData).find(id=>incData[id].date===dateStr);
-        if(existId){
-          incData[existId].book = amt;
-        } else {
-          incData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
-        }
-        updated++;
+      if(!raw.length){ showToast('데이터 없음'); input.value=''; return; }
+
+      // 헤더행에서 스태프 이름 추출
+      const headerRow = raw[0];
+      const staffCols = {};
+      headerRow.forEach((cell,ci)=>{
+        if(ci===0) return;
+        const name = String(cell||'').trim().toUpperCase();
+        if(name && name!=='TOTAL' && name!=='합계') staffCols[ci] = name;
       });
-      if(!updated){ showToast('⚠ 유효한 데이터 없음'); input.value=''; return; }
-      saveIncData();
-      renderTable();
-      showToast(`✓ BOOK ${updated}건 업로드 완료!`);
+
+      if(!Object.keys(staffCols).length){ showToast('스태프 헤더를 찾을 수 없음'); input.value=''; return; }
+
+      // 날짜 파싱 함수
+      function parseDate(v){
+        const s = String(v||'').trim();
+        if(!s) return '';
+        const mDash = s.match(/^(\d+)[-\/](\d+)/);
+        if(mDash) return y+'-'+String(parseInt(mDash[1])).padStart(2,'0')+'-'+String(parseInt(mDash[2])).padStart(2,'0');
+        if(typeof v==='number' && v>40000){
+          const d=new Date(Math.round((v-25569)*86400000));
+          return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+        }
+        if(s.match(/\d{4}-\d{2}-\d{2}/)) return s.slice(0,10);
+        return '';
+      }
+
+      // 스태프별 데이터 수집
+      const staffData = {};
+      raw.slice(1).forEach(row=>{
+        if(!row[0]) return;
+        const v = String(row[0]).trim().toUpperCase();
+        if(v.includes('TOTAL')||v.includes('합계')) return;
+        const dateStr = parseDate(row[0]);
+        if(!dateStr) return;
+        Object.entries(staffCols).forEach(([ci,staffName])=>{
+          const val = row[ci];
+          if(val===''||val===null||val===undefined||String(val).trim()==='-') return;
+          const amt = parseFloat(String(val).replace(/[^0-9.-]/g,''))||0;
+          if(!amt) return;
+          if(!staffData[staffName]) staffData[staffName]={};
+          staffData[staffName][dateStr] = amt;
+        });
+      });
+
+      const staffNames = Object.keys(staffData);
+      if(!staffNames.length){ showToast('유효한 데이터 없음'); input.value=''; return; }
+
+      showToast(`${staffNames.length}명 데이터 저장 중...`);
+      let savedCount=0;
+      staffNames.forEach(staffName=>{
+        onValue(ref(db,`incentive/data/${staffName}/${monthKey}`), snap=>{
+          const existing = snap.exists() ? snap.val() : {};
+          const newData = {...existing};
+          Object.entries(staffData[staffName]).forEach(([dateStr, amt])=>{
+            const dateRows = Object.keys(newData).filter(id=>newData[id].date===dateStr);
+            if(dateRows.length>=1){
+              newData[dateRows[0]].book = amt;
+            } else {
+              newData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
+            }
+          });
+          set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
+          savedCount++;
+          if(savedCount===staffNames.length){
+            showToast('✓ '+staffNames.length+'명 BOOK 인센티브 업로드 완료!');
+            if(currentStaff && staffData[currentStaff]) loadFromRecords(currentStaff);
+          }
+        },{onlyOnce:true});
+      });
       input.value='';
     };
     reader.readAsArrayBuffer(file);
