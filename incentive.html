@@ -412,7 +412,12 @@ function renderStaffGrid(){
 window.openStaff = function(name){
   currentStaff = name;
   currentMonthKey = document.getElementById('homeMonth').value;
+  if(!currentMonthKey){ showToast('월을 선택해주세요'); return; }
   const [y,m] = currentMonthKey.split('-').map(Number);
+  // 일반 달력 기준으로 기간 설정
+  const lastDay = new Date(y, m, 0).getDate();
+  window._periodFrom = `${y}-${String(m).padStart(2,'0')}-01`;
+  window._periodTo   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
   document.getElementById('entryName').textContent = name;
   document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
   showScreen('entry');
@@ -422,6 +427,7 @@ window.openStaff = function(name){
 function loadFromRecords(name){
   const fromDate = window._periodFrom;
   const toDate = window._periodTo;
+  console.log('[loadFromRecords]', name, fromDate, toDate);
 
   onValue(ref(db,'records'), snap=>{
     if(!snap.exists()){ loadIncData(); return; }
@@ -429,6 +435,7 @@ function loadFromRecords(name){
     // 날짜별 집계 + 부킹자/셀렉션 정보
     const byDate = {}; // kept for compatibility
     const dateRoomInfo = {}; // {date: [{room, bookers, sel1, sel2}]}
+    let matchCount = 0;
 
     snap.forEach(child=>{
       const r = child.val();
@@ -441,6 +448,7 @@ function loadFromRecords(name){
       const isBooker = bookers.includes(name);
       const isSel = allSel.includes(name);
       if(!isBooker && !isSel) return;
+      matchCount++;
 
       // 날짜+룸별 정보 저장 (룸별 매출 포함)
       if(!dateRoomInfo[r.date]) dateRoomInfo[r.date] = [];
@@ -453,6 +461,7 @@ function loadFromRecords(name){
       });
     });
 
+    console.log('[loadFromRecords] matchCount:', matchCount, 'dateRoomInfo dates:', Object.keys(dateRoomInfo));
     window._dateRoomInfo = dateRoomInfo;
 
     onValue(ref(db,`incentive/data/${name}/${currentMonthKey}`), snap2=>{
