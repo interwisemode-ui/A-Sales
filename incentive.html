@@ -455,20 +455,29 @@ function loadFromRecords(name){
       const saved = snap2.exists() ? snap2.val() : {};
       const newData = {...saved};
 
-      // 레거시 행 제거 (구버전 데이터 - room 없거나 새 키 형식 아닌 것)
+      // 레거시 행 마이그레이션 (데이터 보존하면서 새 키로 이동)
       Object.keys(newData).forEach(id=>{
         const row = newData[id];
-        if(!row.date) return;
+        if(!row.date || !row.room || !row.booker) return;
         if(!dateRoomInfo[row.date]) return;
-        // booker 없거나, room 없는 구버전 행 제거
-        if(!row.booker || !row.room){
-          delete newData[id]; return;
-        }
-        // 새 키 형식: r_{date}_{room}_{booker} 인지 확인
-        // 구버전 키: r_{date}_{booker} → room이 키에 없음
         const expectedSafeKey = (row.date+'_'+row.room+'_'+row.booker).replace(/[^a-zA-Z0-9]/g,'_');
         const expectedId = 'r_'+expectedSafeKey;
-        if(id !== expectedId){
+        if(id !== expectedId && !newData[expectedId]){
+          // 데이터를 새 키로 복사 후 구버전 삭제
+          newData[expectedId] = {...row};
+          delete newData[id];
+        } else if(id !== expectedId && newData[expectedId]){
+          // 새 키가 이미 있으면 입력값만 병합 후 구버전 삭제
+          ['book','juice','beer','food','select'].forEach(col=>{
+            if(row[col] && !newData[expectedId][col]) newData[expectedId][col] = row[col];
+          });
+          delete newData[id];
+        }
+      });
+      // booker/room 없는 행은 날짜만 있는 빈 행이므로 dateRoomInfo 있으면 제거
+      Object.keys(newData).forEach(id=>{
+        const row = newData[id];
+        if(row.date && !row.booker && dateRoomInfo[row.date]){
           delete newData[id];
         }
       });
