@@ -917,7 +917,12 @@ window.saveQuickInput = function(){
 window.loadBookXlsx = function(input){
   const file = input.files[0]; if(!file) return;
   const monthKey = currentMonthKey || document.getElementById('homeMonth').value;
-  if(!monthKey){ showToast('월을 선택해주세요'); input.value=''; return; }
+  if(!monthKey){ 
+    showToast('⚠ 먼저 월을 선택해주세요!'); 
+    input.value=''; 
+    return; 
+  }
+  showToast(`${monthKey} 데이터 업로드 중...`);
   const [y,m] = monthKey.split('-').map(Number);
 
   loadXLSX(()=>{
@@ -981,12 +986,24 @@ window.loadBookXlsx = function(input){
           const existing = snap.exists() ? snap.val() : {};
           const newData = {...existing};
           Object.entries(staffData[staffName]).forEach(([dateStr, amt])=>{
+            // 해당 날짜의 모든 행에 book 적용 (여러 룸 있을 수 있음)
             const dateRows = Object.keys(newData).filter(id=>newData[id].date===dateStr);
             if(dateRows.length>=1){
-              newData[dateRows[0]].book = amt;
+              // 모든 날짜 행에 book 저장 (룸별로 나뉜 경우)
+              dateRows.forEach(id=>{ newData[id].book = amt; });
+              // b_ 로 시작하는 중복 행 제거
+              dateRows.filter(id=>id.startsWith('b_')).forEach(id=>{
+                if(dateRows.length>1) delete newData[id];
+              });
             } else {
               newData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
             }
+          });
+          // 고아 b_ 행 정리 (r_ 행과 날짜 중복되는 b_ 행 삭제)
+          Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
+            const bDate = newData[bid]?.date;
+            const hasRRow = Object.keys(newData).some(id=>!id.startsWith('b_')&&newData[id].date===bDate);
+            if(hasRRow) delete newData[bid];
           });
           set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
           savedCount++;
