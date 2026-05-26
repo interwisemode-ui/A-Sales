@@ -129,9 +129,13 @@ input:focus,select:focus{border-color:var(--accent);}
     <button class="month-btn" onclick="setHomeMonth('last')">지난달</button>
     <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ 전체 엑셀</button>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
     <div class="sec-title" style="margin-bottom:0;">스태프 선택</div>
-    <button class="btn btn-ghost btn-sm" onclick="toggleSummaryTable()">📊 전체 요약</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInputHome').click()">📊 BOOK 업로드</button>
+      <input type="file" id="bookXlsxInputHome" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
+      <button class="btn btn-ghost btn-sm" onclick="toggleSummaryTable()">📋 전체 요약</button>
+    </div>
   </div>
   <div id="summaryTableWrap" style="display:none;margin-bottom:16px;"></div>
   <div class="staff-grid" id="staffGrid"></div>
@@ -570,9 +574,9 @@ function renderTable(){
         ${COLS.map(col=>{
           const isAuto = col==='sales';
           return `<td>
-            <input class="cell-input" type="text" value="${row[col]||''}"
+            <input class="cell-input" type="text" value="${row[col]?(isAuto?Math.round(parseFloat(row[col])||0).toLocaleString():row[col]):''}"
               onchange="updateCell('${id}','${col}',this.value)"
-              onfocus="this.select()"
+              onfocus="this.value=row[col]||'';this.select()"
               inputmode="decimal"
               ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}>
             ${!isAuto?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
@@ -594,7 +598,7 @@ function renderTotals(){
       return s+v;
     },0);
     const el = document.getElementById('tot-'+col);
-    if(el) el.textContent = tot>0 ? tot.toLocaleString() : '-';
+    if(el) el.textContent = tot>0 ? Math.round(tot).toLocaleString() : '-';
   });
 }
 
@@ -616,12 +620,12 @@ function renderSummary(){
   grid.innerHTML = incCols.map(col=>`
     <div class="sum-card">
       <div class="sum-label">${labels[col]}</div>
-      <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tots[col]>0?tots[col].toLocaleString():'-'}</div>
+      <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tots[col]>0?Math.round(tots[col]).toLocaleString():'-'}</div>
     </div>`).join('')+`
     <div class="sum-card" style="border-color:var(--accent);background:rgba(124,111,247,0.08);">
       <div class="sum-label" style="color:var(--accent2);">💰 인센티브 합계</div>
-      <div class="sum-value" style="color:var(--accent2);font-size:16px;">${incTotal>0?incTotal.toLocaleString():'-'}</div>
-      <div style="font-size:10px;color:var(--text3);margin-top:4px;">SALES: ${tots['sales']>0?tots['sales'].toLocaleString():'-'}</div>
+      <div class="sum-value" style="color:var(--accent2);font-size:16px;">${incTotal>0?Math.round(incTotal).toLocaleString():'-'}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px;">SALES: ${tots['sales']>0?Math.round(tots['sales']).toLocaleString():'-'}</div>
     </div>`;
 }
 
