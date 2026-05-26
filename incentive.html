@@ -1078,12 +1078,12 @@ function renderSummaryTable(){
       const md = allData[name]?.[monthKey]||{};
       const tots = {};
       INC_COLS.forEach(col=>{
-        tots[col] = Object.values(md).reduce((s,r)=>
-          s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0);
+        tots[col] = Math.round(Object.values(md).reduce((s,r)=>
+          s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0));
       });
       tots.incTotal = INC_COLS.reduce((s,col)=>s+tots[col],0);
-      tots.sales = Object.values(md).reduce((s,r)=>
-        s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0);
+      tots.sales = Math.round(Object.values(md).reduce((s,r)=>
+        s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0));
       return {name, ...tots};
     });
 
@@ -1116,25 +1116,25 @@ function renderSummaryTable(){
           <tbody>
             ${staffTots.map(r=>`<tr onclick="openStaff('${r.name}')" style="cursor:pointer;" onmouseover="this.style.background='rgba(124,111,247,0.06)'" onmouseout="this.style.background=''">
               <td style="${tdN}position:sticky;left:0;z-index:1;">${staffList.find(s=>s.name===r.name)?.role==='manager'?'🌟':''}${r.name}</td>
-              <td style="${tdS}color:var(--accent2);">${r.book?r.book.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--blue);">${r.juice?r.juice.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--yellow);">${r.beer?r.beer.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--green);">${r.food?r.food.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--orange);">${r.select?r.select.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--accent);font-weight:700;border-left:2px solid var(--accent);">${r.incTotal?r.incTotal.toLocaleString():'-'}</td>
-              <td style="${tdS}color:var(--red);">${r.sales?r.sales.toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--accent2);">${r.book?Math.round(r.book).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--blue);">${r.juice?Math.round(r.juice).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--yellow);">${r.beer?Math.round(r.beer).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--green);">${r.food?Math.round(r.food).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--orange);">${r.select?Math.round(r.select).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--accent);font-weight:700;border-left:2px solid var(--accent);">${r.incTotal?Math.round(r.incTotal).toLocaleString():'-'}</td>
+              <td style="${tdS}color:var(--red);">${r.sales?Math.round(r.sales).toLocaleString():'-'}</td>
             </tr>`).join('')}
           </tbody>
           <tfoot>
             <tr style="background:var(--bg3);">
               <td style="${tdN}color:var(--text3);position:sticky;left:0;z-index:1;">합계</td>
-              <td style="${tdS}font-weight:700;">${grandTot.book?grandTot.book.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;">${grandTot.juice?grandTot.juice.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;">${grandTot.beer?grandTot.beer.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;">${grandTot.food?grandTot.food.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;">${grandTot.select?grandTot.select.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;color:var(--accent);border-left:2px solid var(--accent);">${grandTot.incTotal?grandTot.incTotal.toLocaleString():'-'}</td>
-              <td style="${tdS}font-weight:700;color:var(--red);">${grandTot.sales?grandTot.sales.toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.book?Math.round(grandTot.book).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.juice?Math.round(grandTot.juice).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.beer?Math.round(grandTot.beer).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.food?Math.round(grandTot.food).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;">${grandTot.select?Math.round(grandTot.select).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;color:var(--accent);border-left:2px solid var(--accent);">${grandTot.incTotal?Math.round(grandTot.incTotal).toLocaleString():'-'}</td>
+              <td style="${tdS}font-weight:700;color:var(--red);">${grandTot.sales?Math.round(grandTot.sales).toLocaleString():'-'}</td>
             </tr>
           </tfoot>
         </table>
