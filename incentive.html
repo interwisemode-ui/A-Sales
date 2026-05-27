@@ -574,7 +574,7 @@ function renderStaffAttInfo(name){
 
     const attData = allAtt[monthKeys[0]];
     const entries = (attData.entries||[]).filter(e=>e.name===name);
-    const dates = (attData.dates||[]).sort();
+    const dates = (attData.dates||[]).map(d=>String(d)).filter(d=>d&&d.includes('-')).sort();
 
     let present=0, late=0, absent=0;
     const rows = dates.map(d=>{
@@ -1243,7 +1243,7 @@ function renderAttTable(){
     if(!monthKeys.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">해당 월 출근 데이터 없음</div>'; return; }
 
     const attData = allAtt[monthKeys[0]];
-    const dates = (attData.dates||[]).sort();
+    const dates = (attData.dates||[]).map(d=>String(d)).filter(d=>d&&d.includes('-')).sort();
     const staffList2 = attData.staff||[];
     const dailyHC = attData.dailyHeadCount||{};
 
