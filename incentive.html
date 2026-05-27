@@ -133,6 +133,7 @@ input:focus,select:focus{border-color:var(--accent);}
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
     <div style="display:flex;gap:6px;">
       <button class="vt-btn active" id="homeTabMain" onclick="switchHomeTab('main')">👥 스태프</button>
+      <button class="vt-btn" id="homeTabSummary" onclick="switchHomeTab('summary')">💰 인센티브 요약</button>
       <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 출근부</button>
     </div>
     <div style="display:flex;gap:6px;">
@@ -145,6 +146,11 @@ input:focus,select:focus{border-color:var(--accent);}
   <div id="homeTabContentMain">
     <div id="summaryTableWrap" style="display:none;margin-bottom:16px;"></div>
     <div class="staff-grid" id="staffGrid"></div>
+  </div>
+
+  <!-- 인센티브 요약 탭 -->
+  <div id="homeTabContentSummary" style="display:none;">
+    <div id="summaryTableWrap3"></div>
   </div>
 
   <!-- 출근부 탭 -->
@@ -588,20 +594,38 @@ function renderStaffAttInfo(name){
       </div>`;
     });
 
+    // 가로형 출근 표
+    const thS2='padding:5px 6px;background:var(--bg3);border:1px solid var(--border);font-size:10px;text-align:center;white-space:nowrap;';
+    const tdS2='padding:4px 6px;border:1px solid var(--border);font-size:10px;text-align:center;font-family:"JetBrains Mono",monospace;';
+
+    let tableHtml=`<div style="overflow-x:auto;margin-top:8px;">
+      <table style="border-collapse:collapse;width:100%;">
+        <thead><tr>
+          <th style="${thS2}text-align:left;">날짜</th>`;
+    dates.forEach(d=>{
+      const day=parseInt(d.split('-')[2]);
+      const dow=['일','월','화','수','목','금','토'][new Date(d+'T00:00:00').getDay()];
+      const isFriSat=[5,6].includes(new Date(d+'T00:00:00').getDay());
+      tableHtml+=`<th style="${thS2}${isFriSat?'color:var(--red);':''}">${day}<br><span style="font-size:8px;">${dow}</span></th>`;
+    });
+    tableHtml+=`</tr></thead><tbody><tr>
+      <td style="${tdS2}text-align:left;font-weight:600;background:var(--bg2);">시간</td>`;
+    dates.forEach((d,i)=>{
+      const e = entryArr[i];
+      if(!e){ tableHtml+=`<td style="${tdS2}color:var(--text3);">-</td>`; return; }
+      const isLate = e.type==='late'||(e.time&&e.time>'08:30');
+      tableHtml+=`<td style="${tdS2}color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'✓'}</td>`;
+    });
+    tableHtml+=`</tr></tbody></table></div>`;
+
     wrap.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
         <span style="font-size:12px;font-weight:700;color:var(--text2);">📋 출근 현황</span>
-        <div style="display:flex;gap:8px;">
-          <span style="font-size:12px;color:var(--green);">출근 ${present}일</span>
-          <span style="font-size:12px;color:var(--yellow);">지각 ${late}일</span>
-          <span style="font-size:12px;color:var(--red);">결근 ${absent}일</span>
-        </div>
+        <span style="font-size:12px;color:var(--green);">출근 ${present}일</span>
+        <span style="font-size:12px;color:var(--yellow);">지각 ${late}일</span>
+        <span style="font-size:12px;color:var(--red);">결근 ${absent}일</span>
       </div>
-      <div id="attDetailToggle" style="display:none;max-height:200px;overflow-y:auto;">${rows.join('')}</div>
-      <button onclick="const el=document.getElementById('attDetailToggle');el.style.display=el.style.display==='none'?'block':'none';"
-        style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-top:4px;">
-        상세 보기 ▼
-      </button>
+      ${tableHtml}
     </div>`;
   },{onlyOnce:true});
 }
@@ -1211,12 +1235,35 @@ function renderSummaryTable(){
 
 // ── 홈 탭 전환 ────────────────────────────────────────────
 window.switchHomeTab = function(tab){
-  ['main','att'].forEach(t=>{
-    document.getElementById('homeTabContent'+t.charAt(0).toUpperCase()+t.slice(1)).style.display = t===tab?'':'none';
-    document.getElementById('homeTab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active', t===tab);
+  const tabs = {
+    main:    {content:'homeTabContentMain',    btn:'homeTabMain'},
+    summary: {content:'homeTabContentSummary', btn:'homeTabSummary'},
+    att:     {content:'homeTabContentAtt',     btn:'homeTabAtt'},
+  };
+  Object.entries(tabs).forEach(([t,ids])=>{
+    const el = document.getElementById(ids.content);
+    const btn = document.getElementById(ids.btn);
+    if(el) el.style.display = t===tab ? '' : 'none';
+    if(btn) btn.classList.toggle('active', t===tab);
   });
   if(tab==='att') renderAttTable();
+  if(tab==='summary') renderSummaryInTab();
 };
+
+function renderSummaryInTab(){
+  const wrap = document.getElementById('summaryTableWrap3');
+  if(!wrap) return;
+  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
+  // summaryTableWrap에 렌더 후 복사
+  summaryTableVisible = true;
+  document.getElementById('summaryTableWrap').style.display='block';
+  renderSummaryTable();
+  setTimeout(()=>{
+    wrap.innerHTML = document.getElementById('summaryTableWrap').innerHTML;
+    document.getElementById('summaryTableWrap').style.display='none';
+    summaryTableVisible = false;
+  }, 1500);
+}
 
 // ── 출근부 렌더 ────────────────────────────────────────────
 function renderAttTable(){
@@ -1302,15 +1349,7 @@ function renderAttTable(){
 }
 
 // ── 인센티브 요약 탭 ────────────────────────────────────────
-function renderSummaryTable2(){
-  const wrap=document.getElementById('summaryTableWrap2');
-  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
-  renderSummaryTable();
-  // summaryTableWrap 내용을 summaryTableWrap2로 복사
-  setTimeout(()=>{
-    wrap.innerHTML=document.getElementById('summaryTableWrap').innerHTML;
-  },1500);
-}
+
 
 window.downloadAllXlsx = function(){
   const monthKey = document.getElementById('homeMonth').value;
