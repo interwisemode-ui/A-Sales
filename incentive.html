@@ -129,26 +129,22 @@ input:focus,select:focus{border-color:var(--accent);}
     <button class="month-btn" onclick="setHomeMonth('last')">지난달</button>
     <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ 전체 엑셀</button>
   </div>
-  <!-- 홈 탭 버튼 -->
-  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-    <button class="vt-btn active" id="homeTabStaff" onclick="switchHomeTab('staff')">👥 스태프</button>
-    <button class="vt-btn" id="homeTabSummary" onclick="switchHomeTab('summary')">📋 인센티브 요약</button>
-    <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 출근부</button>
-    <div style="margin-left:auto;display:flex;gap:6px;">
+  <!-- 상단 버튼 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+    <div style="display:flex;gap:6px;">
+      <button class="vt-btn active" id="homeTabMain" onclick="switchHomeTab('main')">👥 스태프</button>
+      <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 출근부</button>
+    </div>
+    <div style="display:flex;gap:6px;">
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInputHome').click()">📊 BOOK 업로드</button>
       <input type="file" id="bookXlsxInputHome" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
     </div>
   </div>
 
-  <!-- 스태프 탭 -->
-  <div id="homeTabContentStaff">
+  <!-- 스태프+요약 탭 (기존 레이아웃) -->
+  <div id="homeTabContentMain">
     <div id="summaryTableWrap" style="display:none;margin-bottom:16px;"></div>
     <div class="staff-grid" id="staffGrid"></div>
-  </div>
-
-  <!-- 인센티브 요약 탭 -->
-  <div id="homeTabContentSummary" style="display:none;">
-    <div id="summaryTableWrap2"></div>
   </div>
 
   <!-- 출근부 탭 -->
@@ -573,18 +569,19 @@ function renderStaffAttInfo(name){
     if(!monthKeys.length){ wrap.innerHTML=''; return; }
 
     const attData = allAtt[monthKeys[0]];
-    const entries = (attData.entries||[]).filter(e=>e.name===name);
-    const dates = (attData.dates||[]).map(d=>String(d)).filter(d=>d&&d.includes('-')).sort();
+    const staffEntry = (attData.staff||[]).find(s=>s.name===name);
+    const entryArr = staffEntry?.entries||[];
+    const dates = (attData.dates||[]).map(d=>typeof d==='object'?d.dateStr:String(d)).filter(d=>d&&d.includes('-')).sort();
+    const staffInfo = (attData.staff||[]).find(s=>s.name===name);
 
-    let present=0, late=0, absent=0;
-    const rows = dates.map(d=>{
-      const e = entries.find(x=>x.date===d);
+    let present=staffInfo?.presentCnt||0, late=staffInfo?.lateCnt||0, absent=staffInfo?.absentCnt||0;
+    const rows = dates.map((d,i)=>{
+      const e = entryArr[i];
       if(!e){ absent++; return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
         <span style="font-size:11px;color:var(--red);">결근</span>
       </div>`; }
-      const isLate = e.time && e.time>'08:30';
-      if(isLate) late++; else present++;
+      const isLate = e.type==='late'||(e.time&&e.time>'08:30');
       return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
         <span style="font-size:11px;color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'출근'}</span>
@@ -1124,6 +1121,8 @@ window.toggleSummaryTable = function(){
   renderSummaryTable();
 };
 
+function renderSummaryTable2(){ renderSummaryTable(); }
+
 function renderSummaryTable(){
   const monthKey = document.getElementById('homeMonth').value;
   if(!monthKey) return;
@@ -1212,11 +1211,10 @@ function renderSummaryTable(){
 
 // ── 홈 탭 전환 ────────────────────────────────────────────
 window.switchHomeTab = function(tab){
-  ['staff','summary','att'].forEach(t=>{
+  ['main','att'].forEach(t=>{
     document.getElementById('homeTabContent'+t.charAt(0).toUpperCase()+t.slice(1)).style.display = t===tab?'':'none';
     document.getElementById('homeTab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active', t===tab);
   });
-  if(tab==='summary') renderSummaryTable2();
   if(tab==='att') renderAttTable();
 };
 
@@ -1243,13 +1241,22 @@ function renderAttTable(){
     if(!monthKeys.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">해당 월 출근 데이터 없음</div>'; return; }
 
     const attData = allAtt[monthKeys[0]];
-    const dates = (attData.dates||[]).map(d=>String(d)).filter(d=>d&&d.includes('-')).sort();
-    const staffList2 = attData.staff||[];
+    // dates는 [{dateStr, dow}] 형식
+    const dates = (attData.dates||[]).map(d=>typeof d==='object'?d.dateStr:String(d)).filter(d=>d&&d.includes('-')).sort();
+    const staffArr = attData.staff||[];
     const dailyHC = attData.dailyHeadCount||{};
 
     if(!dates.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">날짜 데이터 없음</div>'; return; }
 
-    // 날짜 헤더
+    // 스태프별 날짜→시간 맵 생성
+    const staffTimeMap = {}; // {name: {dateStr: {time, type}}}
+    staffArr.forEach(s=>{
+      staffTimeMap[s.name] = {};
+      (s.entries||[]).forEach((e,i)=>{
+        if(dates[i]) staffTimeMap[s.name][dates[i]] = {time:e.time||'', type:e.type||''};
+      });
+    });
+
     const thS='padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:10px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:2;';
     const tdS='padding:4px 8px;border:1px solid var(--border);font-size:11px;text-align:center;font-family:"JetBrains Mono",monospace;';
 
@@ -1272,22 +1279,20 @@ function renderAttTable(){
     html+=`</tr></thead><tbody>`;
 
     // 스태프별 행
-    [...staffList2].sort().forEach(staff=>{
+    [...staffArr].sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>{
       let present=0, late=0, absent=0;
       const cells = dates.map(d=>{
-        const entries = (attData.entries||[]).filter(e=>e.date===d&&e.name===staff);
-        if(!entries.length){ absent++; return `<td style="${tdS}color:var(--text3);">-</td>`; }
-        const e = entries[0];
-        const time = e.time||'';
-        const isLate = time && time>'08:30';
+        const e = staffTimeMap[s.name]?.[d];
+        if(!e){ absent++; return `<td style="${tdS}color:var(--text3);">-</td>`; }
+        const isLate = e.type==='late'||( e.time && e.time>'08:30');
         if(isLate) late++; else present++;
-        return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};">${time||'✓'}</td>`;
+        return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'✓'}</td>`;
       });
       html+=`<tr>
-        <td style="${tdS}text-align:left;position:sticky;left:0;background:var(--bg2);font-weight:600;">${staff}</td>
-        <td style="${tdS}color:var(--green);font-weight:700;">${present}</td>
-        <td style="${tdS}color:var(--yellow);font-weight:700;">${late||'-'}</td>
-        <td style="${tdS}color:var(--red);font-weight:700;">${absent||'-'}</td>
+        <td style="${tdS}text-align:left;position:sticky;left:0;background:var(--bg2);font-weight:600;">${s.name}</td>
+        <td style="${tdS}color:var(--green);font-weight:700;">${s.presentCnt||present}</td>
+        <td style="${tdS}color:var(--yellow);font-weight:700;">${s.lateCnt||late||'-'}</td>
+        <td style="${tdS}color:var(--red);font-weight:700;">${s.absentCnt||absent||'-'}</td>
         ${cells.join('')}
       </tr>`;
     });
