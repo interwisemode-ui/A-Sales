@@ -115,63 +115,63 @@ input:focus,select:focus{border-color:var(--accent);}
 <div class="header">
   <div class="header-title" onclick="showScreen('home');currentStaff='';" style="cursor:pointer;">💰 A+ Incentive</div>
   <div class="header-right">
-    <button class="btn btn-ghost btn-sm" onclick="showScreen('manage')">⚙ 스태프</button>
-    <button class="btn btn-green btn-sm" id="xlsxBtn" onclick="downloadXlsx()" style="display:none;">⬇ 엑셀</button>
+    <button class="btn btn-ghost btn-sm" onclick="showScreen('manage')">⚙ Staff</button>
+    <button class="btn btn-green btn-sm" id="xlsxBtn" onclick="downloadXlsx()" style="display:none;">⬇ Excel</button>
   </div>
 </div>
 
-<!-- SCREEN 1: 스태프 선택 -->
+<!-- SCREEN 1: Staff 선택 -->
 <div class="screen active" id="screen-home">
   <div class="month-bar" style="margin-top:4px;">
-    <span style="font-size:12px;color:var(--text3);">월 선택:</span>
+    <span style="font-size:12px;color:var(--text3);">Month:</span>
     <input type="month" id="homeMonth" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 10px;">
-    <button class="month-btn active" onclick="setHomeMonth('this')">이번달</button>
-    <button class="month-btn" onclick="setHomeMonth('last')">지난달</button>
-    <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ 전체 엑셀</button>
+    <button class="month-btn active" onclick="setHomeMonth('this')">This Month</button>
+    <button class="month-btn" onclick="setHomeMonth('last')">Last Month</button>
+    <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ Export All</button>
   </div>
   <!-- 상단 버튼 -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
     <div style="display:flex;gap:6px;">
-      <button class="vt-btn active" id="homeTabMain" onclick="switchHomeTab('main')">👥 스태프</button>
-      <button class="vt-btn" id="homeTabSummary" onclick="switchHomeTab('summary')">💰 인센티브 요약</button>
-      <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 출근부</button>
+      <button class="vt-btn active" id="homeTabMain" onclick="switchHomeTab('main')">👥 Staff</button>
+      <button class="vt-btn" id="homeTabSummary" onclick="switchHomeTab('summary')">💰 Summary</button>
+      <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 Attendance</button>
     </div>
     <div style="display:flex;gap:6px;">
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInputHome').click()">📊 BOOK 업로드</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInputHome').click()">📊 Upload BOOK</button>
       <input type="file" id="bookXlsxInputHome" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
     </div>
   </div>
 
-  <!-- 스태프+요약 탭 (기존 레이아웃) -->
+  <!-- Staff+요약 탭 (기존 레이아웃) -->
   <div id="homeTabContentMain">
     <div id="summaryTableWrap" style="display:none;margin-bottom:16px;"></div>
     <div class="staff-grid" id="staffGrid"></div>
   </div>
 
-  <!-- 인센티브 요약 탭 -->
+  <!-- Incentive 요약 탭 -->
   <div id="homeTabContentSummary" style="display:none;">
     <div id="summaryTableWrap3"></div>
   </div>
 
-  <!-- 출근부 탭 -->
+  <!-- Present부 탭 -->
   <div id="homeTabContentAtt" style="display:none;">
     <div id="attTableWrap"></div>
   </div>
 </div>
 
-<!-- SCREEN 2: 인센티브 입력 -->
+<!-- SCREEN 2: Incentive 입력 -->
 <div class="screen" id="screen-entry">
-  <div class="back-btn" onclick="goHome()">← 스태프 목록</div>
+  <div class="back-btn" onclick="goHome()">← Staff List</div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div>
       <div style="font-size:18px;font-weight:700;" id="entryName"></div>
       <div style="font-size:12px;color:var(--text3);" id="entryMonth"></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button class="btn btn-primary btn-sm" onclick="addRow()">+ 날짜 추가</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 BOOK 업로드</button>
+      <button class="btn btn-primary btn-sm" onclick="addRow()">+ Add Date</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 Upload BOOK</button>
       <input type="file" id="bookXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
-      <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ 엑셀</button>
+      <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ Excel</button>
     </div>
   </div>
 
@@ -197,7 +197,7 @@ input:focus,select:focus{border-color:var(--accent);}
       <tbody id="incBody"></tbody>
       <tfoot>
         <tr class="total-row" id="totalRow">
-          <td>합계</td>
+          <td>Total</td>
           <td id="tot-book">-</td>
           <td id="tot-juice">-</td>
           <td id="tot-beer">-</td>
@@ -211,17 +211,17 @@ input:focus,select:focus{border-color:var(--accent);}
   </div>
 </div>
 
-<!-- SCREEN 3: 스태프 관리 -->
+<!-- SCREEN 3: Staff Management -->
 <div class="screen" id="screen-manage">
   <div class="back-btn" onclick="showScreen('home')">← 돌아가기</div>
-  <div class="sec-title">스태프 관리</div>
+  <div class="sec-title">Staff Management</div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-    <input type="text" id="newStaffName" placeholder="이름 입력" style="width:120px;">
+    <input type="text" id="newStaffName" placeholder="Enter Name" style="width:120px;">
     <select id="newStaffRole">
-      <option value="staff">스태프</option>
-      <option value="manager">매니저</option>
+      <option value="staff">Staff</option>
+      <option value="manager">Manager</option>
     </select>
-    <button class="btn btn-primary btn-sm" onclick="addStaff()">추가</button>
+    <button class="btn btn-primary btn-sm" onclick="addStaff()">Add</button>
   </div>
   <div id="staffTagList"></div>
 </div>
@@ -233,13 +233,13 @@ input:focus,select:focus{border-color:var(--accent);}
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;" id="quickModalDate"></div>
     <div style="display:flex;flex-direction:column;gap:8px;" id="quickModalFields"></div>
     <div style="display:flex;gap:6px;margin-top:12px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="saveQuickInput()">✓ 저장</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('quickModal').classList.remove('show')">취소</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveQuickInput()">✓ Save</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('quickModal').classList.remove('show')">Cancel</button>
     </div>
     <div style="margin-top:8px;text-align:center;">
       <button onclick="goToStaffDetail()" 
         style="background:none;border:none;color:var(--accent2);font-size:12px;cursor:pointer;text-decoration:underline;">
-        → 이 스태프 디테일로 이동
+        → Go to Staff Detail
       </button>
     </div>
   </div>
@@ -254,11 +254,11 @@ input:focus,select:focus{border-color:var(--accent);}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-primary" style="flex:1;font-size:12px;" onclick="applyCalc('self')">✓ 본인만</button>
-        <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="document.getElementById('calcModal').classList.remove('show')">취소</button>
+        <button class="btn btn-primary" style="flex:1;font-size:12px;" onclick="applyCalc('self')">✓ Self Only</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="document.getElementById('calcModal').classList.remove('show')">Cancel</button>
       </div>
-      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--yellow);border-color:rgba(251,191,36,0.3);" onclick="applyCalc('sel')">✦ 같은룸 셀렉션 모두 저장</button>
-      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--accent2);border-color:rgba(124,111,247,0.3);" onclick="applyCalc('all')">📌 같은룸 부킹+셀렉션 모두 저장</button>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--yellow);border-color:rgba(251,191,36,0.3);" onclick="applyCalc('sel')">✦ Save All Selection (Same Room)</button>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;color:var(--accent2);border-color:rgba(124,111,247,0.3);" onclick="applyCalc('all')">📌 Save All Booking+Selection (Same Room)</button>
     </div>
     <div class="calc-grid">
       <button class="calc-key k-clear" onclick="calcClear()">C</button>
@@ -324,7 +324,7 @@ document.getElementById('homeMonth').addEventListener('change', ()=>{
   if(summaryTableVisible) renderSummaryTable();
 });
 
-// 매출장부의 스태프/매니저 목록 불러오기
+// 매출장부의 Staff/Manager 목록 불러오기
 onValue(ref(db,'config/staffList'), snap=>{
   const sNames = snap.exists() ? snap.val() : [];
   onValue(ref(db,'config/managerList'), snap2=>{
@@ -364,7 +364,7 @@ window.setHomeMonth = function(type){
 function renderStaffGrid(){
   const grid = document.getElementById('staffGrid');
   const monthKey = document.getElementById('homeMonth').value;
-  if(!monthKey){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">월을 선택해주세요</div>'; return; }
+  if(!monthKey){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">Please select a month</div>'; return; }
 
   const [y,m] = monthKey.split('-').map(Number);
   // 일반 달력 기준: 1일 ~ 말일
@@ -372,12 +372,12 @@ function renderStaffGrid(){
   const lastDay = new Date(y, m, 0).getDate();
   const toDate = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
 
-  grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px 0;">불러오는 중...</div>';
+  grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px 0;">Loading...</div>';
 
   onValue(ref(db,'records'), snap=>{
-    if(!snap.exists()){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">데이터 없음</div>'; return; }
+    if(!snap.exists()){ grid.innerHTML='<div style="color:var(--text3);padding:20px;">No data</div>'; return; }
 
-    // 기간 내 레코드에서 부킹자/셀렉션 스태프 집계
+    // 기간 내 레코드에서 부킹자/셀렉션 Staff 집계
     const staffStats = {}; // {name: {bookCnt, selCnt, totalSales}}
     snap.forEach(child=>{
       const r = child.val();
@@ -404,7 +404,7 @@ function renderStaffGrid(){
 
     const activeNames = Object.keys(staffStats).sort();
     if(!activeNames.length){
-      grid.innerHTML='<div style="color:var(--text3);padding:20px;font-size:12px;">선택한 월에 실적이 있는 스태프가 없어요</div>';
+      grid.innerHTML='<div style="color:var(--text3);padding:20px;font-size:12px;">선택한 에 실적이 있는 Staff가 없어요</div>';
       return;
     }
 
@@ -414,7 +414,7 @@ function renderStaffGrid(){
       return `<div class="staff-btn ${isManager?'manager':''}" onclick="openStaff('${name}')">
         ${isManager?'🌟':''}${name}
         <div style="font-size:10px;color:var(--text3);margin-top:4px;">
-          ${s.bookCnt>0?`📌 ${s.bookCnt}건`:''}
+          ${s.bookCnt>0?`📌 ${s.bookCnt}`:''}
           ${s.selCnt>0?` ✦ ${s.selCnt}sel`:''}
         </div>
       </div>`;
@@ -431,14 +431,14 @@ function renderStaffGrid(){
 window.openStaff = function(name){
   currentStaff = name;
   currentMonthKey = document.getElementById('homeMonth').value;
-  if(!currentMonthKey){ showToast('월을 선택해주세요'); return; }
+  if(!currentMonthKey){ showToast('Please select a month'); return; }
   const [y,m] = currentMonthKey.split('-').map(Number);
   // 일반 달력 기준으로 기간 설정
   const lastDay = new Date(y, m, 0).getDate();
   window._periodFrom = `${y}-${String(m).padStart(2,'0')}-01`;
   window._periodTo   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
   document.getElementById('entryName').textContent = name;
-  document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
+  document.getElementById('entryMonth').textContent = `${y}  ${m}`;
   showScreen('entry');
   loadFromRecords(name);
 };
@@ -451,7 +451,7 @@ function loadFromRecords(name){
   onValue(ref(db,'records'), snap=>{
     if(!snap.exists()){ loadIncData(); return; }
 
-    // 날짜별 집계 + 부킹자/셀렉션 정보
+    // Date별 집계 + 부킹자/셀렉션 정보
     const byDate = {}; // kept for compatibility
     const dateRoomInfo = {}; // {date: [{room, bookers, sel1, sel2}]}
     let matchCount = 0;
@@ -469,7 +469,7 @@ function loadFromRecords(name){
       if(!isBooker && !isSel) return;
       matchCount++;
 
-      // 날짜+룸별 정보 저장 (룸별 매출 포함)
+      // Date+룸별 정보 저장 (룸별 매출 포함)
       if(!dateRoomInfo[r.date]) dateRoomInfo[r.date] = [];
       const share = isBooker ? Math.round((r.total||0) / (bookers.length||1)) : 0;
       dateRoomInfo[r.date].push({
@@ -514,7 +514,7 @@ function loadFromRecords(name){
         }
       });
 
-      // 날짜+부킹자별 행 생성 (룸별 매출 각각 적용)
+      // Date+부킹자별 행 생성 (룸별 매출 각각 적용)
       Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
         rooms.forEach(({room, bookers, sel, sales})=>{
           const bookerStr = bookers.join('/');
@@ -585,31 +585,31 @@ function renderStaffAttInfo(name){
       const e = entryArr[i];
       if(!e){ absent++; return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
-        <span style="font-size:11px;color:var(--red);">결근</span>
+        <span style="font-size:11px;color:var(--red);">Absent</span>
       </div>`; }
       const isLate = e.type==='late'||(e.time&&e.time>'08:30');
       return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
-        <span style="font-size:11px;color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'출근'}</span>
+        <span style="font-size:11px;color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'Present'}</span>
       </div>`;
     });
 
-    // 가로형 출근 표
+    // 가로형 Present 표
     const thS2='padding:5px 6px;background:var(--bg3);border:1px solid var(--border);font-size:10px;text-align:center;white-space:nowrap;';
     const tdS2='padding:4px 6px;border:1px solid var(--border);font-size:10px;text-align:center;font-family:"JetBrains Mono",monospace;';
 
     let tableHtml=`<div style="overflow-x:auto;margin-top:8px;">
       <table style="border-collapse:collapse;width:100%;">
         <thead><tr>
-          <th style="${thS2}text-align:left;">날짜</th>`;
+          <th style="${thS2}text-align:left;">Date</th>`;
     dates.forEach(d=>{
       const day=parseInt(d.split('-')[2]);
-      const dow=['일','월','화','수','목','금','토'][new Date(d+'T00:00:00').getDay()];
+      const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00').getDay()];
       const isFriSat=[5,6].includes(new Date(d+'T00:00:00').getDay());
       tableHtml+=`<th style="${thS2}${isFriSat?'color:var(--red);':''}">${day}<br><span style="font-size:8px;">${dow}</span></th>`;
     });
     tableHtml+=`</tr></thead><tbody><tr>
-      <td style="${tdS2}text-align:left;font-weight:600;background:var(--bg2);">시간</td>`;
+      <td style="${tdS2}text-align:left;font-weight:600;background:var(--bg2);">Time</td>`;
     dates.forEach((d,i)=>{
       const e = entryArr[i];
       if(!e){ tableHtml+=`<td style="${tdS2}color:var(--text3);">-</td>`; return; }
@@ -620,10 +620,10 @@ function renderStaffAttInfo(name){
 
     wrap.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:4px;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
-        <span style="font-size:12px;font-weight:700;color:var(--text2);">📋 출근 현황</span>
-        <span style="font-size:12px;color:var(--green);">출근 ${present}일</span>
-        <span style="font-size:12px;color:var(--yellow);">지각 ${late}일</span>
-        <span style="font-size:12px;color:var(--red);">결근 ${absent}일</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);">📋 Attendance</span>
+        <span style="font-size:12px;color:var(--green);">Present ${present}d</span>
+        <span style="font-size:12px;color:var(--yellow);">Late ${late}d</span>
+        <span style="font-size:12px;color:var(--red);">Absent ${absent}d</span>
       </div>
       ${tableHtml}
     </div>`;
@@ -650,7 +650,10 @@ function renderTable(){
   const tbody = document.getElementById('incBody');
   const rows = Object.entries(incData).sort((a,b)=>a[1].date?.localeCompare(b[1].date||'')||0);
 
-  // 날짜별로 그룹화해서 렌더
+  // 현재 Staff가 Manager인지 확인
+  const isCurrentManager = staffList.find(s=>s.name===currentStaff)?.role==='manager';
+
+  // Date별로 그룹화해서 렌더
   const grouped = {};
   rows.forEach(([id,row])=>{
     const d = row.date||'_';
@@ -688,14 +691,16 @@ function renderTable(){
         </td>
         ${COLS.map(col=>{
           const isAuto = col==='sales';
+          const isLocked = isCurrentManager && col!=='book' && col!=='sales';
           return `<td>
             <input class="cell-input" type="text" 
               value="${row[col]?Math.round(parseFloat(String(row[col]).replace(/[^0-9.\-]/g,''))||0)||row[col]:''}"
               onchange="updateCell('${id}','${col}',this.value)"
               onfocus="this.value=row[col]||'';this.select()"
               inputmode="decimal"
-              ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}>
-            ${!isAuto?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
+              ${isAuto?'readonly style="color:var(--green);cursor:default;"':''}
+              ${isLocked?'readonly style="color:var(--text3);cursor:not-allowed;background:rgba(0,0,0,0.2);"':''}>
+            ${!isAuto&&!isLocked?`<button class="calc-trigger" onclick="openCalc('${id}','${col}',this.previousElementSibling)">⌗</button>`:''}
           </td>`;
         }).join('')}
         <td><button onclick="deleteRow('${id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:6px;">✕</button></td>
@@ -724,7 +729,7 @@ function renderSummary(){
   const colors = {book:'var(--accent2)',juice:'var(--blue)',beer:'var(--yellow)',food:'var(--green)',select:'var(--orange)'};
   const incCols = ['book','juice','beer','food','select'];
 
-  // 항목별 합계
+  // 항목별 Total
   const tots = {};
   COLS.forEach(col=>{
     tots[col] = Object.values(incData).reduce((s,r)=>{
@@ -739,7 +744,7 @@ function renderSummary(){
       <div class="sum-value" style="color:${colors[col]};font-size:14px;">${tots[col]>0?Math.round(tots[col]).toLocaleString():'-'}</div>
     </div>`).join('')+`
     <div class="sum-card" style="border-color:var(--accent);background:rgba(124,111,247,0.08);">
-      <div class="sum-label" style="color:var(--accent2);">💰 인센티브 합계</div>
+      <div class="sum-label" style="color:var(--accent2);">💰 Incentive Total</div>
       <div class="sum-value" style="color:var(--accent2);font-size:16px;">${incTotal>0?Math.round(incTotal).toLocaleString():'-'}</div>
       <div style="font-size:10px;color:var(--text3);margin-top:4px;">SALES: ${tots['sales']>0?Math.round(tots['sales']).toLocaleString():'-'}</div>
     </div>`;
@@ -748,10 +753,10 @@ function renderSummary(){
 // ── ROW ACTIONS ───────────────────────────────────────────
 window.addRow = function(){
   const [y,m] = currentMonthKey.split('-').map(Number);
-  const dateStr = prompt('날짜 입력 (예: 1, 15, 30)',String(new Date().getDate()));
+  const dateStr = prompt('Date 입력 (예: 1, 15, 30)',String(new Date().getDate()));
   if(!dateStr) return;
   const day = parseInt(dateStr);
-  if(isNaN(day)||day<1||day>31){ showToast('올바른 날짜를 입력해주세요'); return; }
+  if(isNaN(day)||day<1||day>31){ showToast('Please enter a valid date'); return; }
   const fullDate = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const id = Date.now().toString();
   incData[id] = {date: fullDate};
@@ -768,7 +773,7 @@ window.updateCell = function(id, col, val){
 };
 
 window.deleteRow = function(id){
-  if(!confirm('이 행을 삭제할까요?')) return;
+  if(!confirm('Delete this row?')) return;
   delete incData[id];
   saveIncData();
   renderTable();
@@ -781,16 +786,16 @@ window.showScreen('home');
 window.addStaff = function(){
   const name = document.getElementById('newStaffName').value.trim().toUpperCase();
   const role = document.getElementById('newStaffRole').value;
-  if(!name){ showToast('이름을 입력해주세요'); return; }
-  if(staffList.find(s=>s.name===name)){ showToast('이미 있는 이름이에요'); return; }
+  if(!name){ showToast('Please enter a name'); return; }
+  if(staffList.find(s=>s.name===name)){ showToast('Name already exists'); return; }
   staffList.push({name,role});
   saveStaffToConfig();
   document.getElementById('newStaffName').value='';
-  showToast('✓ 추가됨: '+name);
+  showToast('✓ Add됨: '+name);
 };
 
 window.deleteStaff = function(name){
-  if(!confirm(name+'을(를) 삭제할까요?')) return;
+  if(!confirm(name+' - Delete?')) return;
   staffList = staffList.filter(s=>s.name!==name);
   saveStaffToConfig();
 };
@@ -806,7 +811,7 @@ function saveStaffToConfig(){
 
 function renderStaffTags(){
   const el = document.getElementById('staffTagList');
-  if(!staffList.length){ el.innerHTML='<div style="color:var(--text3);">스태프 없음</div>'; return; }
+  if(!staffList.length){ el.innerHTML='<div style="color:var(--text3);">Staff 없음</div>'; return; }
   el.innerHTML = '<div class="staff-mgmt">'+staffList.map(s=>`
     <div class="staff-tag ${s.role==='manager'?'mgr':''}">
       ${s.role==='manager'?'🌟':''}${s.name}
@@ -887,13 +892,19 @@ window.applyCalc = function(mode='self'){
     const expr = calcExpr.replace(/×/g,'*').replace(/÷/g,'/');
     const val = calcExpr==='-' ? '-' : String(eval(expr));
 
-    // 본인 입력
+    // 본인 입력 (Manager는 book만)
     if(calcTargetInput){
+      const isCurrentMgr = staffList.find(s=>s.name===currentStaff)?.role==='manager';
+      if(isCurrentMgr && calcTargetCol!=='book' && calcTargetCol!=='sales'){
+        showToast('⚠ Manager는 BOOK만 입력 가능해요');
+        document.getElementById('calcModal').classList.remove('show');
+        return;
+      }
       calcTargetInput.value = val;
       updateCell(calcTargetId, calcTargetCol, val);
     }
 
-    // 같은 룸 스태프에게도 적용
+    // 같은 룸 Staffto도 적용
     if(mode==='sel'||mode==='all'){
       const date = (incData[calcTargetId]||{}).date;
       const bookerStr = (incData[calcTargetId]||{}).booker||'';
@@ -901,20 +912,26 @@ window.applyCalc = function(mode='self'){
       const myRoom = roomInfo.find(r=>r.bookers.join('/')=== bookerStr);
 
       if(myRoom){
-        // 셀렉션 스태프
+        // 셀렉션 Staff
         const targets = [...(myRoom.sel||[])];
         // all이면 부킹자도 포함
         if(mode==='all') myRoom.bookers.forEach(b=>{ if(!targets.includes(b)) targets.push(b); });
+        // Manager는 제외 (JUICE/BEER/FOOD/SELECT 적용 불가)
+        const filteredTargets = targets.filter(t=>{
+          const role = staffList.find(s=>s.name===t)?.role;
+          return role!=='manager';
+        });
+        targets.splice(0, targets.length, ...filteredTargets);
 
         let saved=0;
         const toSave = targets.filter(s=>s&&s!==currentStaff);
-        if(!toSave.length){ showToast('적용할 스태프 없음'); document.getElementById('calcModal').classList.remove('show'); return; }
+        if(!toSave.length){ showToast('적용할 Staff 없음'); document.getElementById('calcModal').classList.remove('show'); return; }
 
         toSave.forEach(staffName=>{
           onValue(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), snap=>{
             const saved2 = snap.exists() ? snap.val() : {};
             const newData = {...saved2};
-            // 해당 날짜+같은룸 행 찾기
+            // 해당 Date+같은룸 행 찾기
             const myRoomNum = (incData[calcTargetId]||{}).room||'';
             const safeKey = (date+'_'+myRoomNum+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
             const rowId = 'r_'+safeKey;
@@ -923,17 +940,17 @@ window.applyCalc = function(mode='self'){
             set(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), newData);
             saved++;
             if(saved===toSave.length){
-              showToast(`✓ ${toSave.length}명에게 ${calcTargetCol.toUpperCase()} ${val} 저장됨`);
+              showToast(`✓ ${toSave.length}명to ${calcTargetCol.toUpperCase()} ${val} Saved`);
             }
           },{onlyOnce:true});
         });
       } else {
-        showToast('같은 룸 정보 없음');
+        showToast('No room info available');
       }
     }
 
     document.getElementById('calcModal').classList.remove('show');
-  }catch(e){ showToast('계산 오류'); }
+  }catch(e){ showToast('Calculation error'); }
 };
 
 // ── EXCEL DOWNLOAD ────────────────────────────────────────
@@ -944,7 +961,7 @@ function loadXLSX(cb){
 }
 
 // ── BOOK 엑셀 업로드 ─────────────────────────────────────
-// 엑셀 형식: A열=날짜(YYYY-MM-DD 또는 M/D), B열=BOOK금액
+// 엑셀 형식: A열=Date(YYYY-MM-DD 또는 M/D), B열=BOOK금액
 // ── 빠른 입력 모달 ──────────────────────────────────────
 window._quickStaff = '';
 window._quickDate = '';
@@ -991,7 +1008,7 @@ window.goToStaffDetail = function(){
   currentStaff = name;
   const [y,m] = currentMonthKey.split('-').map(Number);
   document.getElementById('entryName').textContent = name;
-  document.getElementById('entryMonth').textContent = `${y}년 ${m}월`;
+  document.getElementById('entryMonth').textContent = `${y}  ${m}`;
   showScreen('entry');
   loadFromRecords(name);
 };
@@ -1025,7 +1042,7 @@ window.saveQuickInput = function(){
     }
     set(ref(db,`incentive/data/${staffName}/${currentMonthKey}`), newData);
     document.getElementById('quickModal').classList.remove('show');
-    showToast(`✓ ${staffName} ${date} 저장됨`);
+    showToast(`✓ ${staffName} ${date} Saved`);
   },{onlyOnce:true});
 };
 
@@ -1033,11 +1050,11 @@ window.loadBookXlsx = function(input){
   const file = input.files[0]; if(!file) return;
   const monthKey = currentMonthKey || document.getElementById('homeMonth').value;
   if(!monthKey){ 
-    showToast('⚠ 먼저 월을 선택해주세요!'); 
+    showToast('⚠ 먼저 Please select a month!'); 
     input.value=''; 
     return; 
   }
-  showToast(`${monthKey} 데이터 업로드 중...`);
+  showToast(`${monthKey} Uploading data...`);
   const [y,m] = monthKey.split('-').map(Number);
 
   loadXLSX(()=>{
@@ -1046,20 +1063,20 @@ window.loadBookXlsx = function(input){
       const wb = window.XLSX.read(e.target.result, {type:'array', cellDates:false});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = window.XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
-      if(!raw.length){ showToast('데이터 없음'); input.value=''; return; }
+      if(!raw.length){ showToast('No data'); input.value=''; return; }
 
-      // 헤더행에서 스태프 이름 추출
+      // 헤더행에서 Staff Name 추출
       const headerRow = raw[0];
       const staffCols = {};
       headerRow.forEach((cell,ci)=>{
         if(ci===0) return;
         const name = String(cell||'').trim().toUpperCase();
-        if(name && name!=='TOTAL' && name!=='합계') staffCols[ci] = name;
+        if(name && name!=='TOTAL' && name!=='Total') staffCols[ci] = name;
       });
 
-      if(!Object.keys(staffCols).length){ showToast('스태프 헤더를 찾을 수 없음'); input.value=''; return; }
+      if(!Object.keys(staffCols).length){ showToast('Staff 헤더를 찾을 수 없음'); input.value=''; return; }
 
-      // 날짜 파싱 함수
+      // Date 파싱 함수
       function parseDate(v){
         const s = String(v||'').trim();
         if(!s) return '';
@@ -1073,12 +1090,12 @@ window.loadBookXlsx = function(input){
         return '';
       }
 
-      // 스태프별 데이터 수집
+      // Staff별 데이터 수집
       const staffData = {};
       raw.slice(1).forEach(row=>{
         if(!row[0]) return;
         const v = String(row[0]).trim().toUpperCase();
-        if(v.includes('TOTAL')||v.includes('합계')) return;
+        if(v.includes('TOTAL')||v.includes('Total')) return;
         const dateStr = parseDate(row[0]);
         if(!dateStr) return;
         Object.entries(staffCols).forEach(([ci,staffName])=>{
@@ -1092,19 +1109,19 @@ window.loadBookXlsx = function(input){
       });
 
       const staffNames = Object.keys(staffData);
-      if(!staffNames.length){ showToast('유효한 데이터 없음'); input.value=''; return; }
+      if(!staffNames.length){ showToast('유효한 No data'); input.value=''; return; }
 
-      showToast(`${staffNames.length}명 데이터 저장 중...`);
+      showToast(`${staffNames.length}명 Saving data...`);
       let savedCount=0;
       staffNames.forEach(staffName=>{
         onValue(ref(db,`incentive/data/${staffName}/${monthKey}`), snap=>{
           const existing = snap.exists() ? snap.val() : {};
           const newData = {...existing};
           Object.entries(staffData[staffName]).forEach(([dateStr, amt])=>{
-            // 해당 날짜의 모든 행에 book 적용 (여러 룸 있을 수 있음)
+            // 해당 Date의 모든 행에 book 적용 (여러 룸 있을 수 있음)
             const dateRows = Object.keys(newData).filter(id=>newData[id].date===dateStr);
             if(dateRows.length>=1){
-              // 모든 날짜 행에 book 저장 (룸별로 나뉜 경우)
+              // 모든 Date 행에 book 저장 (룸별로 나뉜 경우)
               dateRows.forEach(id=>{ newData[id].book = amt; });
               // b_ 로 시작하는 중복 행 제거
               dateRows.filter(id=>id.startsWith('b_')).forEach(id=>{
@@ -1114,7 +1131,7 @@ window.loadBookXlsx = function(input){
               newData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
             }
           });
-          // 고아 b_ 행 정리 (r_ 행과 날짜 중복되는 b_ 행 삭제)
+          // 고아 b_ 행 정리 (r_ 행과 Date 중복되는 b_ 행 삭제)
           Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
             const bDate = newData[bid]?.date;
             const hasRRow = Object.keys(newData).some(id=>!id.startsWith('b_')&&newData[id].date===bDate);
@@ -1123,7 +1140,7 @@ window.loadBookXlsx = function(input){
           set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
           savedCount++;
           if(savedCount===staffNames.length){
-            showToast('✓ '+staffNames.length+'명 BOOK 인센티브 업로드 완료!');
+            showToast('✓ '+staffNames.length+' staff BOOK incentive uploaded!');
             if(currentStaff && staffData[currentStaff]) loadFromRecords(currentStaff);
           }
         },{onlyOnce:true});
@@ -1134,7 +1151,7 @@ window.loadBookXlsx = function(input){
   });
 };
 
-// ── 전체 스태프 엑셀 다운로드 ───────────────────────────────
+// ── 전체 Staff 엑셀 다운로드 ───────────────────────────────
 // ── 전체 요약표 화면 출력 ────────────────────────────────
 let summaryTableVisible = false;
 window.toggleSummaryTable = function(){
@@ -1152,7 +1169,7 @@ function renderSummaryTable(){
   if(!monthKey) return;
   const [y,m] = monthKey.split('-').map(Number);
   const wrap = document.getElementById('summaryTableWrap');
-  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
+  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">Loading...</div>';
 
   onValue(ref(db,'incentive/data'), snap=>{
     const allData = snap.exists() ? snap.val() : {};
@@ -1162,9 +1179,9 @@ function renderSummaryTable(){
       return md && Object.keys(md).length>0;
     }).sort();
 
-    if(!names.length){ wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">해당 월 데이터 없음</div>'; return; }
+    if(!names.length){ wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">해당  No data</div>'; return; }
 
-    // 스태프별 합계 계산
+    // Staff별 Total 계산
     const staffTots = names.map(name=>{
       const md = allData[name]?.[monthKey]||{};
       const tots = {};
@@ -1178,7 +1195,7 @@ function renderSummaryTable(){
       return {name, ...tots};
     });
 
-    // 전체 합계
+    // 전체 Total
     const grandTot = {};
     [...INC_COLS,'incTotal','sales'].forEach(col=>{
       grandTot[col] = staffTots.reduce((s,r)=>s+(r[col]||0),0);
@@ -1189,18 +1206,18 @@ function renderSummaryTable(){
     const tdN = 'padding:6px 10px;border:1px solid var(--border);font-size:12px;font-weight:700;position:sticky;left:0;background:var(--bg2);';
 
     wrap.innerHTML=`
-      <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:8px;">${y}년 ${m}월 전체 인센티브</div>
+      <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:8px;">${y}  ${m} Total Incentive</div>
       <div style="overflow-x:auto;overflow-y:auto;max-height:60vh;">
         <table style="border-collapse:collapse;width:100%;min-width:500px;">
           <thead style="position:sticky;top:0;z-index:3;">
             <tr>
-              <th style="${thS}text-align:left;position:sticky;left:0;z-index:4;background:var(--bg3);">이름</th>
+              <th style="${thS}text-align:left;position:sticky;left:0;z-index:4;background:var(--bg3);">Name</th>
               <th style="${thS}color:var(--accent2);">BOOK</th>
               <th style="${thS}color:var(--blue);">JUICE</th>
               <th style="${thS}color:var(--yellow);">BEER</th>
               <th style="${thS}color:var(--green);">FOOD</th>
               <th style="${thS}color:var(--orange);">SELECT</th>
-              <th style="${thS}color:var(--accent);border-left:2px solid var(--accent);">💰 합계</th>
+              <th style="${thS}color:var(--accent);border-left:2px solid var(--accent);">💰 Total</th>
               <th style="${thS}color:var(--red);">SALES</th>
             </tr>
           </thead>
@@ -1218,7 +1235,7 @@ function renderSummaryTable(){
           </tbody>
           <tfoot>
             <tr style="background:var(--bg3);">
-              <td style="${tdN}color:var(--text3);position:sticky;left:0;z-index:1;">합계</td>
+              <td style="${tdN}color:var(--text3);position:sticky;left:0;z-index:1;">Total</td>
               <td style="${tdS}font-weight:700;">${grandTot.book?Math.round(grandTot.book).toLocaleString():'-'}</td>
               <td style="${tdS}font-weight:700;">${grandTot.juice?Math.round(grandTot.juice).toLocaleString():'-'}</td>
               <td style="${tdS}font-weight:700;">${grandTot.beer?Math.round(grandTot.beer).toLocaleString():'-'}</td>
@@ -1253,7 +1270,7 @@ window.switchHomeTab = function(tab){
 function renderSummaryInTab(){
   const wrap = document.getElementById('summaryTableWrap3');
   if(!wrap) return;
-  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
+  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">Loading...</div>';
   // summaryTableWrap에 렌더 후 복사
   summaryTableVisible = true;
   document.getElementById('summaryTableWrap').style.display='block';
@@ -1265,27 +1282,27 @@ function renderSummaryInTab(){
   }, 1500);
 }
 
-// ── 출근부 렌더 ────────────────────────────────────────────
+// ── Present부 렌더 ────────────────────────────────────────────
 function renderAttTable(){
   const monthKey = document.getElementById('homeMonth').value;
   if(!monthKey) return;
   const [y,m] = monthKey.split('-').map(Number);
   const wrap = document.getElementById('attTableWrap');
-  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">불러오는 중...</div>';
+  wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">Loading...</div>';
 
   // 매출장부 attendance 데이터 로드
   onValue(ref(db,'attendance'), snap=>{
-    if(!snap.exists()){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">출근 데이터 없음</div>'; return; }
+    if(!snap.exists()){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">Present No data</div>'; return; }
 
-    // 해당 월 데이터 찾기 (영업월 기준 또는 일반월 기준 모두 확인)
+    // 해당  데이터 찾기 (영업 기준 또는 일반 기준 모두 확인)
     const allAtt = snap.val();
-    // 해당 월 키 찾기
+    // 해당  키 찾기
     const monthKeys = Object.keys(allAtt).filter(k=>{
       const [ky,km] = k.split('-').map(Number);
       return ky===y && km===m;
     });
 
-    if(!monthKeys.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">해당 월 출근 데이터 없음</div>'; return; }
+    if(!monthKeys.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">해당  Present No data</div>'; return; }
 
     const attData = allAtt[monthKeys[0]];
     // dates는 [{dateStr, dow}] 형식
@@ -1293,9 +1310,9 @@ function renderAttTable(){
     const staffArr = attData.staff||[];
     const dailyHC = attData.dailyHeadCount||{};
 
-    if(!dates.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">날짜 데이터 없음</div>'; return; }
+    if(!dates.length){ wrap.innerHTML='<div style="color:var(--text3);padding:20px;">Date No data</div>'; return; }
 
-    // 스태프별 날짜→시간 맵 생성
+    // Staff별 Date→Time 맵 생성
     const staffTimeMap = {}; // {name: {dateStr: {time, type}}}
     staffArr.forEach(s=>{
       staffTimeMap[s.name] = {};
@@ -1310,14 +1327,14 @@ function renderAttTable(){
     let html=`<div style="overflow-x:auto;overflow-y:auto;max-height:65vh;">
       <table style="border-collapse:collapse;min-width:600px;">
         <thead><tr>
-          <th style="${thS}text-align:left;position:sticky;left:0;z-index:3;min-width:80px;">이름</th>
-          <th style="${thS}color:var(--green);">출근</th>
-          <th style="${thS}color:var(--yellow);">지각</th>
-          <th style="${thS}color:var(--red);">결근</th>`;
+          <th style="${thS}text-align:left;position:sticky;left:0;z-index:3;min-width:80px;">Name</th>
+          <th style="${thS}color:var(--green);">Present</th>
+          <th style="${thS}color:var(--yellow);">Late</th>
+          <th style="${thS}color:var(--red);">Absent</th>`;
 
     dates.forEach(d=>{
       const day=parseInt(d.split('-')[2]);
-      const dow=['일','월','화','수','목','금','토'][new Date(d+'T00:00:00').getDay()];
+      const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00').getDay()];
       const isFriSat=[5,6].includes(new Date(d+'T00:00:00').getDay());
       const hc=dailyHC[d]||'';
       html+=`<th style="${thS}${isFriSat?'color:var(--red);':''}">${day}<br><span style="font-size:9px;">${dow}</span>${hc?`<br><span style="color:var(--green);font-size:9px;">${hc}명</span>`:''}`;
@@ -1325,7 +1342,7 @@ function renderAttTable(){
     });
     html+=`</tr></thead><tbody>`;
 
-    // 스태프별 행
+    // Staff별 행
     [...staffArr].sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>{
       let present=0, late=0, absent=0;
       const cells = dates.map(d=>{
@@ -1336,7 +1353,7 @@ function renderAttTable(){
         return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'✓'}</td>`;
       });
       html+=`<tr>
-        <td style="${tdS}text-align:left;position:sticky;left:0;background:var(--bg2);font-weight:600;">${s.name}</td>
+        <td style="${tdS}text-align:left;position:sticky;left:0;z-index:1;background:var(--bg2);font-weight:600;min-width:70px;">${s.name}</td>
         <td style="${tdS}color:var(--green);font-weight:700;">${s.presentCnt||present}</td>
         <td style="${tdS}color:var(--yellow);font-weight:700;">${s.lateCnt||late||'-'}</td>
         <td style="${tdS}color:var(--red);font-weight:700;">${s.absentCnt||absent||'-'}</td>
@@ -1348,16 +1365,16 @@ function renderAttTable(){
   },{onlyOnce:true});
 }
 
-// ── 인센티브 요약 탭 ────────────────────────────────────────
+// ── Incentive 요약 탭 ────────────────────────────────────────
 
 
 window.downloadAllXlsx = function(){
   const monthKey = document.getElementById('homeMonth').value;
-  if(!monthKey){ showToast('월을 선택해주세요'); return; }
+  if(!monthKey){ showToast('Please select a month'); return; }
   const [y,m] = monthKey.split('-').map(Number);
 
   loadXLSX(()=>{
-    showToast('데이터 불러오는 중...');
+    showToast('Loading data...');
     onValue(ref(db,'incentive/data'), snap=>{
       const allData = snap.exists() ? snap.val() : {};
       const INC_COLS = ['book','juice','beer','food','select'];
@@ -1369,12 +1386,12 @@ window.downloadAllXlsx = function(){
         return md && Object.keys(md).length>0;
       }).sort();
 
-      if(!names.length){ showToast('⚠ 해당 월 데이터 없음'); return; }
+      if(!names.length){ showToast('⚠ 해당  No data'); return; }
 
       // 헤더
-      const headerRow = ['이름','BOOK','JUICE','BEER','FOOD','SELECT','💰 인센티브합계','SALES'];
+      const headerRow = ['Name','BOOK','JUICE','BEER','FOOD','SELECT','💰 Incentive Total','SALES'];
       const rows = [
-        [`${y}년 ${m}월 스태프 인센티브 전체`],
+        [`${y}  ${m} Staff Incentive Summary`],
         [],
         headerRow
       ];
@@ -1402,8 +1419,8 @@ window.downloadAllXlsx = function(){
         ]);
       });
 
-      // 합계행
-      const totRow = ['합계'];
+      // Total행
+      const totRow = ['Total'];
       [...INC_COLS,'incTotal','sales'].forEach((col,i)=>{
         if(col==='incTotal'){
           const t = names.reduce((s,name)=>{
@@ -1426,8 +1443,8 @@ window.downloadAllXlsx = function(){
       const ws = window.XLSX.utils.aoa_to_sheet(rows);
       ws['!cols']=[{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:14},{wch:12}];
       window.XLSX.utils.book_append_sheet(wb, ws, `${y}-${String(m).padStart(2,'0')}`);
-      window.XLSX.writeFile(wb, `전체인센티브_${monthKey}.xlsx`);
-      showToast('✓ 전체 엑셀 다운로드 완료!');
+      window.XLSX.writeFile(wb, `AllIncentive_${monthKey}.xlsx`);
+      showToast('✓ Export All 다운로드 완료!');
     },{onlyOnce:true});
   });
 };
@@ -1437,13 +1454,13 @@ window.downloadXlsxSingle = function(){
     const [y,m] = currentMonthKey.split('-').map(Number);
     const rows = Object.values(incData).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     const data = [
-      [`${currentStaff} - ${y}년 ${m}월 인센티브`],
+      [`${currentStaff} - ${y}  ${m} Incentive`],
       [],
       ['DATE','BOOK','JUICE','BEER','FOOD','SELECT','SALES']
     ];
     rows.forEach(r=>data.push([r.date||'',r.book||'',r.juice||'',r.beer||'',r.food||'',r.select||'',r.sales||'']));
-    // 합계
-    const totRow = ['합계'];
+    // Total
+    const totRow = ['Total'];
     COLS.forEach(col=>{
       const t=Object.values(incData).reduce((s,r)=>s+(parseFloat(String(r[col]||'').replace(/[^0-9.\-]/g,''))||0),0);
       totRow.push(t||'');
