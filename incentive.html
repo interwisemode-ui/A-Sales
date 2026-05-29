@@ -786,7 +786,18 @@ window.addRow = function(){
 };
 
 window.updateCell = function(id, col, val){
-  if(!incData[id]) return;
+  if(!incData[id]){
+    // Firebase에서 다시 읽어서 저장
+    onValue(ref(db,`incentive/data/${currentStaff}/${currentMonthKey}`), snap=>{
+      incData = snap.exists() ? snap.val() : {};
+      if(!incData[id]) incData[id] = {};
+      incData[id][col] = val;
+      saveIncData();
+      renderTotals();
+      renderSummary();
+    },{onlyOnce:true});
+    return;
+  }
   incData[id][col] = val;
   saveIncData();
   renderTotals();
