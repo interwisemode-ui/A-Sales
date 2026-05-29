@@ -542,7 +542,7 @@ function loadFromRecords(name){
 
       // Date+부킹자별 행 생성 (룸별 매출 각각 적용)
       Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
-        rooms.forEach(({room, bookers, sel, sales})=>{
+        rooms.forEach(({room, bookers, sel, sel1, sel2, sales})=>{
           const bookerStr = bookers.join('/');
           const safeKey = (date+'_R'+room+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
           const rowId = 'r_'+safeKey;
