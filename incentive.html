@@ -174,6 +174,7 @@ input:focus,select:focus{border-color:var(--accent);}
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 Upload BOOK</button>
       <input type="file" id="bookXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
       <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ Excel</button>
+      <button class="btn btn-sm" id="saveBtn" onclick="saveAllCells()" style="background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-weight:700;">💾 Save</button>
     </div>
   </div>
 
@@ -665,6 +666,30 @@ function saveIncData(){
   const path = `incentive/data/${currentStaff}/${currentMonthKey}`;
   set(ref(db,path), incData);
 }
+// ── SAVE ALL CELLS ────────────────────────────────────────
+function markUnsaved(){
+  const btn = document.getElementById('saveBtn');
+  if(btn){ btn.style.background='rgba(251,191,36,0.35)'; btn.style.boxShadow='0 0 8px rgba(251,191,36,0.5)'; btn.textContent='💾 Save *'; }
+}
+function markSaved(){
+  const btn = document.getElementById('saveBtn');
+  if(btn){ btn.style.background='rgba(251,191,36,0.15)'; btn.style.boxShadow=''; btn.textContent='💾 Save'; }
+}
+window.saveAllCells = function(){
+  // 테이블의 모든 input 값을 incData에 반영
+  document.querySelectorAll('#incBody tr[id^="row-"]').forEach(tr=>{
+    const id = tr.id.replace('row-','');
+    if(!incData[id]) return;
+    tr.querySelectorAll('input.cell-input').forEach(inp=>{
+      const col = inp.dataset.col;
+      if(col && !inp.readOnly) incData[id][col] = inp.value;
+    });
+  });
+  saveIncData();
+  markSaved();
+  showToast('✓ Saved!');
+};
+
 
 // ── TABLE RENDER ──────────────────────────────────────────
 const COLS = ['book','juice','beer','food','select','sales'];
@@ -718,6 +743,7 @@ function renderTable(){
           return `<td>
             <input class="cell-input" type="text" 
               value="${row[col]?Math.round(parseFloat(String(row[col]).replace(/[^0-9.\-]/g,''))||0)||row[col]:''}"
+              data-col="${col}"
               data-raw="${row[col]||''}"
               onchange="updateCell('${id}','${col}',this.value)"
               onfocus="this.value=this.dataset.raw||'';this.select()"
@@ -789,22 +815,11 @@ window.addRow = function(){
 };
 
 window.updateCell = function(id, col, val){
-  if(!incData[id]){
-    // Firebase에서 다시 읽어서 저장
-    onValue(ref(db,`incentive/data/${currentStaff}/${currentMonthKey}`), snap=>{
-      incData = snap.exists() ? snap.val() : {};
-      if(!incData[id]) incData[id] = {};
-      incData[id][col] = val;
-      saveIncData();
-      renderTotals();
-      renderSummary();
-    },{onlyOnce:true});
-    return;
-  }
+  if(!incData[id]) incData[id] = {};
   incData[id][col] = val;
-  saveIncData();
   renderTotals();
   renderSummary();
+  markUnsaved();
 };
 
 window.deleteRow = function(id){
