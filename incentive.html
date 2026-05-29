@@ -526,10 +526,11 @@ function loadFromRecords(name){
           delete newData[id];
         }
       });
-      // booker/room 없는 행 중 b_ 가 아닌 것만 제거 (b_는 BOOK 업로드 데이터 - 보존)
+      // booker/room 없는 행 중 b_ 가 아닌 것만 제거 (사용자 입력값 있으면 보존)
       Object.keys(newData).forEach(id=>{
         const row = newData[id];
-        if(row.date && !row.booker && !id.startsWith('b_') && dateRoomInfo[row.date]){
+        const hasUserInput = ['juice','beer','food','select','book'].some(col=>row[col]&&String(row[col]).trim()!=='');
+        if(row.date && !row.booker && !id.startsWith('b_') && dateRoomInfo[row.date] && !hasUserInput){
           delete newData[id];
         }
       });
@@ -550,9 +551,11 @@ function loadFromRecords(name){
               ...(isMyBook && sales ? {sales} : {})
             };
           } else {
+            // 기존 행 업데이트 - 사용자가 입력한 값(juice/beer/food/select/book)은 절대 덮어쓰지 않음
             newData[rowId].booker = bookerStr;
             newData[rowId].room = 'R'+room;
-            if(isMyBook && sales) newData[rowId].sales = sales;
+            // sales는 아직 사용자가 입력 안 한 경우에만 업데이트
+            if(isMyBook && sales && !newData[rowId].sales) newData[rowId].sales = sales;
           }
         });
       });
