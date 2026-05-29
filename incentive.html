@@ -117,6 +117,7 @@ input:focus,select:focus{border-color:var(--accent);}
   <div class="header-right">
     <button class="btn btn-ghost btn-sm" onclick="showScreen('manage')">⚙ Staff</button>
     <button class="btn btn-green btn-sm" id="xlsxBtn" onclick="downloadXlsx()" style="display:none;">⬇ Excel</button>
+    <button class="btn btn-sm" id="saveBtnFixed" onclick="saveAllCells()" style="display:none;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-weight:700;">💾 Save</button>
   </div>
 </div>
 
@@ -358,6 +359,7 @@ window.showScreen = function(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   document.getElementById('xlsxBtn').style.display = name==='entry'?'':'none';
+  document.getElementById('saveBtnFixed').style.display = name==='entry'?'':'none';
 };
 
 window.goHome = function(){
@@ -670,12 +672,16 @@ function saveIncData(){
 }
 // ── SAVE ALL CELLS ────────────────────────────────────────
 function markUnsaved(){
-  const btn = document.getElementById('saveBtn');
-  if(btn){ btn.style.background='rgba(251,191,36,0.35)'; btn.style.boxShadow='0 0 8px rgba(251,191,36,0.5)'; btn.textContent='💾 Save *'; }
+  ['saveBtn','saveBtnFixed'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn){ btn.style.background='rgba(251,191,36,0.35)'; btn.style.boxShadow='0 0 8px rgba(251,191,36,0.5)'; btn.textContent='💾 Save *'; }
+  });
 }
 function markSaved(){
-  const btn = document.getElementById('saveBtn');
-  if(btn){ btn.style.background='rgba(251,191,36,0.15)'; btn.style.boxShadow=''; btn.textContent='💾 Save'; }
+  ['saveBtn','saveBtnFixed'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn){ btn.style.background='rgba(251,191,36,0.15)'; btn.style.boxShadow=''; btn.textContent='💾 Save'; }
+  });
 }
 window.saveAllCells = function(){
   // 테이블의 모든 input 값을 incData에 반영
