@@ -117,7 +117,7 @@ input:focus,select:focus{border-color:var(--accent);}
   <div class="header-right">
     <button class="btn btn-ghost btn-sm" onclick="showScreen('manage')">⚙ Staff</button>
     <button class="btn btn-green btn-sm" id="xlsxBtn" onclick="downloadXlsx()" style="display:none;">⬇ Excel</button>
-    <button class="btn btn-sm" id="saveBtnFixed" onclick="saveAllCells()" style="display:none;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-weight:700;">💾 Save</button>
+
   </div>
 </div>
 
@@ -175,7 +175,7 @@ input:focus,select:focus{border-color:var(--accent);}
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 Upload BOOK</button>
       <input type="file" id="bookXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
       <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ Excel</button>
-      <button class="btn btn-sm" id="saveBtn" onclick="saveAllCells()" style="background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-weight:700;">💾 Save</button>
+
     </div>
   </div>
 
@@ -359,7 +359,7 @@ window.showScreen = function(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   document.getElementById('xlsxBtn').style.display = name==='entry'?'':'none';
-  document.getElementById('saveBtnFixed').style.display = name==='entry'?'':'none';
+
 };
 
 window.goHome = function(){
@@ -499,7 +499,9 @@ function loadFromRecords(name){
         room: r.room||'?',
         bookers: bookers,
         sel: allSel,
-        sales: share  // 이 룸에서 받은 매출
+        sel1: sel1,   // selection1 (자동 200)
+        sel2: sel2,   // selection2
+        sales: share
       });
     });
 
@@ -546,19 +548,22 @@ function loadFromRecords(name){
           const rowId = 'r_'+safeKey;
           const isMyBook = bookers.includes(name);
 
+          const isSel1 = (sel1||[]).includes(name);
           if(!newData[rowId]){
             newData[rowId] = {
               date,
               booker: bookerStr,
               room: 'R'+room,
-              ...(isMyBook && sales ? {sales} : {})
+              ...(isMyBook && sales ? {sales} : {}),
+              ...(isSel1 ? {select: 200} : {})  // sel1이면 자동 200
             };
           } else {
             // 기존 행 업데이트 - 사용자가 입력한 값(juice/beer/food/select/book)은 절대 덮어쓰지 않음
             newData[rowId].booker = bookerStr;
             newData[rowId].room = 'R'+room;
-            // sales는 아직 사용자가 입력 안 한 경우에만 업데이트
             if(isMyBook && sales && !newData[rowId].sales) newData[rowId].sales = sales;
+            // sel1인데 select 값이 없으면 자동 200 입력
+            if(isSel1 && !newData[rowId].select) newData[rowId].select = 200;
           }
         });
       });
@@ -825,9 +830,9 @@ window.addRow = function(){
 window.updateCell = function(id, col, val){
   if(!incData[id]) incData[id] = {};
   incData[id][col] = val;
+  saveIncData();
   renderTotals();
   renderSummary();
-  markUnsaved();
 };
 
 window.deleteRow = function(id){
