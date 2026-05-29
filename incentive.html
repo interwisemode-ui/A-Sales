@@ -124,7 +124,9 @@ input:focus,select:focus{border-color:var(--accent);}
 <div class="screen active" id="screen-home">
   <div class="month-bar" style="margin-top:4px;">
     <span style="font-size:12px;color:var(--text3);">Month:</span>
-    <input type="month" id="homeMonth" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 10px;">
+    <select id="homeMonthYear" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 8px;"></select>
+    <select id="homeMonthMonth" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:5px 8px;margin-left:4px;"></select>
+    <input type="hidden" id="homeMonth">
     <button class="month-btn active" onclick="setHomeMonth('this')">This Month</button>
     <button class="month-btn" onclick="setHomeMonth('last')">Last Month</button>
     <button class="btn btn-green btn-sm" onclick="downloadAllXlsx()">⬇ Export All</button>
@@ -318,11 +320,24 @@ let incData = {}; // {rowId: {date, book, juice, beer, food, select, sales}}
 // ── INIT ──────────────────────────────────────────────────
 const today = new Date();
 const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
-document.getElementById('homeMonth').value = thisMonth;
-document.getElementById('homeMonth').addEventListener('change', ()=>{
-  renderStaffGrid();
-  if(summaryTableVisible) renderSummaryTable();
-});
+
+// 커스텀 year/month select 초기화
+(function(){
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const yearSel = document.getElementById('homeMonthYear');
+  const monSel  = document.getElementById('homeMonthMonth');
+  const curY = today.getFullYear(), curM = today.getMonth()+1;
+  for(let y=curY-1; y<=curY+1; y++){
+    const o=document.createElement('option'); o.value=y; o.text=y; yearSel.appendChild(o);
+  }
+  yearSel.value = curY;
+  months.forEach((mn,i)=>{ const o=document.createElement('option'); o.value=String(i+1).padStart(2,'0'); o.text=mn; monSel.appendChild(o); });
+  monSel.value = String(curM).padStart(2,'0');
+  function syncHidden(){ document.getElementById('homeMonth').value=yearSel.value+'-'+monSel.value; renderStaffGrid(); if(summaryTableVisible) renderSummaryTable(); }
+  yearSel.addEventListener('change', syncHidden);
+  monSel.addEventListener('change', syncHidden);
+  document.getElementById('homeMonth').value = thisMonth;
+})();
 
 // 매출장부의 Staff/Manager 목록 불러오기
 onValue(ref(db,'config/staffList'), snap=>{
@@ -356,8 +371,13 @@ window.setHomeMonth = function(type){
   if(type==='this') mk = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
   else { const d=new Date(t.getFullYear(),t.getMonth()-1,1); mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
   document.getElementById('homeMonth').value = mk;
+  const [y,m] = mk.split('-');
+  document.getElementById('homeMonthYear').value = y;
+  document.getElementById('homeMonthMonth').value = m;
   document.querySelectorAll('.month-btn').forEach(b=>b.classList.remove('active'));
   event.target.classList.add('active');
+  renderStaffGrid();
+  if(summaryTableVisible) renderSummaryTable();
 };
 
 // ── STAFF GRID ────────────────────────────────────────────
@@ -1344,8 +1364,8 @@ function renderAttTable(){
 
     // Staff별 행 - 출근기록 있는 사람 위, 없는 사람 아래
     [...staffArr].sort((a,b)=>{
-      const aHasRecord = Object.values(staffTimeMap[a.name]||{}).some(e=>e.time||e.type);
-      const bHasRecord = Object.values(staffTimeMap[b.name]||{}).some(e=>e.time||e.type);
+      const aHasRecord = (a.presentCnt||0)+(a.lateCnt||0) > 0 || Object.values(staffTimeMap[a.name]||{}).some(e=>e.time&&e.time.trim()!=='');
+      const bHasRecord = (b.presentCnt||0)+(b.lateCnt||0) > 0 || Object.values(staffTimeMap[b.name]||{}).some(e=>e.time&&e.time.trim()!=='');
       if(aHasRecord && !bHasRecord) return -1;
       if(!aHasRecord && bHasRecord) return 1;
       return a.name.localeCompare(b.name);
