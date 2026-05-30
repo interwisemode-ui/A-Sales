@@ -1709,18 +1709,14 @@ window.addRow=addRow;
     const dateStr = bkFmtDate(dateVal);
     const day     = bkGetDay(dateVal);
 
-    const SEP = '━━━━━━━━━━━━━━━━━━━━━━━';
     const lines = [];
     lines.push('🔔 *BOOKING NOTICE* 🔔');
-    lines.push(SEP);
     lines.push('📅 *'+dateStr+', '+day+'*');
-    lines.push(SEP);
     lines.push('');
     bookings.forEach(function(b){
       lines.push('◉  *'+b.name+'*  '+b.pax+b.nation+'  '+b.room);
     });
     lines.push('');
-    lines.push(SEP);
     lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Pax*');
 
     document.getElementById('bkOutput').textContent = lines.join('\n');
