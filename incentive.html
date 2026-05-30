@@ -1659,7 +1659,7 @@ window.bkAddRow = function(){
     '<div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div>',
     '<input type="text" class="bk-search" placeholder="Search..." oninput="bkSearch(this,'+n+')" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;margin-bottom:4px;" />',
     '<div class="bk-results" id="bkresults-'+n+'" style="display:flex;flex-wrap:wrap;gap:4px;max-height:100px;overflow-y:auto;"></div>',
-    '<div class="bk-selected-name" id="bkselected-'+n+'" style="display:none;margin-top:4px;background:rgba(124,111,247,0.15);border:1px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--accent);font-weight:700;"></div>',
+    '<div class="bk-selected-name" id="bkselected-'+n+'" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-height:0;"></div>',
     '</div>',
     '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">👥 Pax</div>'+_mkSel('bk-pax',_bkPaxOpts)+'</div>',
     '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🌍 Nation</div>'+_mkSel('bk-nation',_bkNationOpts,n)+'<input type="text" class="bk-nation-other" placeholder="Type nation..." style="display:none;margin-top:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>',
@@ -1690,7 +1690,10 @@ window.bkSearch = function(input, rowId){
   const resultsEl = document.getElementById('bkresults-'+rowId);
   if(!resultsEl) return;
   if(!q){ resultsEl.innerHTML=''; return; }
-  const matches = _bkStaffList.filter(function(s){ return s.toLowerCase().includes(q); }).slice(0,15);
+  // Get already selected names to exclude
+  const selectedEl = document.getElementById('bkselected-'+rowId);
+  const already = selectedEl ? Array.from(selectedEl.querySelectorAll('.bk-tag')).map(function(t){ return t.dataset.name; }) : [];
+  const matches = _bkStaffList.filter(function(s){ return s.toLowerCase().includes(q) && !already.includes(s); }).slice(0,15);
   resultsEl.innerHTML = matches.map(function(s){
     return '<button onclick="bkSelectName(\''+s+'\','+rowId+')" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;padding:4px 10px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;">'+s+'</button>';
   }).join('');
@@ -1700,9 +1703,20 @@ window.bkSelectName = function(name, rowId){
   const selectedEl = document.getElementById('bkselected-'+rowId);
   const resultsEl  = document.getElementById('bkresults-'+rowId);
   const searchEl   = document.querySelector('#bkrow-'+rowId+' .bk-search');
-  if(selectedEl){ selectedEl.textContent='✓  '+name; selectedEl.style.display='block'; selectedEl.dataset.value=name; }
+  if(!selectedEl) return;
+  // Add tag for this name
+  const tag = document.createElement('span');
+  tag.className = 'bk-tag';
+  tag.dataset.name = name;
+  tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(124,111,247,0.2);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--accent);font-weight:700;';
+  tag.innerHTML = name + '<span onclick="bkRemoveTag(this,'+rowId+')" style="cursor:pointer;opacity:0.7;font-size:14px;line-height:1;">✕</span>';
+  selectedEl.appendChild(tag);
   if(resultsEl) resultsEl.innerHTML='';
   if(searchEl) searchEl.value='';
+};
+
+window.bkRemoveTag = function(el, rowId){
+  el.parentElement.remove();
 };
 
 window.bkNationChange = function(sel){
@@ -1718,7 +1732,8 @@ window.bkGenerate = function(){
   let totalPax = 0;
   items.forEach(function(item){
     const selectedEl = item.querySelector('.bk-selected-name');
-    const name = selectedEl && selectedEl.dataset.value ? selectedEl.dataset.value.toUpperCase() : '';
+    const tags = selectedEl ? Array.from(selectedEl.querySelectorAll('.bk-tag')).map(function(t){ return t.dataset.name.toUpperCase(); }) : [];
+    const name = tags.join(' & ');
     const pax    = item.querySelector('.bk-pax').value;
     const _nSel = item.querySelector('.bk-nation').value;
     const nation = _nSel==='Other' ? (item.querySelector('.bk-nation-other').value.trim().toUpperCase()||'?') : _nSel;
@@ -1762,7 +1777,7 @@ window.bkSaveToRecords = function(){
     const rec={
       id,date:_bkLastDate,
       room:b.room==='-'?null:parseInt(b.room.replace('R','')),
-      bookers:[b.name],booking:'BOOKING',payment:'',
+      bookers: b.name.split(' & '),booking:'BOOKING',payment:'',
       total:0,cash:0,card:0,upi:0,dc:0,
       country:nMap[b.nation]||b.nation,
       pax:b.pax==='-'?null:parseInt(b.pax),
