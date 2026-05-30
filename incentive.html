@@ -164,7 +164,7 @@ input:focus,select:focus{border-color:var(--accent);}
 
   <!-- Booking Notice 탭 -->
   <div id="homeTabContentBooking" style="display:none;">
-    <div style="max-width:600px;margin:0 auto;">
+    <div style="width:100%;box-sizing:border-box;">
 
       <!-- Date -->
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
@@ -1645,11 +1645,11 @@ window.addRow=addRow;
     item.innerHTML =
       '<span style="position:absolute;top:10px;left:12px;font-size:11px;font-weight:700;color:var(--accent);background:rgba(124,111,247,0.15);border-radius:4px;padding:2px 6px;">'+(list.children.length+1)+'</span>'+
       '<button onclick="bkRemoveRow(\'bkrow-'+n+'\')" style="position:absolute;top:10px;right:10px;background:rgba(248,113,113,0.15);border:none;border-radius:6px;color:var(--red);cursor:pointer;width:28px;height:28px;font-size:15px;">✕</button>'+
-      '<div style="display:grid;grid-template-columns:1fr 55px 65px 60px;gap:8px;margin-top:28px;">'+
-        '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div><input type="text" placeholder="e.g. ADI" class="bk-name" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:28px;">'+
+        '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div><input type="text" placeholder="e.g. ADI" class="bk-name" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>'+
         '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">👥 Pax</div>'+mkSel('bk-pax',paxOpts)+'</div>'+
         '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🌍 Nation</div>'+mkSel('bk-nation',nationOpts)+'</div>'+
-        '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🚪 Room</div>'+mkSel('bk-room',roomOpts)+'</div>'+
+        '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🚪 Room</div>'+mkSel('bk-room',roomOpts)+'</div>'+
       '</div>';
     list.appendChild(item);
     bkUpdateNums();
@@ -1709,21 +1709,22 @@ window.addRow=addRow;
     const dateStr = bkFmtDate(dateVal);
     const day     = bkGetDay(dateVal);
 
+    const SEP = '━━━━━━━━━━━━━━━━━━━━━━━';
     const lines = [];
     lines.push('🔔 *BOOKING NOTICE* 🔔');
-    lines.push('━━━━━━━━━━━━━━━━━━━━');
+    lines.push(SEP);
     lines.push('📅 *'+dateStr+', '+day+'*');
-    lines.push('━━━━━━━━━━━━━━━━━━━━');
+    lines.push(SEP);
     lines.push('');
     bookings.forEach(function(b){
       lines.push('◉  *'+b.name+'*  '+b.pax+b.nation+'  '+b.room);
     });
     lines.push('');
-    lines.push('━━━━━━━━━━━━━━━━━━━━');
-    lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Person*');
+    lines.push(SEP);
+    lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Pax*');
 
     document.getElementById('bkOutput').textContent = lines.join('\n');
-    document.getElementById('bkSummary').textContent = bookings.length+' Rooms  '+totalPax+' Person';
+    document.getElementById('bkSummary').textContent = bookings.length+' Rooms  '+totalPax+' Pax';
     document.getElementById('bkSummaryDate').textContent = dateStr+' ('+day+')';
 
     const card = document.getElementById('bkOutputCard');
