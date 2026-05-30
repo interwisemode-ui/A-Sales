@@ -191,6 +191,7 @@ input:focus,select:focus{border-color:var(--accent);}
         </div>
         <div id="bkOutput" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;padding:14px;white-space:pre-wrap;word-break:break-word;user-select:all;"></div>
         <button id="bkCopyBtn" onclick="bkCopy()" style="width:100%;padding:13px;background:var(--bg3);border:1px solid var(--green);border-radius:10px;color:var(--green);font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;font-family:'Noto Sans KR',sans-serif;">📋 Copy for WhatsApp</button>
+        <button id="bkSaveRecBtn" onclick="bkSaveToRecords()" style="width:100%;padding:13px;background:rgba(124,111,247,0.15);border:1px solid var(--accent);border-radius:10px;color:var(--accent2);font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;font-family:'Noto Sans KR',sans-serif;">💾 Save to 매출장부</button>
         <div id="bkCopyFallback" style="display:none;background:var(--bg);border:1px dashed var(--green);border-radius:8px;color:var(--text2);font-size:12px;margin-top:8px;padding:10px;text-align:center;">☝️ Text selected — press <strong>Ctrl+C</strong> or <strong>Cmd+C</strong></div>
         <p style="font-size:11px;color:var(--text3);margin-top:8px;text-align:center;">Paste directly into WhatsApp chat</p>
       </div>
@@ -1719,6 +1720,9 @@ window.addRow=addRow;
     lines.push('');
     lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Pax*');
 
+    window._bkLastBookings = bookings;
+    window._bkLastDate = dateVal;
+
     document.getElementById('bkOutput').textContent = lines.join('\n');
     document.getElementById('bkSummary').textContent = bookings.length+' Rooms  '+totalPax+' Pax';
     document.getElementById('bkSummaryDate').textContent = dateStr+' ('+day+')';
@@ -1727,13 +1731,62 @@ window.addRow=addRow;
     card.style.display = 'block';
     card.scrollIntoView({behavior:'smooth', block:'start'});
 
+    const saveBtn = document.getElementById('bkSaveRecBtn');
+    if(saveBtn){ saveBtn.textContent='💾 Save to 매출장부'; saveBtn.style.color='var(--accent2)'; saveBtn.style.borderColor='var(--accent)'; }
+
     const btn = document.getElementById('bkCopyBtn');
     btn.textContent = '📋 Copy for WhatsApp';
     btn.style.color = 'var(--green)';
     document.getElementById('bkCopyFallback').style.display = 'none';
   };
 
-  window.bkCopy = function(){
+  window.bkSaveToRecords = function(){
+    if(!window._bkLastBookings || !window._bkLastDate){
+      showToast('⚠ 먼저 Generate 해주세요!'); return;
+    }
+    const bookings = window._bkLastBookings;
+    const dateVal  = window._bkLastDate;
+
+    // 국적 매핑 (부킹노티스 → 매출장부)
+    const nationMap = {'JP':'J','KR':'K','CH':'C','IN':'I','TK':'ETC','ETC':'ETC'};
+
+    let saved = 0;
+    bookings.forEach(function(b){
+      const id = Date.now().toString() + '_' + Math.random().toString(36).slice(2,6);
+      const roomNum = b.room === '-' ? null : parseInt(b.room.replace('R',''));
+      const paxNum  = b.pax === '-' ? null : parseInt(b.pax);
+      const country = nationMap[b.nation] || b.nation;
+
+      const rec = {
+        id: id,
+        date: dateVal,
+        room: roomNum,
+        bookers: [b.name],
+        booking: 'BOOKING',
+        payment: '',
+        total: 0, cash: 0, card: 0, upi: 0, dc: 0,
+        country: country,
+        pax: paxNum,
+        staff: [], staff2: [],
+        checkin: '', checkout: '',
+        note: '📲 부킹노티스 자동저장',
+        time: ''
+      };
+      set(ref(db, 'records/' + id), rec);
+      saved++;
+    });
+
+    const btn = document.getElementById('bkSaveRecBtn');
+    btn.textContent = '✅ '+saved+'건 저장 완료!';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+    setTimeout(function(){
+      btn.textContent = '💾 Save to 매출장부';
+      btn.style.color = 'var(--accent2)';
+      btn.style.borderColor = 'var(--accent)';
+    }, 3000);
+    showToast('✓ 매출장부에 '+saved+'건 저장됐어요!');
+  };
     const text = document.getElementById('bkOutput').textContent;
     const btn  = document.getElementById('bkCopyBtn');
     const fb   = document.getElementById('bkCopyFallback');
