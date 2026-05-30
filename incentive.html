@@ -172,6 +172,12 @@ input:focus,select:focus{border-color:var(--accent);}
         <input type="date" id="bkDate" style="width:100%;" />
       </div>
 
+      <!-- Saved notice status -->
+      <div id="bkSavedBar" style="display:none;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <span id="bkSavedInfo" style="font-size:12px;color:var(--green);font-weight:700;"></span>
+        <button onclick="bkLoadSaved()" style="background:rgba(52,211,153,0.2);border:1px solid var(--green);border-radius:6px;color:var(--green);font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">📥 Load</button>
+      </div>
+
       <!-- Booking List -->
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
         <div class="sec-title" style="margin-bottom:10px;">🛎 Booking List</div>
@@ -336,7 +342,7 @@ input:focus,select:focus{border-color:var(--accent);}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, get, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0MehTEqcHuBIHEBjYGbwoirJhYP7Mo6o",
@@ -1719,6 +1725,63 @@ window.bkRemoveTag = function(el, rowId){
   el.parentElement.remove();
 };
 
+// Check Firebase for today's saved booking notice
+function bkCheckSaved(dateVal){
+  const savedBar = document.getElementById('bkSavedBar');
+  const savedInfo = document.getElementById('bkSavedInfo');
+  if(!savedBar||!savedInfo) return;
+  get(ref(db,'bookingNotice/'+dateVal)).then(function(snap){
+    if(snap.exists()){
+      const data = snap.val();
+      const t = new Date(data.savedAt);
+      const timeStr = t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
+      savedBar.style.display='flex';
+      savedInfo.textContent = '📋 Saved notice found ('+timeStr+') — Load to edit?';
+      savedBar._data = data;
+    } else {
+      savedBar.style.display='none';
+    }
+  }).catch(function(){ savedBar.style.display='none'; });
+}
+
+window.bkLoadSaved = function(){
+  const savedBar = document.getElementById('bkSavedBar');
+  if(!savedBar||!savedBar._data) return;
+  const data = savedBar._data;
+  // Clear current list
+  document.getElementById('bkList').innerHTML='';
+  _bkCount=0;
+  // Reload each booking
+  data.bookings.forEach(function(b){
+    window.bkAddRow();
+    const rowId = _bkCount;
+    const item = document.getElementById('bkrow-'+rowId);
+    if(!item) return;
+    // Set names as tags
+    const names = b.name.split(' & ');
+    names.forEach(function(n){
+      window.bkSelectName(n, rowId);
+    });
+    // Set pax
+    const paxSel = item.querySelector('.bk-pax');
+    if(paxSel) paxSel.value = b.pax;
+    // Set nation
+    const natSel = item.querySelector('.bk-nation');
+    if(natSel){
+      natSel.value = b.nation;
+      if(b.nation==='Other'){
+        const otherInput = item.querySelector('.bk-nation-other');
+        if(otherInput){ otherInput.style.display='block'; otherInput.value=b.nationOther||''; }
+      }
+    }
+    // Set room
+    const roomSel = item.querySelector('.bk-room');
+    if(roomSel) roomSel.value = b.room;
+  });
+  savedBar.style.display='none';
+  showToast('✓ Booking loaded! Edit and Generate again.');
+};
+
 window.bkNationChange = function(sel){
   const otherInput = sel.parentElement.querySelector('.bk-nation-other');
   if(otherInput) otherInput.style.display = sel.value==='Other' ? 'block' : 'none';
@@ -1755,6 +1818,11 @@ window.bkGenerate = function(){
   lines.push('');
   lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Pax*');
   _bkLastBookings=bookings; _bkLastDate=dateVal;
+
+  // Auto-save to Firebase
+  set(ref(db,'bookingNotice/'+dateVal), {date:dateVal, bookings:bookings, savedAt: Date.now()});
+  showToast('✓ Booking notice saved!');
+
   document.getElementById('bkOutput').textContent=lines.join('\n');
   document.getElementById('bkSummary').textContent=bookings.length+' Rooms  '+totalPax+' Pax';
   document.getElementById('bkSummaryDate').textContent=dateStr+' ('+day+')';
@@ -1820,9 +1888,18 @@ window.switchHomeTab = function(tab){
 // 오늘 날짜 + 초기 행 3개
 (function(){
   const t=new Date();
+  const yyyy=t.getFullYear();
+  const mm=String(t.getMonth()+1).padStart(2,'0');
+  const dd=String(t.getDate()).padStart(2,'0');
+  const todayVal=yyyy+'-'+mm+'-'+dd;
   const el=document.getElementById('bkDate');
-  if(el) el.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  if(el){
+    el.value=todayVal;
+    el.onchange=function(){ bkCheckSaved(el.value); };
+  }
   window.bkAddRow(); window.bkAddRow(); window.bkAddRow();
+  // Check if today has saved data
+  setTimeout(function(){ bkCheckSaved(todayVal); }, 1000);
 })();
 </script>
 </body>
