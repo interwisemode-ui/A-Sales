@@ -4546,7 +4546,29 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
     </tr>`;
   }).join('');
 
-  document.getElementById('attContent').innerHTML=`
+  // 금토 / 평일 평균 출근 인원 계산
+  const weekdayHC=[], friSatHC=[];
+  dates.forEach(({date})=>{
+    const dateStr=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const hc=dailyHeadCount[dateStr];
+    if(!hc) return;
+    const dow=date.getDay();
+    if(dow===5||dow===6) friSatHC.push(hc);
+    else weekdayHC.push(hc);
+  });
+  const avg=(arr)=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):0;
+  const avgWeekday=avg(weekdayHC);
+  const avgFriSat=avg(friSatHC);
+  const summaryBar=`
+    <div style="display:flex;gap:16px;align-items:center;padding:8px 12px;margin-bottom:8px;background:var(--bg2);border-radius:8px;font-size:13px;flex-wrap:wrap;">
+      <span style="color:var(--text3);font-weight:600;">📊 평균 출근</span>
+      <span>평일 <strong style="color:var(--green);font-size:15px;">${avgWeekday}</strong>명</span>
+      <span style="color:var(--text3)">|</span>
+      <span>금·토 <strong style="color:var(--red);font-size:15px;">${avgFriSat}</strong>명</span>
+      <span style="color:var(--text3);font-size:11px;">(평일 ${weekdayHC.length}일 / 금·토 ${friSatHC.length}일 기준)</span>
+    </div>`;
+
+  document.getElementById('attContent').innerHTML=summaryBar+`
   <div class="att-table-wrap">
     <table class="att-table">
       <thead><tr>
