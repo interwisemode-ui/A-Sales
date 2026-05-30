@@ -620,7 +620,7 @@ function renderStaffAttInfo(name){
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
         <span style="font-size:11px;color:var(--red);">Absent</span>
       </div>`; }
-      const isLate = e.type==='late'||(e.time&&e.time>'08:30');
+      const isLate = e.type==='late'||(e.time&&e.time>='07:31');
       return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
         <span style="font-size:11px;color:var(--text3);width:90px;">${d.slice(5)}</span>
         <span style="font-size:11px;color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'Present'}</span>
@@ -646,8 +646,8 @@ function renderStaffAttInfo(name){
     dates.forEach((d,i)=>{
       const e = entryArr[i];
       if(!e){ tableHtml+=`<td style="${tdS2}color:var(--text3);">-</td>`; return; }
-      const isLate = e.type==='late'||(e.time&&e.time>'08:30');
-      tableHtml+=`<td style="${tdS2}color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'✓'}</td>`;
+      const isLate = e.type==='late'||(e.time&&e.time>='07:31');
+      tableHtml+=`<td style="${tdS2}color:${isLate?'var(--yellow)':'var(--green)'};${isLate?'background:rgba(251,191,36,0.12);':''}">${e.time||'✓'}</td>`;
     });
     tableHtml+=`</tr></tbody></table></div>`;
 
@@ -1434,7 +1434,7 @@ function renderAttTable(){
       const cells = dates.map(d=>{
         const e = staffTimeMap[s.name]?.[d];
         if(!e){ absent++; return `<td style="${tdS}color:var(--text3);">-</td>`; }
-        const isLate = e.type==='late'||( e.time && e.time>'08:30');
+        const isLate = e.type==='late'||( e.time && e.time>='07:31');
         if(isLate) late++; else present++;
         return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};${isLate?'background:rgba(251,191,36,0.08);':''}">${e.time||'✓'}</td>`;
       });
