@@ -1612,7 +1612,14 @@ window.deleteRow=deleteRow;
 window.addRow=addRow;
 
 // ── BOOKING NOTICE ─────────────────────────────────────────
-const _bkNationOpts = ['J','K','C','I','T','Other'];
+const _bkNationOpts = [
+  {v:'J', l:'J  -  JAPAN'},
+  {v:'K', l:'K  -  KOREA'},
+  {v:'C', l:'C  -  CHINA'},
+  {v:'I', l:'I  -  INDIA'},
+  {v:'T', l:'T  -  TURKIYE'},
+  {v:'Other', l:'OTHER'}
+];
 const _bkPaxOpts    = ['-','1','2','3','4','5','6','7','8','9','10'];
 const _bkRoomOpts   = ['-','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'];
 let _bkCount = 0;
@@ -1622,7 +1629,11 @@ let _bkLastDate = null;
 function _mkSel(cls, opts, rowId){
   const onChange = cls==='bk-nation' && rowId ? 'onchange="bkNationChange(this)"' : '';
   let h = '<select class="'+cls+'" '+onChange+' style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:6px 8px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;">';
-  opts.forEach(function(v){ h += '<option value="'+v+'">'+v+'</option>'; });
+  opts.forEach(function(o){
+    const v = typeof o==='object' ? o.v : o;
+    const l = typeof o==='object' ? o.l : o;
+    h += '<option value="'+v+'">'+l+'</option>';
+  });
   return h + '</select>';
 }
 
@@ -1645,7 +1656,11 @@ window.bkAddRow = function(){
     '<span class="bk-badge" style="position:absolute;top:10px;left:12px;font-size:11px;font-weight:700;color:var(--accent);background:rgba(124,111,247,0.15);border-radius:4px;padding:2px 6px;">'+(list.children.length+1)+'</span>'+
     '<button onclick="bkRemoveRow(\'bkrow-'+n+'\')" style="position:absolute;top:10px;right:10px;background:rgba(248,113,113,0.15);border:none;border-radius:6px;color:var(--red);cursor:pointer;width:28px;height:28px;font-size:15px;">✕</button>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:28px;">'+
-      '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div><input type="text" placeholder="e.g. ADI" class="bk-name" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>'+
+      '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div>'+
+      '<input type="text" class="bk-search" placeholder="Search..." oninput="bkSearch(this,'+n+')" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;margin-bottom:4px;" />'+
+      '<div class="bk-results" id="bkresults-'+n+'" style="display:flex;flex-wrap:wrap;gap:4px;max-height:100px;overflow-y:auto;"></div>'+
+      '<div class="bk-selected-name" id="bkselected-'+n+'" style="display:none;margin-top:4px;background:rgba(124,111,247,0.15);border:1px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--accent);font-weight:700;"></div>'+
+      '</div>';
       '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">👥 Pax</div>'+_mkSel('bk-pax',_bkPaxOpts)+'</div>'+
       '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🌍 Nation</div>'+_mkSel('bk-nation',_bkNationOpts, n)+'<input type="text" class="bk-nation-other" placeholder="Type nation..." style="display:none;margin-top:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>'+
       '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🚪 Room</div>'+_mkSel('bk-room',_bkRoomOpts)+'</div>'+
@@ -1663,6 +1678,32 @@ window.bkRemoveRow = function(id){
   setTimeout(function(){ el.remove(); _bkUpdateNums(); }, 200);
 };
 
+// 부킹자 리스트 Firebase에서 로드
+let _bkStaffList = [];
+onValue(ref(db,'config/staffList'), function(snap){
+  if(snap.exists()) _bkStaffList = snap.val();
+});
+
+window.bkSearch = function(input, rowId){
+  const q = input.value.trim().toLowerCase();
+  const resultsEl = document.getElementById('bkresults-'+rowId);
+  if(!resultsEl) return;
+  if(!q){ resultsEl.innerHTML=''; return; }
+  const matches = _bkStaffList.filter(function(s){ return s.toLowerCase().includes(q); }).slice(0,15);
+  resultsEl.innerHTML = matches.map(function(s){
+    return '<button onclick="bkSelectName(\''+s+'\','+rowId+')" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;padding:4px 10px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;">'+s+'</button>';
+  }).join('');
+};
+
+window.bkSelectName = function(name, rowId){
+  const selectedEl = document.getElementById('bkselected-'+rowId);
+  const resultsEl  = document.getElementById('bkresults-'+rowId);
+  const searchEl   = document.querySelector('#bkrow-'+rowId+' .bk-search');
+  if(selectedEl){ selectedEl.textContent='✓  '+name; selectedEl.style.display='block'; selectedEl.dataset.value=name; }
+  if(resultsEl) resultsEl.innerHTML='';
+  if(searchEl) searchEl.value='';
+};
+
 window.bkNationChange = function(sel){
   const otherInput = sel.parentElement.querySelector('.bk-nation-other');
   if(otherInput) otherInput.style.display = sel.value==='Other' ? 'block' : 'none';
@@ -1675,7 +1716,8 @@ window.bkGenerate = function(){
   const bookings = [];
   let totalPax = 0;
   items.forEach(function(item){
-    const name   = (item.querySelector('.bk-name').value||'').trim().toUpperCase();
+    const selectedEl = item.querySelector('.bk-selected-name');
+    const name = selectedEl && selectedEl.dataset.value ? selectedEl.dataset.value.toUpperCase() : '';
     const pax    = item.querySelector('.bk-pax').value;
     const _nSel = item.querySelector('.bk-nation').value;
     const nation = _nSel==='Other' ? (item.querySelector('.bk-nation-other').value.trim().toUpperCase()||'?') : _nSel;
