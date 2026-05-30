@@ -4621,7 +4621,7 @@ function openMobilePanel(){
   // Picker searches
   ['bookerSearch','staffSearch','staff2Search'].forEach(id=>{
     const mob=dest.querySelector('#'+id);const main=document.getElementById(id);
-    if(mob&&main){mob.value=main.value||'';mob.oninput=function(){main.value=mob.value;renderPickers();};}
+    if(mob&&main){mob.value=main.value||'';mob.oninput=function(){main.value=mob.value;renderPickers();buildMobGrid(dest.querySelector('#bookerGrid'),'booker');buildMobGrid(dest.querySelector('#staffGrid'),'staff');buildMobGrid(dest.querySelector('#staff2Grid'),'staff2');};}
   });
   // Sync current main form values to mobile
   ['amtCash','amtCard','amtUPI','amtTotal','amtDC','checkinTime','checkoutTime','noteField','entryDate'].forEach(id=>{
