@@ -1387,7 +1387,24 @@ function renderAttTable(){
     const thS='padding:6px 8px;background:var(--bg3);border:1px solid var(--border);font-size:10px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:2;';
     const tdS='padding:4px 8px;border:1px solid var(--border);font-size:11px;text-align:center;font-family:"JetBrains Mono",monospace;';
 
-    let html=`<div style="overflow-x:auto;overflow-y:auto;max-height:65vh;">
+    // 평균 출근인원 계산 (평일 / 금토)
+    const weekdayHC=[], friSatHC=[];
+    dates.forEach(d=>{
+      const hc=dailyHC[d]; if(!hc) return;
+      const dow=new Date(d+'T00:00:00').getDay();
+      if(dow===5||dow===6) friSatHC.push(hc); else weekdayHC.push(hc);
+    });
+    const calcAvg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):'-';
+    const avgWeekday=calcAvg(weekdayHC), avgFriSat=calcAvg(friSatHC);
+    const summaryBar=`<div style="display:flex;gap:16px;align-items:center;padding:8px 12px;margin-bottom:8px;background:var(--bg2);border-radius:8px;font-size:13px;flex-wrap:wrap;">
+      <span style="color:var(--text3);font-weight:600;">📊 Avg Headcount</span>
+      <span>Weekday <strong style="color:var(--green);font-size:15px;">${avgWeekday}</strong></span>
+      <span style="color:var(--text3)">|</span>
+      <span>Fri·Sat <strong style="color:var(--red);font-size:15px;">${avgFriSat}</strong></span>
+      <span style="color:var(--text3);font-size:11px;">(${weekdayHC.length}d / ${friSatHC.length}d)</span>
+    </div>`;
+
+    let html=summaryBar+`<div style="overflow-x:auto;overflow-y:auto;max-height:60vh;">
       <table style="border-collapse:collapse;min-width:600px;">
         <thead><tr>
           <th style="${thS}text-align:left;position:sticky;left:0;z-index:3;min-width:80px;">Name</th>
@@ -1419,7 +1436,7 @@ function renderAttTable(){
         if(!e){ absent++; return `<td style="${tdS}color:var(--text3);">-</td>`; }
         const isLate = e.type==='late'||( e.time && e.time>'08:30');
         if(isLate) late++; else present++;
-        return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};">${e.time||'✓'}</td>`;
+        return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};${isLate?'background:rgba(251,191,36,0.08);':''}">${e.time||'✓'}</td>`;
       });
       html+=`<tr>
         <td style="${tdS}text-align:left;position:sticky;left:0;z-index:1;background:var(--bg2);font-weight:600;min-width:70px;">${s.name}</td>
