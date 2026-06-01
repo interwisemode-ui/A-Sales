@@ -1202,15 +1202,20 @@ window.loadBookXlsx = function(input){
                 if(dateRows.length>1) delete newData[id];
               });
             } else {
-              newData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
+              const bKey = 'b_'+dateStr.replace(/-/g,'');
+              newData[bKey] = {date:dateStr, book:amt};
+              console.log('[BOOK upload] b_ 행 생성:', bKey, amt);
             }
           });
-          // 고아 b_ 행 정리 (r_ 행과 Date 중복되는 b_ 행 삭제)
+          console.log('[BOOK upload] 저장 전 b_ 행들:', Object.keys(newData).filter(id=>id.startsWith('b_')));
+          // 고아 b_ 행 정리 (r_ 행과 Date 중복되는 b_ 행만 삭제)
           Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
             const bDate = newData[bid]?.date;
             const hasRRow = Object.keys(newData).some(id=>!id.startsWith('b_')&&newData[id].date===bDate);
+            console.log('[BOOK upload] b_ 정리 체크:', bid, 'hasRRow:', hasRRow);
             if(hasRRow) delete newData[bid];
           });
+          console.log('[BOOK upload] 최종 저장할 b_ 행들:', Object.keys(newData).filter(id=>id.startsWith('b_')));
           set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
           savedCount++;
           if(savedCount===staffNames.length){
