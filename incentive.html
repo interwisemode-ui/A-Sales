@@ -551,12 +551,14 @@ function loadFromRecords(name){
           const isMyBook = bookers.includes(name);
           const isSel1 = (sel1||[]).includes(name);
 
-          // 같은 rowId가 이미 있으면 _2, _3... 붙여서 새 행 생성
+          // 같은 rowId가 이미 있으면 매출장부에서 실제 중복인지 확인 후 _2 생성
           let rowId = baseRowId;
           if(newData[rowId] && newData[rowId].booker === bookerStr){
-            // 같은 날 같은 룸 같은 부킹자 중복 → 번호 붙이기
-            let n = 2;
-            while(newData[rowId]) rowId = baseRowId+'_'+n++;
+            // 이미 처리된 recordKey인지 확인 (같은 룸 같은 부킹자라도 다른 레코드면 _2)
+            if(newData[rowId]._recordKey && recordKey && newData[rowId]._recordKey !== recordKey){
+              let n = 2;
+              while(newData[rowId]) rowId = baseRowId+'_'+n++;
+            }
           }
 
           if(!newData[rowId]){
@@ -565,12 +567,14 @@ function loadFromRecords(name){
               booker: bookerStr,
               room: 'R'+room,
               ...(isMyBook && sales ? {sales} : {}),
-              ...(isSel1 ? {select: 200} : {})
+              ...(isSel1 ? {select: 200} : {}),
+              _recordKey: recordKey||''
             };
           } else {
             // 기존 행 업데이트 - 사용자가 입력한 값은 절대 덮어쓰지 않음
             newData[rowId].booker = bookerStr;
             newData[rowId].room = 'R'+room;
+            newData[rowId]._recordKey = recordKey||'';
             if(isMyBook && sales && !newData[rowId].sales) newData[rowId].sales = sales;
             if(isSel1 && !newData[rowId].select) newData[rowId].select = 200;
           }
