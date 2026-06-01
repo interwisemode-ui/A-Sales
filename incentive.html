@@ -1191,9 +1191,11 @@ window.loadBookXlsx = function(input){
         onValue(ref(db,`incentive/data/${staffName}/${monthKey}`), snap=>{
           const existing = snap.exists() ? snap.val() : {};
           const newData = {...existing};
+          console.log('[BOOK upload] staffName:', staffName, 'dates:', Object.keys(staffData[staffName]));
           Object.entries(staffData[staffName]).forEach(([dateStr, amt])=>{
             // 해당 Date의 모든 행에 book 적용 (여러 룸 있을 수 있음)
             const dateRows = Object.keys(newData).filter(id=>newData[id].date===dateStr);
+            console.log('[BOOK upload] dateStr:', dateStr, 'amt:', amt, 'dateRows:', dateRows);
             if(dateRows.length>=1){
               // 모든 Date 행에 book 저장 (룸별로 나뉜 경우)
               dateRows.forEach(id=>{ newData[id].book = amt; });
