@@ -481,7 +481,6 @@ function loadFromRecords(name){
 
     snap.forEach(child=>{
       const r = child.val();
-      const recordKey = child.key;  // 매출장부 고유 키
       if(!r.date || r.date < fromDate || r.date > toDate) return;
       const bookers = (r.bookers||[]).filter(s=>s&&s!=='WALKIN');
       const sel1 = (r.staff||[]).filter(Boolean);
@@ -500,10 +499,9 @@ function loadFromRecords(name){
         room: r.room||'?',
         bookers: bookers,
         sel: allSel,
-        sel1: sel1,
-        sel2: sel2,
-        sales: share,
-        recordKey: recordKey  // 고유 키로 중복 방지
+        sel1: sel1,   // selection1 (자동 200)
+        sel2: sel2,   // selection2
+        sales: share
       });
     });
 
@@ -544,7 +542,7 @@ function loadFromRecords(name){
 
       // Date+부킹자별 행 생성 (룸별 매출 각각 적용)
       Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
-        rooms.forEach(({room, bookers, sel, sel1, sel2, sales, recordKey})=>{
+        rooms.forEach(({room, bookers, sel, sel1, sel2, sales})=>{
           const bookerStr = bookers.join('/');
           const safeKey = (date+'_R'+room+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
           const rowId = 'r_'+safeKey;
@@ -616,14 +614,6 @@ function renderStaffAttInfo(name){
     const staffInfo = (attData.staff||[]).find(s=>s.name===name);
 
     let present=staffInfo?.presentCnt||0, late=staffInfo?.lateCnt||0, absent=staffInfo?.absentCnt||0;
-
-    // 평균 출근시간 계산
-    const timeMins = entryArr.filter(e=>e&&e.time).map(e=>{
-      const [h,m]=e.time.split(':').map(Number); return h*60+m;
-    });
-    const avgMin = timeMins.length ? Math.round(timeMins.reduce((a,b)=>a+b,0)/timeMins.length) : null;
-    const avgTimeStr = avgMin ? `${String(Math.floor(avgMin/60)).padStart(2,'0')}:${String(avgMin%60).padStart(2,'0')}` : '-';
-
     const rows = dates.map((d,i)=>{
       const e = entryArr[i];
       if(!e){ absent++; return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border2);">
@@ -667,7 +657,6 @@ function renderStaffAttInfo(name){
         <span style="font-size:12px;color:var(--green);">Present ${present}d</span>
         <span style="font-size:12px;color:var(--yellow);">Late ${late}d</span>
         <span style="font-size:12px;color:var(--red);">Absent ${absent}d</span>
-        <span style="font-size:12px;color:var(--blue);">Avg ${avgTimeStr}</span>
       </div>
       ${tableHtml}
     </div>`;
@@ -762,7 +751,7 @@ function renderTable(){
           ${selLabel}
         </td>
         ${COLS.map(col=>{
-          const isAuto = false;  // SALES 직접 수정 가능
+          const isAuto = col==='sales';
           const isLocked = isCurrentManager && col!=='book' && col!=='sales';
           return `<td>
             <input class="cell-input" type="text" 
@@ -1191,11 +1180,9 @@ window.loadBookXlsx = function(input){
         onValue(ref(db,`incentive/data/${staffName}/${monthKey}`), snap=>{
           const existing = snap.exists() ? snap.val() : {};
           const newData = {...existing};
-          console.log('[BOOK upload] staffName:', staffName, 'dates:', Object.keys(staffData[staffName]));
           Object.entries(staffData[staffName]).forEach(([dateStr, amt])=>{
             // 해당 Date의 모든 행에 book 적용 (여러 룸 있을 수 있음)
             const dateRows = Object.keys(newData).filter(id=>newData[id].date===dateStr);
-            console.log('[BOOK upload] dateStr:', dateStr, 'amt:', amt, 'dateRows:', dateRows);
             if(dateRows.length>=1){
               // 모든 Date 행에 book 저장 (룸별로 나뉜 경우)
               dateRows.forEach(id=>{ newData[id].book = amt; });
@@ -1204,29 +1191,21 @@ window.loadBookXlsx = function(input){
                 if(dateRows.length>1) delete newData[id];
               });
             } else {
-              const bKey = 'b_'+dateStr.replace(/-/g,'');
-              newData[bKey] = {date:dateStr, book:amt};
-              console.log('[BOOK upload] b_ 행 생성:', bKey, amt);
+              newData['b_'+dateStr.replace(/-/g,'')] = {date:dateStr, book:amt};
             }
           });
-          console.log('[BOOK upload] 저장 전 b_ 행들:', Object.keys(newData).filter(id=>id.startsWith('b_')));
-          // 고아 b_ 행 정리 (r_ 행과 Date 중복되는 b_ 행만 삭제)
+          // 고아 b_ 행 정리 (r_ 행과 Date 중복되는 b_ 행 삭제)
           Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
             const bDate = newData[bid]?.date;
             const hasRRow = Object.keys(newData).some(id=>!id.startsWith('b_')&&newData[id].date===bDate);
-            console.log('[BOOK upload] b_ 정리 체크:', bid, 'hasRRow:', hasRRow);
             if(hasRRow) delete newData[bid];
           });
-          console.log('[BOOK upload] 최종 저장할 b_ 행들:', Object.keys(newData).filter(id=>id.startsWith('b_')));
-          set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData).then(()=>{
-            savedCount++;
-            if(savedCount===staffNames.length){
-              showToast('✓ '+staffNames.length+' staff BOOK incentive uploaded!');
-              if(currentStaff && staffData[currentStaff]){
-                setTimeout(()=>loadFromRecords(currentStaff), 800);
-              }
-            }
-          });
+          set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
+          savedCount++;
+          if(savedCount===staffNames.length){
+            showToast('✓ '+staffNames.length+' staff BOOK incentive uploaded!');
+            if(currentStaff && staffData[currentStaff]) loadFromRecords(currentStaff);
+          }
         },{onlyOnce:true});
       });
       input.value='';
@@ -1431,8 +1410,7 @@ function renderAttTable(){
           <th style="${thS}text-align:left;position:sticky;left:0;z-index:3;min-width:80px;">Name</th>
           <th style="${thS}color:var(--green);">Present</th>
           <th style="${thS}color:var(--yellow);">Late</th>
-          <th style="${thS}color:var(--red);">Absent</th>
-          <th style="${thS}color:var(--blue);">Avg</th>`;
+          <th style="${thS}color:var(--red);">Absent</th>`;
 
     dates.forEach(d=>{
       const day=parseInt(d.split('-')[2]);
@@ -1453,23 +1431,18 @@ function renderAttTable(){
       return a.name.localeCompare(b.name);
     }).forEach(s=>{
       let present=0, late=0, absent=0;
-      const timeMinsArr=[];
       const cells = dates.map(d=>{
         const e = staffTimeMap[s.name]?.[d];
         if(!e){ absent++; return `<td style="${tdS}color:var(--text3);">-</td>`; }
         const isLate = e.type==='late'||( e.time && e.time>='07:31');
         if(isLate) late++; else present++;
-        if(e.time){ const [h,m]=e.time.split(':').map(Number); timeMinsArr.push(h*60+m); }
         return `<td style="${tdS}color:${isLate?'var(--yellow)':'var(--green)'};${isLate?'background:rgba(251,191,36,0.08);':''}">${e.time||'✓'}</td>`;
       });
-      const avgM = timeMinsArr.length ? Math.round(timeMinsArr.reduce((a,b)=>a+b,0)/timeMinsArr.length) : null;
-      const avgT = avgM ? `${String(Math.floor(avgM/60)).padStart(2,'0')}:${String(avgM%60).padStart(2,'0')}` : '-';
       html+=`<tr>
         <td style="${tdS}text-align:left;position:sticky;left:0;z-index:1;background:var(--bg2);font-weight:600;min-width:70px;">${s.name}</td>
         <td style="${tdS}color:var(--green);font-weight:700;">${s.presentCnt||present}</td>
         <td style="${tdS}color:var(--yellow);font-weight:700;">${s.lateCnt||late||'-'}</td>
         <td style="${tdS}color:var(--red);font-weight:700;">${s.absentCnt||absent||'-'}</td>
-        <td style="${tdS}color:var(--blue);font-weight:700;">${avgT}</td>
         ${cells.join('')}
       </tr>`;
     });
