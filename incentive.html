@@ -1218,12 +1218,15 @@ window.loadBookXlsx = function(input){
             if(hasRRow) delete newData[bid];
           });
           console.log('[BOOK upload] 최종 저장할 b_ 행들:', Object.keys(newData).filter(id=>id.startsWith('b_')));
-          set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData);
-          savedCount++;
-          if(savedCount===staffNames.length){
-            showToast('✓ '+staffNames.length+' staff BOOK incentive uploaded!');
-            if(currentStaff && staffData[currentStaff]) loadFromRecords(currentStaff);
-          }
+          set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData).then(()=>{
+            savedCount++;
+            if(savedCount===staffNames.length){
+              showToast('✓ '+staffNames.length+' staff BOOK incentive uploaded!');
+              if(currentStaff && staffData[currentStaff]){
+                setTimeout(()=>loadFromRecords(currentStaff), 800);
+              }
+            }
+          });
         },{onlyOnce:true});
       });
       input.value='';
