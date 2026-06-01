@@ -481,6 +481,7 @@ function loadFromRecords(name){
 
     snap.forEach(child=>{
       const r = child.val();
+      const recordKey = child.key;  // 매출장부 고유 키
       if(!r.date || r.date < fromDate || r.date > toDate) return;
       const bookers = (r.bookers||[]).filter(s=>s&&s!=='WALKIN');
       const sel1 = (r.staff||[]).filter(Boolean);
@@ -499,9 +500,10 @@ function loadFromRecords(name){
         room: r.room||'?',
         bookers: bookers,
         sel: allSel,
-        sel1: sel1,   // selection1 (자동 200)
-        sel2: sel2,   // selection2
-        sales: share
+        sel1: sel1,
+        sel2: sel2,
+        sales: share,
+        recordKey: recordKey  // 고유 키로 중복 방지
       });
     });
 
@@ -542,9 +544,9 @@ function loadFromRecords(name){
 
       // Date+부킹자별 행 생성 (룸별 매출 각각 적용)
       Object.entries(dateRoomInfo).forEach(([date, rooms])=>{
-        rooms.forEach(({room, bookers, sel, sel1, sel2, sales})=>{
+        rooms.forEach(({room, bookers, sel, sel1, sel2, sales, recordKey})=>{
           const bookerStr = bookers.join('/');
-          const safeKey = (date+'_R'+room+'_'+bookerStr).replace(/[^a-zA-Z0-9]/g,'_');
+          const safeKey = (date+'_R'+room+'_'+bookerStr+'_'+(recordKey||'')).replace(/[^a-zA-Z0-9]/g,'_');
           const rowId = 'r_'+safeKey;
           const isMyBook = bookers.includes(name);
 
@@ -760,7 +762,7 @@ function renderTable(){
           ${selLabel}
         </td>
         ${COLS.map(col=>{
-          const isAuto = col==='sales';
+          const isAuto = col==='sales' && id.startsWith('r_');  // 자동행만 SALES 잠금, 수동추가 행은 입력 가능
           const isLocked = isCurrentManager && col!=='book' && col!=='sales';
           return `<td>
             <input class="cell-input" type="text" 
