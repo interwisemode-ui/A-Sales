@@ -762,7 +762,7 @@ function renderTable(){
           ${selLabel}
         </td>
         ${COLS.map(col=>{
-          const isAuto = col==='sales' && id.startsWith('r_');  // 자동행만 SALES 잠금, 수동추가 행은 입력 가능
+          const isAuto = false;  // SALES 직접 수정 가능
           const isLocked = isCurrentManager && col!=='book' && col!=='sales';
           return `<td>
             <input class="cell-input" type="text" 
