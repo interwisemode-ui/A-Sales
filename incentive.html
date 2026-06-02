@@ -1763,7 +1763,7 @@ window.bkSetToday = function(){
   showToast('Date set to today (IST): ' + todayIST);
 };
 
-
+window.bkNationChange = function(sel){
   const otherInput=sel.parentElement.querySelector('.bk-nation-other');
   if(otherInput) otherInput.style.display=sel.value==='Other'?'block':'none';
 };
