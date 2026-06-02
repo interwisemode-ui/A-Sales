@@ -635,17 +635,30 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <!-- PROFIT TAB -->
     <div id="tab-profit" class="tab-content">
-      <div id="profitChartWrap"></div>
-      <div class="rec-header">
-        <div class="rec-title">손익 결산</div>
-        <div class="filter-bar">
-          <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
-          <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
-          <button class="quick-btn" onclick="window.setProfitMonth('last')">지난달</button>
-        </div>
+      <!-- 서브탭 -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <button id="profitSubTab-summary" onclick="switchProfitSubTab('summary')"
+          style="padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">📋 손익결산</button>
+        <button id="profitSubTab-chart" onclick="switchProfitSubTab('chart')"
+          style="padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg3);color:var(--text2);">📊 손익그래프</button>
       </div>
-      <div id="profitContent"></div>
-      <div id="cashFlowContent" style="margin-top:16px;"></div>
+      <!-- 손익결산 -->
+      <div id="profitSubContent-summary">
+        <div class="rec-header">
+          <div class="rec-title">손익 결산</div>
+          <div class="filter-bar">
+            <input class="input-field" type="month" id="profitMonth" onchange="window.renderProfit()" style="font-size:11px;width:auto;">
+            <button class="quick-btn" onclick="window.setProfitMonth('this')">이번달</button>
+            <button class="quick-btn" onclick="window.setProfitMonth('last')">지난달</button>
+          </div>
+        </div>
+        <div id="profitContent"></div>
+        <div id="cashFlowContent" style="margin-top:16px;"></div>
+      </div>
+      <!-- 손익그래프 -->
+      <div id="profitSubContent-chart" style="display:none;">
+        <div id="profitChartWrap"></div>
+      </div>
     </div>
 
   </div>
@@ -1970,7 +1983,7 @@ function switchTab(n){
   if(n==='manage')renderManageGrid();
   if(n==='booking')renderBookings();
   if(n==='expense'){const m=document.getElementById('expenseMonth').value;if(m)loadExpenseFromDB(m);}
-  if(n==='profit'){renderProfit();loadCashFlow();renderProfitChart();}
+  if(n==='profit'){renderProfit();loadCashFlow();}
 }
 window.switchTab=switchTab;
 window.loadExpenseFile=loadExpenseFile;
@@ -3975,6 +3988,9 @@ function renderProfit(){
         const expTot    = fixedTot+varTot+taxVal+licVal;
         const profitVal = salesTotal-expTot;
         const profitColor= profitVal>=0?'var(--green)':'var(--red)';
+        // 그래프용 캐시 저장
+        const _profitMonthKey = document.getElementById('profitMonth')?.value||'';
+        if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal};
 
         const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
         const fmt=(v)=>v>0?'₹'+v.toLocaleString():'-';
@@ -4128,6 +4144,9 @@ function renderProfit(){
 
 
 // ── 손익 추이 그래프 ──────────────────────────────────────────
+// 기간별 손익 결과 저장소 (그래프용)
+const profitPeriodCache = {};
+
 const PROFIT_HISTORY_STATIC = [
   {label:'25/09월', sales:3503552, expense:6780667, profit:-3277115, dividend:0},
   {label:'25/10월', sales:6025426, expense:4454972, profit:1570454,  dividend:1000000},
@@ -4138,7 +4157,6 @@ const PROFIT_HISTORY_STATIC = [
   {label:'26/03월', sales:7652700, expense:5198867, profit:2453834,  dividend:2250000},
 ];
 
-// 4월부터 11일~익월10일 주기로 자동 계산할 기간 목록
 const AUTO_PERIODS = [
   {label:'4/11~5/10',  from:'2026-04-11', to:'2026-05-10', expMonths:['2026-04','2026-05']},
   {label:'5/11~6/10',  from:'2026-05-11', to:'2026-06-10', expMonths:['2026-05','2026-06']},
@@ -4148,119 +4166,195 @@ const AUTO_PERIODS = [
   {label:'9/11~10/10', from:'2026-09-11', to:'2026-10-10', expMonths:['2026-09','2026-10']},
 ];
 
-function renderProfitChart(){
-  const el = document.getElementById('profitChartWrap');
-  if(!el) return;
-  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center;">그래프 로딩중...</div>';
-
+function calcPeriodData(p, callback){
   const today = localDateStr(new Date());
+  if(p.from > today){ callback(null); return; }
 
-  // 자동 기간 중 데이터 있는 기간만 계산
-  let pending = 0;
-  const autoPeriods = AUTO_PERIODS.filter(p=>p.from<=today);
-  const autoResults = {};
-
-  if(autoPeriods.length===0){
-    drawChart([]);
+  // 캐시에 있으면 바로 반환 (renderProfit에서 이미 계산한 값)
+  // expMonths의 첫 번째 월을 기준으로 캐시 확인
+  const cacheKey = p.expMonths[0];
+  if(profitPeriodCache[cacheKey]){
+    const cached = profitPeriodCache[cacheKey];
+    onValue(ref(db,'profitDividend/'+p.label), dvSnap=>{
+      const dividend = dvSnap.exists() ? dvSnap.val() : 0;
+      callback({label:p.label, sales:cached.sales, expense:cached.expense, profit:cached.profit, dividend});
+    },{onlyOnce:true});
     return;
   }
 
-  autoPeriods.forEach(p=>{
-    pending++;
-    // 해당 기간 매출
-    const sales = records.filter(r=>r.date>=p.from&&r.date<=p.to).reduce((s,r)=>s+(r.total||0),0);
-    // 해당 기간 경비 (2개 월 합산)
-    let expTotal = 0;
-    let expPending = p.expMonths.length;
-    const expData = {};
-    p.expMonths.forEach(m=>{
-      onValue(ref(db,'expenses/'+m), snap=>{
-        if(snap.exists()){
-          const d = snap.val().data||{};
-          Object.entries(d).forEach(([date,cats])=>{
-            if(date>=p.from&&date<=p.to) Object.values(cats).forEach(v=>expTotal+=v);
-          });
-        }
-        expPending--;
-        if(expPending===0){
-          // 배당 로드
-          onValue(ref(db,'profitDividend/'+p.label), dvSnap=>{
-            const dividend = dvSnap.exists() ? dvSnap.val() : 0;
-            autoResults[p.label] = {label:p.label, sales, expense:expTotal, profit:sales-expTotal, dividend};
-            pending--;
-            if(pending===0) drawChart(autoPeriods.map(pp=>autoResults[pp.label]).filter(Boolean));
-          },{onlyOnce:true});
-        }
-      },{onlyOnce:true});
+  // 캐시 없으면 직접 계산
+  const sales = records.filter(r=>r.date>=p.from&&r.date<=p.to).reduce((s,r)=>s+(r.total||0),0);
+
+  // 경비 - renderProfit과 동일한 방식으로 계산
+  let combinedExp = {};
+  let pending = p.expMonths.length;
+  p.expMonths.forEach(m=>{
+    onValue(ref(db,'expenses/'+m), snap=>{
+      if(snap.exists()){
+        const d = snap.val().data||{};
+        Object.entries(d).forEach(([date,cats])=>{
+          if(date>=p.from&&date<=p.to&&typeof cats==='object'){
+            if(!combinedExp[date]) combinedExp[date]={};
+            Object.entries(cats).forEach(([cat,v])=>{
+              if(typeof v==='number') combinedExp[date][cat]=(combinedExp[date][cat]||0)+v;
+            });
+          }
+        });
+      }
+      pending--;
+      if(pending===0){
+        // renderProfit과 동일한 카테고리 그룹으로 합산
+        const catTotals={};
+        Object.values(combinedExp).forEach(cats=>{
+          Object.entries(cats).forEach(([cat,v])=>{ catTotals[cat]=(catTotals[cat]||0)+v; });
+        });
+        const laborVal  = catTotals['인건비']||0;
+        const rentVal   = (catTotals['임대로']||0)+(catTotals['임대료']||0);
+        const mgmtVal   = catTotals['관리비']||0;
+        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
+        const varTotal  = varCats.reduce((s,k)=>s+(catTotals[k]||0),0);
+        const taxTotal  = catTotals['TAX']||0;
+        const licTotal  = catTotals['라이선스']||0;
+        const expense   = laborVal+rentVal+mgmtVal+varTotal+taxTotal+licTotal;
+
+        // 배당
+        onValue(ref(db,'profitDividend/'+p.label), dvSnap=>{
+          const dividend = dvSnap.exists() ? dvSnap.val() : 0;
+          callback({label:p.label, sales, expense, profit:sales-expense, dividend});
+        },{onlyOnce:true});
+      }
+    },{onlyOnce:true});
+  });
+}
+
+function renderProfitChart(){
+  const el = document.getElementById('profitChartWrap');
+  if(!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px;">그래프 로딩중...</div>';
+
+  const today = localDateStr(new Date());
+  const activePeriods = AUTO_PERIODS.filter(p=>p.from<=today);
+  if(activePeriods.length===0){ drawChart([]); return; }
+
+  const results = new Array(activePeriods.length).fill(null);
+  let done = 0;
+  activePeriods.forEach((p,i)=>{
+    calcPeriodData(p, data=>{
+      results[i] = data;
+      done++;
+      if(done===activePeriods.length) drawChart(results.filter(Boolean));
     });
   });
 
   function drawChart(autoData){
     const allData = [...PROFIT_HISTORY_STATIC, ...autoData];
-    const maxVal = Math.max(...allData.map(d=>Math.max(d.sales, d.expense, Math.abs(d.profit))));
+    const maxVal = Math.max(...allData.map(d=>Math.max(d.sales, d.expense, Math.abs(d.profit), d.dividend||0)), 1);
 
-    const barW = 54, gap = 14, padL = 44, padR = 16, padT = 30, padB = 60;
+    const barW=54, gap=12, padL=44, padR=16, padT=32, padB=56;
     const chartW = padL + allData.length*(barW+gap) + padR;
     const chartH = 280;
-    const zeroY = padT + (chartH-padT-padB)*0.65; // 0선 위치 (위쪽 65%)
-    const scaleUp = (chartH-padT-padB)*0.65 / maxVal;
-    const scaleDown = (chartH-padT-padB)*0.35 / maxVal;
-
+    const zeroY = padT + (chartH-padT-padB)*0.68;
+    const scaleUp = (chartH-padT-padB)*0.68 / maxVal;
+    const scaleDown = (chartH-padT-padB)*0.32 / maxVal;
     const colors = {sales:'#60a5fa', expense:'#f87171', profit:'#34d399', dividend:'#a78bfa'};
 
-    let bars = '';
+    let bars='', bw=(barW-6)/4;
     allData.forEach((d,i)=>{
       const x = padL + i*(barW+gap);
-      const bw = (barW-4)/4;
-
       // 매출
-      const sH = d.sales*scaleUp; bars+=`<rect x="${x}" y="${zeroY-sH}" width="${bw}" height="${sH}" fill="${colors.sales}" rx="2"/>`;
+      const sH=Math.max(d.sales*scaleUp,1);
+      bars+=`<rect x="${x}" y="${zeroY-sH}" width="${bw}" height="${sH}" fill="${colors.sales}" rx="2"/>`;
+      bars+=`<text x="${x+bw/2}" y="${zeroY-sH-3}" text-anchor="middle" font-size="8" fill="${colors.sales}">${(d.sales/1000000).toFixed(1)}M</text>`;
       // 매입
-      const eH = d.expense*scaleUp; bars+=`<rect x="${x+bw+1}" y="${zeroY-eH}" width="${bw}" height="${eH}" fill="${colors.expense}" rx="2"/>`;
+      const eH=Math.max(d.expense*scaleUp,1);
+      bars+=`<rect x="${x+bw+2}" y="${zeroY-eH}" width="${bw}" height="${eH}" fill="${colors.expense}" rx="2"/>`;
       // 손익
       if(d.profit>=0){
-        const pH = d.profit*scaleUp; bars+=`<rect x="${x+bw*2+2}" y="${zeroY-pH}" width="${bw}" height="${pH}" fill="${colors.profit}" rx="2"/>`;
+        const pH=Math.max(d.profit*scaleUp,1);
+        bars+=`<rect x="${x+bw*2+4}" y="${zeroY-pH}" width="${bw}" height="${pH}" fill="${colors.profit}" rx="2"/>`;
+        bars+=`<text x="${x+bw*2+4+bw/2}" y="${zeroY-pH-3}" text-anchor="middle" font-size="8" fill="${colors.profit}">${(d.profit/1000000).toFixed(1)}M</text>`;
       } else {
-        const pH = Math.abs(d.profit)*scaleDown; bars+=`<rect x="${x+bw*2+2}" y="${zeroY}" width="${bw}" height="${pH}" fill="${colors.profit}" opacity="0.5" rx="2"/>`;
+        const pH=Math.max(Math.abs(d.profit)*scaleDown,1);
+        bars+=`<rect x="${x+bw*2+4}" y="${zeroY}" width="${bw}" height="${pH}" fill="${colors.profit}" opacity="0.6" rx="2"/>`;
+        bars+=`<text x="${x+bw*2+4+bw/2}" y="${zeroY+pH+9}" text-anchor="middle" font-size="8" fill="${colors.profit}">-${(Math.abs(d.profit)/1000000).toFixed(1)}M</text>`;
       }
       // 배당
       if(d.dividend>0){
-        const dH = d.dividend*scaleUp; bars+=`<rect x="${x+bw*3+3}" y="${zeroY-dH}" width="${bw}" height="${dH}" fill="${colors.dividend}" rx="2"/>`;
+        const dH=Math.max(d.dividend*scaleUp,1);
+        bars+=`<rect x="${x+bw*3+6}" y="${zeroY-dH}" width="${bw}" height="${dH}" fill="${colors.dividend}" rx="2"/>`;
       }
-
       // 레이블
       bars+=`<text x="${x+barW/2}" y="${chartH-padB+14}" text-anchor="middle" font-size="9" fill="var(--text3)">${d.label}</text>`;
-      // 매출 숫자
-      bars+=`<text x="${x+barW/2}" y="${zeroY-sH-4}" text-anchor="middle" font-size="8" fill="${colors.sales}">${(d.sales/1000000).toFixed(1)}M</text>`;
-      // 손익 숫자
-      const profSign = d.profit>=0?'':'-';
-      bars+=`<text x="${x+bw*2+2+bw/2}" y="${d.profit>=0?zeroY-d.profit*scaleUp-4:zeroY+Math.abs(d.profit)*scaleDown+10}" text-anchor="middle" font-size="8" fill="${colors.profit}">${profSign}${(Math.abs(d.profit)/1000000).toFixed(1)}M</text>`;
     });
 
-    // 0선
-    const zeroLine = `<line x1="${padL-8}" y1="${zeroY}" x2="${chartW-padR}" y2="${zeroY}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4,2"/>`;
+    const zeroLine=`<line x1="${padL-8}" y1="${zeroY}" x2="${chartW-padR}" y2="${zeroY}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4,2"/>`;
 
-    // 범례
-    const legend = `
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11px;">
-        <span><span style="display:inline-block;width:10px;height:10px;background:${colors.sales};border-radius:2px;margin-right:4px;"></span>매출</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:${colors.expense};border-radius:2px;margin-right:4px;"></span>매입</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:${colors.profit};border-radius:2px;margin-right:4px;"></span>손익</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:${colors.dividend};border-radius:2px;margin-right:4px;"></span>배당</span>
-      </div>`;
-
-    el.innerHTML = `
+    el.innerHTML=`
       <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px;">📊 손익 추이</div>
         <div style="overflow-x:auto;">
-          <svg width="${chartW}" height="${chartH}" style="display:block;">
-            ${zeroLine}${bars}
-          </svg>
+          <svg width="${chartW}" height="${chartH}" style="display:block;">${zeroLine}${bars}</svg>
         </div>
-        ${legend}
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11px;">
+          <span><span style="display:inline-block;width:10px;height:10px;background:${colors.sales};border-radius:2px;margin-right:4px;"></span>매출</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:${colors.expense};border-radius:2px;margin-right:4px;"></span>매입</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:${colors.profit};border-radius:2px;margin-right:4px;"></span>손익</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:${colors.dividend};border-radius:2px;margin-right:4px;"></span>배당</span>
+        </div>
       </div>`;
   }
 }
+
+
+window.switchProfitSubTab = function(tab){
+  ['summary','chart'].forEach(t=>{
+    document.getElementById('profitSubContent-'+t).style.display = t===tab?'':'none';
+    const btn = document.getElementById('profitSubTab-'+t);
+    btn.style.background = t===tab?'var(--accent)':'var(--bg3)';
+    btn.style.color = t===tab?'#fff':'var(--text2)';
+  });
+  if(tab==='chart'){
+    // 각 AUTO_PERIODS 기간의 손익결산을 미리 renderProfit 방식으로 계산해 캐시에 저장
+    const today = localDateStr(new Date());
+    const activePeriods = AUTO_PERIODS.filter(p=>p.from<=today);
+    let pending = activePeriods.length;
+    if(pending===0){ renderProfitChart(); return; }
+    activePeriods.forEach(p=>{
+      const monthKey = p.expMonths[0];
+      if(profitPeriodCache[monthKey]){ pending--; if(pending===0) renderProfitChart(); return; }
+      // renderProfit과 동일하게 계산
+      const pSales = records.filter(r=>r.date>=p.from&&r.date<=p.to).reduce((s,r)=>s+(r.total||0),0);
+      let combinedExp={};
+      let expPending=p.expMonths.length;
+      p.expMonths.forEach(m=>{
+        onValue(ref(db,'expenses/'+m),snap=>{
+          if(snap.exists()){
+            const d=snap.val().data||{};
+            Object.entries(d).forEach(([date,cats])=>{
+              if(date>=p.from&&date<=p.to&&typeof cats==='object'){
+                Object.entries(cats).forEach(([cat,v])=>{ if(typeof v==='number') combinedExp[cat]=(combinedExp[cat]||0)+v; });
+              }
+            });
+          }
+          expPending--;
+          if(expPending===0){
+            const ct=combinedExp;
+            const laborVal=(ct['인건비']||0);
+            const rentVal=(ct['임대로']||0)+(ct['임대료']||0);
+            const mgmtVal=(ct['관리비']||0);
+            const varCats=['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
+            const varTot=varCats.reduce((s,k)=>s+(ct[k]||0),0);
+            const taxVal=ct['TAX']||0;
+            const licVal=ct['라이선스']||0;
+            const expTot=laborVal+rentVal+mgmtVal+varTot+taxVal+licVal;
+            profitPeriodCache[monthKey]={sales:pSales, expense:expTot, profit:pSales-expTot};
+            pending--; if(pending===0) renderProfitChart();
+          }
+        },{onlyOnce:true});
+      });
+    });
+  }
+};
 // ── 수동 오버라이드 저장/리셋 ──
 // ── CASH FLOW (자본 흐름) ──────────────────────────────────
 let cashFlowData = { balance: [], expense: [] };
