@@ -175,7 +175,10 @@ input:focus,select:focus{border-color:var(--accent);}
       <!-- Date -->
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
         <div class="sec-title" style="margin-bottom:10px;">📅 Date</div>
-        <input type="date" id="bkDate" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;outline:none;" />
+        <div style="display:flex;gap:8px;align-items:center;">
+        <input type="date" id="bkDate" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;outline:none;" />
+        <button onclick="bkSetToday()" style="background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;padding:10px 14px;cursor:pointer;white-space:nowrap;font-family:'Noto Sans KR',sans-serif;">📅 Today</button>
+        </div>
       </div>
 
       <!-- Booking List -->
@@ -1753,7 +1756,14 @@ window.bkSelectName = function(name, rowId){
 
 window.bkRemoveTag = function(el){ el.parentElement.remove(); };
 
-window.bkNationChange = function(sel){
+window.bkSetToday = function(){
+  const todayIST = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});
+  const el = document.getElementById('bkDate');
+  if(el){ el.value = todayIST; bkCheckSaved(todayIST); }
+  showToast('Date set to today (IST): ' + todayIST);
+};
+
+
   const otherInput=sel.parentElement.querySelector('.bk-nation-other');
   if(otherInput) otherInput.style.display=sel.value==='Other'?'block':'none';
 };
