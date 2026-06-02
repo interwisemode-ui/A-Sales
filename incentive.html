@@ -1811,8 +1811,7 @@ function bkCheckSaved(dateVal){
     if(snap.exists()){
       const data=snap.val();
       const t=new Date(data.savedAt);
-      const ist=new Date(t.getTime()+5.5*60*60*1000);
-      const timeStr=ist.getUTCHours().toString().padStart(2,'0')+':'+ist.getUTCMinutes().toString().padStart(2,'0');
+      const timeStr=t.toLocaleTimeString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit'});
       savedBar.style.display='flex';
       savedInfo.textContent='📋 Saved notice found ('+timeStr+') — Load to edit?';
       savedBar._data=data;
@@ -1872,10 +1871,7 @@ window.bkCopy = function(){
 
 // Init booking tab
 (function(){
-  const t=new Date();
-  const ist=new Date(t.getTime()+5.5*60*60*1000);
-  const yyyy=ist.getUTCFullYear(); const mm=String(ist.getUTCMonth()+1).padStart(2,'0'); const dd=String(ist.getUTCDate()).padStart(2,'0');
-  const todayVal=yyyy+'-'+mm+'-'+dd;
+  const todayVal = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});
   const el=document.getElementById('bkDate');
   if(el){ el.value=todayVal; el.onchange=function(){bkCheckSaved(el.value);}; }
   window.bkAddRow(); window.bkAddRow(); window.bkAddRow();
