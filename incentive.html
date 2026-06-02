@@ -1811,7 +1811,8 @@ function bkCheckSaved(dateVal){
     if(snap.exists()){
       const data=snap.val();
       const t=new Date(data.savedAt);
-      const timeStr=t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
+      const ist=new Date(t.getTime()+5.5*60*60*1000);
+      const timeStr=ist.getUTCHours().toString().padStart(2,'0')+':'+ist.getUTCMinutes().toString().padStart(2,'0');
       savedBar.style.display='flex';
       savedInfo.textContent='📋 Saved notice found ('+timeStr+') — Load to edit?';
       savedBar._data=data;
