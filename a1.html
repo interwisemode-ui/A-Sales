@@ -607,6 +607,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="vt-btn active" id="attViewTable" onclick="window.setAttView('table')">📋 표</button>
             <button class="vt-btn" id="attViewCard" onclick="window.setAttView('card')">🃏 카드</button>
           </div>
+          <select id="attMonthSelect" class="input-field" style="font-size:11px;width:auto;" onchange="window.loadAttMonth(this.value)">
+            <option value="">월 선택</option>
+          </select>
           <span class="att-month-badge" id="attMonthBadge">-</span>
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('attFileInput').click()">📊 엑셀 업로드</button>
           <input type="file" id="attFileInput" accept=".xlsx,.xls" style="display:none;" onchange="loadAttendanceFile(this)">
@@ -935,15 +938,30 @@ function init(){
     if(document.getElementById('tab-booking').classList.contains('active')) renderBookings();
   });
 
-  // attendance listener - load latest month
+  // attendance listener - load latest month + populate selector
   onValue(ref(db,'attendance'),snap=>{
     if(!snap.exists())return;
-    // find latest month
     let latest=null;
+    const months=[];
     snap.forEach(child=>{
       const v=child.val();
+      if(v.monthKey) months.push(v.monthKey);
       if(!latest||v.monthKey>latest.monthKey) latest=v;
     });
+    // 드롭다운 채우기
+    const sel=document.getElementById('attMonthSelect');
+    if(sel){
+      const cur=sel.value;
+      sel.innerHTML='<option value="">월 선택</option>';
+      months.sort((a,b)=>b.localeCompare(a)).forEach(mk=>{
+        const [y,m]=mk.split('-');
+        const o=document.createElement('option');
+        o.value=mk; o.text=`${y}년 ${m}월`;
+        sel.appendChild(o);
+      });
+      if(cur) sel.value=cur;
+      else if(latest) sel.value=latest.monthKey;
+    }
     if(latest) renderAttFromFirebase(latest);
   });
   loadSeparateCats();
@@ -4716,6 +4734,14 @@ window.setAttView=function(v){
   if(_lastAttData) renderAttFromFirebase(_lastAttData);
 };
 
+
+window.loadAttMonth = function(monthKey){
+  if(!monthKey) return;
+  onValue(ref(db,'attendance/'+monthKey), snap=>{
+    if(snap.exists()) renderAttFromFirebase(snap.val());
+    else showToast('해당 월 데이터 없음');
+  },{onlyOnce:true});
+};
 function renderAttFromFirebase(data){
   _lastAttData=data;
   console.log('stored dates[0..2]:', (data.dates||[]).slice(0,3).map(d=>d.dateStr));
