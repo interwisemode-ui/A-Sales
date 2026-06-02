@@ -138,6 +138,7 @@ input:focus,select:focus{border-color:var(--accent);}
       <button class="vt-btn active" id="homeTabMain" onclick="switchHomeTab('main')">👥 Staff</button>
       <button class="vt-btn" id="homeTabSummary" onclick="switchHomeTab('summary')">💰 Summary</button>
       <button class="vt-btn" id="homeTabAtt" onclick="switchHomeTab('att')">📋 Attendance</button>
+      <button class="vt-btn" id="homeTabBooking" onclick="switchHomeTab('booking')">📲 Booking</button>
     </div>
     <div style="display:flex;gap:6px;">
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInputHome').click()">📊 Upload BOOK</button>
@@ -159,6 +160,48 @@ input:focus,select:focus{border-color:var(--accent);}
   <!-- Present부 탭 -->
   <div id="homeTabContentAtt" style="display:none;">
     <div id="attTableWrap"></div>
+  </div>
+
+  <!-- Booking Notice 탭 -->
+  <div id="homeTabContentBooking" style="display:none;">
+    <div style="width:100%;box-sizing:border-box;">
+
+      <!-- Saved notice bar -->
+      <div id="bkSavedBar" style="display:none;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 14px;margin-bottom:10px;justify-content:space-between;align-items:center;">
+        <span id="bkSavedInfo" style="font-size:12px;color:var(--green);font-weight:700;"></span>
+        <button onclick="bkLoadSaved()" style="background:rgba(52,211,153,0.2);border:1px solid var(--green);border-radius:6px;color:var(--green);font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">📥 Load</button>
+      </div>
+
+      <!-- Date -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
+        <div class="sec-title" style="margin-bottom:10px;">📅 Date</div>
+        <input type="date" id="bkDate" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;padding:10px 12px;outline:none;" />
+      </div>
+
+      <!-- Booking List -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
+        <div class="sec-title" style="margin-bottom:10px;">🛎 Booking List</div>
+        <div id="bkList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;"></div>
+        <button onclick="bkAddRow()" style="width:100%;padding:10px;background:var(--bg3);border:1px dashed var(--border2);border-radius:8px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">＋ Add Booking</button>
+      </div>
+
+      <!-- Generate -->
+      <button onclick="bkGenerate()" style="width:100%;padding:14px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:12px;font-family:'Noto Sans KR',sans-serif;">✨ Generate Notice</button>
+
+      <!-- Output -->
+      <div id="bkOutputCard" style="display:none;background:var(--bg2);border:1px solid var(--green);border-radius:10px;padding:16px;margin-bottom:16px;">
+        <div class="sec-title" style="margin-bottom:8px;color:var(--green);">📋 Ready to Send</div>
+        <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;">
+          <span id="bkSummary" style="color:var(--green);font-weight:700;"></span>
+          <span id="bkSummaryDate" style="color:var(--green);font-weight:700;"></span>
+        </div>
+        <div id="bkOutput" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;padding:14px;white-space:pre-wrap;word-break:break-word;user-select:all;"></div>
+        <button id="bkCopyBtn" onclick="bkCopy()" style="width:100%;padding:13px;background:var(--bg3);border:1px solid var(--green);border-radius:10px;color:var(--green);font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;font-family:'Noto Sans KR',sans-serif;">📋 Copy for WhatsApp</button>
+        <button id="bkSaveRecBtn" onclick="bkSaveToRecords()" style="width:100%;padding:13px;background:rgba(124,111,247,0.15);border:1px solid var(--accent);border-radius:10px;color:var(--accent2);font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;font-family:'Noto Sans KR',sans-serif;">💾 Save to 매출장부</button>
+        <div id="bkCopyFallback" style="display:none;background:var(--bg);border:1px dashed var(--green);border-radius:8px;color:var(--text2);font-size:12px;margin-top:8px;padding:10px;text-align:center;">☝️ Text selected — press <strong>Ctrl+C</strong> or <strong>Cmd+C</strong></div>
+        <p style="font-size:11px;color:var(--text3);margin-top:8px;text-align:center;">Paste directly into WhatsApp chat</p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -299,7 +342,7 @@ input:focus,select:focus{border-color:var(--accent);}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, get, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0MehTEqcHuBIHEBjYGbwoirJhYP7Mo6o",
@@ -1355,6 +1398,7 @@ window.switchHomeTab = function(tab){
     main:    {content:'homeTabContentMain',    btn:'homeTabMain'},
     summary: {content:'homeTabContentSummary', btn:'homeTabSummary'},
     att:     {content:'homeTabContentAtt',     btn:'homeTabAtt'},
+    booking: {content:'homeTabContentBooking', btn:'homeTabBooking'},
   };
   Object.entries(tabs).forEach(([t,ids])=>{
     const el = document.getElementById(ids.content);
@@ -1615,6 +1659,227 @@ window.showToast = function(msg){
 window.updateCell=updateCell;
 window.deleteRow=deleteRow;
 window.addRow=addRow;
+
+// ── BOOKING NOTICE ─────────────────────────────────────────
+const _bkNationOpts = [
+  {v:'J', l:'J  -  JAPAN'},
+  {v:'K', l:'K  -  KOREA'},
+  {v:'C', l:'C  -  CHINA'},
+  {v:'I', l:'I  -  INDIA'},
+  {v:'T', l:'T  -  TURKIYE'},
+  {v:'Other', l:'OTHER'}
+];
+const _bkPaxOpts  = ['-','1','2','3','4','5','6','7','8','9','10'];
+const _bkRoomOpts = ['-','R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'];
+let _bkCount = 0;
+let _bkLastBookings = null;
+let _bkLastDate = null;
+let _bkStaffList = [];
+onValue(ref(db,'config/staffList'), function(snap){ if(snap.exists()) _bkStaffList=snap.val(); });
+
+function _mkSel(cls, opts, rowId){
+  const onChange = cls==='bk-nation'&&rowId ? 'onchange="bkNationChange(this)"' : '';
+  let h='<select class="'+cls+'" '+onChange+' style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:6px 8px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;">';
+  opts.forEach(function(o){ const v=typeof o==='object'?o.v:o; const l=typeof o==='object'?o.l:o; h+='<option value="'+v+'">'+l+'</option>'; });
+  return h+'</select>';
+}
+
+function _bkUpdateNums(){
+  document.querySelectorAll('#bkList > div').forEach(function(item,i){
+    const b=item.querySelector('.bk-badge'); if(b) b.textContent=i+1;
+  });
+}
+
+window.bkAddRow = function(){
+  _bkCount++;
+  const n=_bkCount;
+  const list=document.getElementById('bkList');
+  if(!list) return;
+  const item=document.createElement('div');
+  item.id='bkrow-'+n;
+  item.style.cssText='background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;position:relative;';
+  item.innerHTML=[
+    '<span class="bk-badge" style="position:absolute;top:10px;left:12px;font-size:11px;font-weight:700;color:var(--accent);background:rgba(124,111,247,0.15);border-radius:4px;padding:2px 6px;">'+(list.children.length+1)+'</span>',
+    '<button onclick="bkRemoveRow(\'bkrow-'+n+'\')" style="position:absolute;top:10px;right:10px;background:rgba(248,113,113,0.15);border:none;border-radius:6px;color:var(--red);cursor:pointer;width:28px;height:28px;font-size:15px;">✕</button>',
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:28px;">',
+    '<div style="grid-column:span 2;">',
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">📋 Booking Name</div>',
+    '<input type="text" class="bk-search" placeholder="Search..." oninput="bkSearch(this,'+n+')" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;margin-bottom:4px;" />',
+    '<div class="bk-results" id="bkresults-'+n+'" style="display:flex;flex-wrap:wrap;gap:4px;max-height:100px;overflow-y:auto;"></div>',
+    '<div class="bk-selected-name" id="bkselected-'+n+'" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-height:0;"></div>',
+    '</div>',
+    '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">👥 Pax</div>'+_mkSel('bk-pax',_bkPaxOpts)+'</div>',
+    '<div><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🌍 Nation</div>'+_mkSel('bk-nation',_bkNationOpts,n)+'<input type="text" class="bk-nation-other" placeholder="Type nation..." style="display:none;margin-top:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;font-family:\'Noto Sans KR\',sans-serif;outline:none;" /></div>',
+    '<div style="grid-column:span 2;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">🚪 Room</div>'+_mkSel('bk-room',_bkRoomOpts)+'</div>',
+    '</div>'
+  ].join('');
+  list.appendChild(item);
+  _bkUpdateNums();
+};
+
+window.bkRemoveRow = function(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.style.transition='all 0.2s'; el.style.opacity='0'; el.style.transform='translateX(20px)';
+  setTimeout(function(){ el.remove(); _bkUpdateNums(); },200);
+};
+
+window.bkSearch = function(input, rowId){
+  const q=input.value.trim().toLowerCase();
+  const resultsEl=document.getElementById('bkresults-'+rowId);
+  if(!resultsEl) return;
+  if(!q){ resultsEl.innerHTML=''; return; }
+  const selectedEl=document.getElementById('bkselected-'+rowId);
+  const already=selectedEl?Array.from(selectedEl.querySelectorAll('.bk-tag')).map(function(t){return t.dataset.name;})  :[];
+  const matches=_bkStaffList.filter(function(s){return s.toLowerCase().includes(q)&&!already.includes(s);}).slice(0,15);
+  resultsEl.innerHTML=matches.map(function(s){
+    return '<button onclick="bkSelectName(\''+s+'\','+rowId+')" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;padding:4px 10px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;">'+s+'</button>';
+  }).join('');
+};
+
+window.bkSelectName = function(name, rowId){
+  const selectedEl=document.getElementById('bkselected-'+rowId);
+  const resultsEl=document.getElementById('bkresults-'+rowId);
+  const searchEl=document.querySelector('#bkrow-'+rowId+' .bk-search');
+  if(!selectedEl) return;
+  const tag=document.createElement('span');
+  tag.className='bk-tag'; tag.dataset.name=name;
+  tag.style.cssText='display:inline-flex;align-items:center;gap:4px;background:rgba(124,111,247,0.2);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--accent);font-weight:700;';
+  tag.innerHTML=name+'<span onclick="bkRemoveTag(this)" style="cursor:pointer;opacity:0.7;font-size:14px;line-height:1;">✕</span>';
+  selectedEl.appendChild(tag);
+  if(resultsEl) resultsEl.innerHTML='';
+  if(searchEl) searchEl.value='';
+};
+
+window.bkRemoveTag = function(el){ el.parentElement.remove(); };
+
+window.bkNationChange = function(sel){
+  const otherInput=sel.parentElement.querySelector('.bk-nation-other');
+  if(otherInput) otherInput.style.display=sel.value==='Other'?'block':'none';
+};
+
+window.bkGenerate = function(){
+  const dateVal=document.getElementById('bkDate').value;
+  if(!dateVal){showToast('Please select a date!');return;}
+  const items=document.querySelectorAll('#bkList > div');
+  const bookings=[]; let totalPax=0;
+  items.forEach(function(item){
+    const selectedEl=item.querySelector('.bk-selected-name');
+    const tags=selectedEl?Array.from(selectedEl.querySelectorAll('.bk-tag')).map(function(t){return t.dataset.name.toUpperCase();}):[];
+    const name=tags.join(' & ');
+    const pax=item.querySelector('.bk-pax').value;
+    const _nSel=item.querySelector('.bk-nation').value;
+    const nation=_nSel==='Other'?(item.querySelector('.bk-nation-other').value.trim().toUpperCase()||'?'):_nSel;
+    const room=item.querySelector('.bk-room').value;
+    if(name){bookings.push({name,pax,nation,room});totalPax+=parseInt(pax)||0;}
+  });
+  if(!bookings.length){showToast('Please enter at least 1 booking!');return;}
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const p=dateVal.split('-');
+  const d=new Date(+p[0],+p[1]-1,+p[2]);
+  const dateStr=d.getDate()+' '+months[d.getMonth()];
+  const day=days[d.getDay()];
+  const lines=[];
+  lines.push('🔔 *BOOKING NOTICE* 🔔');
+  lines.push('📅 *'+dateStr+', '+day+'*');
+  lines.push('');
+  bookings.forEach(function(b){lines.push('◉  *'+b.name+'*  '+b.pax+b.nation+'  '+b.room);});
+  lines.push('');
+  lines.push('🚪 Total  *'+bookings.length+' Rooms  '+totalPax+' Pax*');
+  _bkLastBookings=bookings; _bkLastDate=dateVal;
+  set(ref(db,'bookingNotice/'+dateVal),{date:dateVal,bookings:bookings,savedAt:Date.now()});
+  showToast('✓ Booking notice saved!');
+  document.getElementById('bkOutput').textContent=lines.join('\n');
+  document.getElementById('bkSummary').textContent=bookings.length+' Rooms  '+totalPax+' Pax';
+  document.getElementById('bkSummaryDate').textContent=dateStr+' ('+day+')';
+  const card=document.getElementById('bkOutputCard');
+  card.style.display='block';
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+  const sb=document.getElementById('bkSaveRecBtn');
+  if(sb){sb.textContent='💾 Save to 매출장부';sb.style.color='var(--accent2)';sb.style.borderColor='var(--accent)';}
+  const btn=document.getElementById('bkCopyBtn');
+  btn.textContent='📋 Copy for WhatsApp'; btn.style.color='var(--green)';
+  document.getElementById('bkCopyFallback').style.display='none';
+};
+
+function bkCheckSaved(dateVal){
+  const savedBar=document.getElementById('bkSavedBar');
+  const savedInfo=document.getElementById('bkSavedInfo');
+  if(!savedBar||!savedInfo) return;
+  get(ref(db,'bookingNotice/'+dateVal)).then(function(snap){
+    if(snap.exists()){
+      const data=snap.val();
+      const t=new Date(data.savedAt);
+      const timeStr=t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');
+      savedBar.style.display='flex';
+      savedInfo.textContent='📋 Saved notice found ('+timeStr+') — Load to edit?';
+      savedBar._data=data;
+    } else { savedBar.style.display='none'; }
+  }).catch(function(){savedBar.style.display='none';});
+}
+
+window.bkLoadSaved = function(){
+  const savedBar=document.getElementById('bkSavedBar');
+  if(!savedBar||!savedBar._data) return;
+  const data=savedBar._data;
+  document.getElementById('bkList').innerHTML='';
+  _bkCount=0;
+  data.bookings.forEach(function(b){
+    window.bkAddRow();
+    const rowId=_bkCount;
+    const item=document.getElementById('bkrow-'+rowId);
+    if(!item) return;
+    const names=b.name.split(' & ');
+    names.forEach(function(n){ window.bkSelectName(n,rowId); });
+    const paxSel=item.querySelector('.bk-pax'); if(paxSel) paxSel.value=b.pax;
+    const natSel=item.querySelector('.bk-nation');
+    if(natSel){ natSel.value=b.nation; if(b.nation==='Other'){const oi=item.querySelector('.bk-nation-other');if(oi){oi.style.display='block';oi.value=b.nationOther||'';}} }
+    const roomSel=item.querySelector('.bk-room'); if(roomSel) roomSel.value=b.room;
+  });
+  savedBar.style.display='none';
+  showToast('✓ Booking loaded! Edit and Generate again.');
+};
+
+window.bkSaveToRecords = function(){
+  if(!_bkLastBookings||!_bkLastDate){showToast('⚠ 먼저 Generate 해주세요!');return;}
+  const nMap={'J':'J','K':'K','C':'C','I':'I','T':'T','Other':'ETC'};
+  let saved=0;
+  _bkLastBookings.forEach(function(b){
+    const id=Date.now().toString()+'_'+Math.random().toString(36).slice(2,6);
+    const rec={id,date:_bkLastDate,room:b.room==='-'?null:parseInt(b.room.replace('R','')),
+      bookers:b.name.split(' & '),booking:'BOOKING',payment:'',
+      total:0,cash:0,card:0,upi:0,dc:0,country:nMap[b.nation]||b.nation,
+      pax:b.pax==='-'?null:parseInt(b.pax),staff:[],staff2:[],
+      checkin:'',checkout:'',note:'📲 부킹노티스 자동저장',time:''};
+    set(ref(db,'records/'+id),rec); saved++;
+  });
+  const btn=document.getElementById('bkSaveRecBtn');
+  btn.textContent='✅ '+saved+'건 저장 완료!';btn.style.color='var(--green)';btn.style.borderColor='var(--green)';
+  setTimeout(function(){btn.textContent='💾 Save to 매출장부';btn.style.color='var(--accent2)';btn.style.borderColor='var(--accent)';},3000);
+  showToast('✓ 매출장부에 '+saved+'건 저장됐어요!');
+};
+
+window.bkCopy = function(){
+  const text=document.getElementById('bkOutput').textContent;
+  const btn=document.getElementById('bkCopyBtn');
+  const fb=document.getElementById('bkCopyFallback');
+  function onOk(){btn.textContent='✅ Copied!';btn.style.color='#34D399';fb.style.display='none';setTimeout(function(){btn.textContent='📋 Copy for WhatsApp';btn.style.color='var(--green)';},3000);}
+  function onFail(){const el=document.getElementById('bkOutput');const r=document.createRange();r.selectNodeContents(el);const s=window.getSelection();s.removeAllRanges();s.addRange(r);try{if(document.execCommand('copy')){onOk();return;}}catch(e){}fb.style.display='block';btn.textContent='☝️ Text Selected — Press Ctrl+C';}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(onOk).catch(onFail);}else{onFail();}
+};
+
+// Init booking tab
+(function(){
+  const t=new Date();
+  const yyyy=t.getFullYear(); const mm=String(t.getMonth()+1).padStart(2,'0'); const dd=String(t.getDate()).padStart(2,'0');
+  const todayVal=yyyy+'-'+mm+'-'+dd;
+  const el=document.getElementById('bkDate');
+  if(el){ el.value=todayVal; el.onchange=function(){bkCheckSaved(el.value);}; }
+  window.bkAddRow(); window.bkAddRow(); window.bkAddRow();
+  setTimeout(function(){bkCheckSaved(todayVal);},1000);
+})();
+
 </script>
 </body>
 </html>
