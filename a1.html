@@ -4268,6 +4268,7 @@ function renderProfitChart(){
       // 매입
       const eH=Math.max(d.expense*scaleUp,1);
       bars+=`<rect x="${x+bw+2}" y="${zeroY-eH}" width="${bw}" height="${eH}" fill="${colors.expense}" rx="2"/>`;
+      bars+=`<text x="${x+bw+2+bw/2}" y="${zeroY-eH-3}" text-anchor="middle" font-size="8" fill="${colors.expense}">${(d.expense/1000000).toFixed(1)}M</text>`;
       // 손익
       if(d.profit>=0){
         const pH=Math.max(d.profit*scaleUp,1);
