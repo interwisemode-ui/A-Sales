@@ -4314,45 +4314,39 @@ window.switchProfitSubTab = function(tab){
     btn.style.color = t===tab?'#fff':'var(--text2)';
   });
   if(tab==='chart'){
-    // 각 AUTO_PERIODS 기간의 손익결산을 미리 renderProfit 방식으로 계산해 캐시에 저장
     const today = localDateStr(new Date());
     const activePeriods = AUTO_PERIODS.filter(p=>p.from<=today);
-    let pending = activePeriods.length;
-    if(pending===0){ renderProfitChart(); return; }
-    activePeriods.forEach(p=>{
+    if(activePeriods.length===0){ renderProfitChart(); return; }
+    // 모든 캐시가 있으면 바로 그래프
+    if(activePeriods.every(p=>profitPeriodCache[p.expMonths[0]])){ renderProfitChart(); return; }
+    // 캐시 없는 기간: profitMonth를 바꿔가며 renderProfit 순차 호출 후 캐시 채움
+    const profitMonthEl = document.getElementById('profitMonth');
+    const origMonth = profitMonthEl.value;
+    let idx = 0;
+    function processNext(){
+      if(idx>=activePeriods.length){
+        // 원래 월로 복구
+        profitMonthEl.value = origMonth;
+        renderProfitChart();
+        return;
+      }
+      const p = activePeriods[idx++];
       const monthKey = p.expMonths[0];
-      if(profitPeriodCache[monthKey]){ pending--; if(pending===0) renderProfitChart(); return; }
-      // renderProfit과 동일하게 계산
-      const pSales = records.filter(r=>r.date>=p.from&&r.date<=p.to).reduce((s,r)=>s+(r.total||0),0);
-      let combinedExp={};
-      let expPending=p.expMonths.length;
-      p.expMonths.forEach(m=>{
-        onValue(ref(db,'expenses/'+m),snap=>{
-          if(snap.exists()){
-            const d=snap.val().data||{};
-            Object.entries(d).forEach(([date,cats])=>{
-              if(date>=p.from&&date<=p.to&&typeof cats==='object'){
-                Object.entries(cats).forEach(([cat,v])=>{ if(typeof v==='number') combinedExp[cat]=(combinedExp[cat]||0)+v; });
-              }
-            });
-          }
-          expPending--;
-          if(expPending===0){
-            const ct=combinedExp;
-            const laborVal=(ct['인건비']||0);
-            const rentVal=(ct['임대로']||0)+(ct['임대료']||0);
-            const mgmtVal=(ct['관리비']||0);
-            const varCats=['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
-            const varTot=varCats.reduce((s,k)=>s+(ct[k]||0),0);
-            const taxVal=ct['TAX']||0;
-            const licVal=ct['라이선스']||0;
-            const expTot=laborVal+rentVal+mgmtVal+varTot+taxVal+licVal;
-            profitPeriodCache[monthKey]={sales:pSales, expense:expTot, profit:pSales-expTot};
-            pending--; if(pending===0) renderProfitChart();
-          }
-        },{onlyOnce:true});
-      });
-    });
+      if(profitPeriodCache[monthKey]){ processNext(); return; }
+      // renderProfit 호출해서 캐시 채움
+      profitMonthEl.value = monthKey;
+      renderProfit();
+      // renderProfit은 비동기라 캐시 저장될 때까지 대기
+      let tries=0;
+      const wait=setInterval(()=>{
+        tries++;
+        if(profitPeriodCache[monthKey]||tries>20){
+          clearInterval(wait);
+          processNext();
+        }
+      },200);
+    }
+    processNext();
   }
 };
 // ── 수동 오버라이드 저장/리셋 ──
