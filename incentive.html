@@ -1792,7 +1792,7 @@ window.bkGenerate = function(){
   const day=days[d.getDay()];
   const lines=[];
   lines.push('🔔 *BOOKING NOTICE* 🔔');
-  lines.push('📅 *'+dateStr+', '+day+'*');
+  lines.push('*'+dateStr+', '+day+'*');
   lines.push('');
   bookings.forEach(function(b){lines.push('◉  *'+b.name+'*  '+b.pax+b.nation+'  '+b.room);});
   lines.push('');
