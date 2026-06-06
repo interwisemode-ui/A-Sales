@@ -624,6 +624,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="rec-title">경비</div>
         <div class="filter-bar">
           <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;" onchange="window.loadExpenseFromDB(this.value)">
+          <button class="quick-btn" onclick="window.setExpenseMonth('this')">이번달</button>
+          <button class="quick-btn" onclick="window.setExpenseMonth('last')">지난달</button>
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
           <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
           <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
@@ -1964,7 +1966,7 @@ function renderManageGrid(){
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
-    d.innerHTML=`<span class="mg-name">${isWk?'🚶':isMgr?'🌟':''}${s}</span>${isWk?'':`<button class="del-s-btn" onclick="removeStaff('${s.replace(/'/g,"\\'")}')">×</button>`}`;
+    d.innerHTML=`<span class="mg-name">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':('<button class="del-s-btn" style="color:var(--blue);" onclick="renameStaff(\''+s+'\')">✏</button>')}<button class="del-s-btn" onclick="removeStaff(\''+s+'\')">×</button></div>`;
     g.appendChild(d);
   });
 }
@@ -1981,6 +1983,49 @@ function addStaff(){
   document.getElementById('newStaffName').value='';document.getElementById('newStaffMgr').checked=false;
   showToast(`✓ ${name} 추가됨`);
 }
+function renameStaff(oldName){
+  const newName = prompt(`"${oldName}" → 새 이름 입력:`, oldName);
+  if(!newName || newName.trim()==='' || newName.trim().toUpperCase()===oldName) return;
+  const nn = newName.trim().toUpperCase();
+  if(staffList.includes(nn)){ showToast('⚠ 이미 존재하는 이름'); return; }
+
+  // staffList, managerList 변경
+  const si = staffList.indexOf(oldName);
+  if(si>=0) staffList[si]=nn;
+  const mi = managerList.indexOf(oldName);
+  if(mi>=0) managerList[mi]=nn;
+  saveStaffDB();
+
+  // Firebase records에서 이름 변경
+  onValue(ref(db,'records'), snap=>{
+    if(!snap.exists()) return;
+    const updates={};
+    snap.forEach(child=>{
+      const r=child.val();
+      let changed=false;
+      // bookers
+      if(r.bookers&&r.bookers.includes(oldName)){
+        updates[`records/${child.key}/bookers`]=r.bookers.map(b=>b===oldName?nn:b);
+        changed=true;
+      }
+      // staff (sel1)
+      if(r.staff&&r.staff.includes(oldName)){
+        updates[`records/${child.key}/staff`]=r.staff.map(b=>b===oldName?nn:b);
+        changed=true;
+      }
+      // staff2 (sel2)
+      if(r.staff2&&r.staff2.includes(oldName)){
+        updates[`records/${child.key}/staff2`]=r.staff2.map(b=>b===oldName?nn:b);
+        changed=true;
+      }
+    });
+    if(Object.keys(updates).length) update(ref(db), updates);
+  },{onlyOnce:true});
+
+  renderManageGrid(); renderPickers();
+  showToast(`✓ ${oldName} → ${nn} 변경됨`);
+}
+
 function removeStaff(name){
   _pdid=name;
   document.getElementById('modalBody').textContent=`"${name}"을 삭제하시겠습니까?`;
@@ -3741,6 +3786,14 @@ function renderExpenseTable(data, monthKey){
 }
 
 // Load expense from Firebase when tab opens
+window.setExpenseMonth=function(type){
+  const t=new Date();
+  let mk;
+  if(type==='this') mk=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+  else{ const d=new Date(t.getFullYear(),t.getMonth()-1,1); mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  document.getElementById('expenseMonth').value=mk;
+  window.loadExpenseFromDB(mk);
+};
 window.loadExpenseFromDB=function loadExpenseFromDB(monthKey){
   const [year,month]=monthKey.split('-').map(Number);
   // 익월 계산
