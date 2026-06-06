@@ -1975,7 +1975,13 @@ function renderManageGrid(){
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
-    d.innerHTML=`<span class="mg-name">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':('<button class="del-s-btn" style="color:var(--blue);" onclick="renameStaff(\''+s+'\')">✏</button>')}<button class="del-s-btn" onclick="removeStaff(\''+s+'\')">×</button></div>`;
+    d.innerHTML=`<span class="mg-name">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
+    if(!isWk){
+      const renBtn=d.querySelector('.rename-btn');
+      if(renBtn) renBtn.addEventListener('click',()=>renameStaff(s));
+      const remBtn=d.querySelector('.remove-btn');
+      if(remBtn) remBtn.addEventListener('click',()=>removeStaff(s));
+    }
     g.appendChild(d);
   });
 }
