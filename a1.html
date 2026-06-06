@@ -3469,7 +3469,7 @@ function renderSeparateCatsUI(){
   `<button onclick="window.addSeparateCat()" style="background:rgba(96,165,250,0.12);color:var(--blue);border:1px dashed rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;cursor:pointer;">+ 추가</button>`;
 }
 
-const EXPENSE_CATEGORIES=['인건비', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '영업비', '접대비'];
+const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '영업비', '접대비'];
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
 function loadExpenseFile(input){
@@ -3853,7 +3853,8 @@ window.loadExpenseImage=loadExpenseImage;
 // ── PROFIT ─────────────────────────────────────────────────
 // Category grouping for profit statement (matching Image 2 structure)
 const PROFIT_GROUPS = {
-  '인건비': { label: '인건비', group: '고정비', sub: '인건비' },
+  '급여': { label: '급여', group: '고정비', sub: '인건비' },
+  '인센티브': { label: '인센티브', group: '고정비', sub: '인건비' },
   '임대로': { label: '임대로', group: '고정비', sub: '임대로' },
   '관리비': { label: '관리비', group: '고정비', sub: '임대로' },
   '수도광열': { label: '수도광열', group: '비용', sub: '비용' },
@@ -3945,7 +3946,7 @@ function renderProfit(){
 
       // Group sums
       const sum=(cats)=>cats.reduce((s,c)=>s+(catTotals[c]||0),0);
-      const laborCost = catTotals['인건비']||0;
+      const laborCost = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
       const rentCost = (catTotals['임대로']||0)+(catTotals['임대료']||0)+(catTotals['관리비']||0);
       const fixedTotal = laborCost + rentCost;
       const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','접대비','수도광열'];
@@ -3978,7 +3979,7 @@ function renderProfit(){
         const cashVal   = getVal('CASH',   salesByMethod.CASH);
         const salesTotal= cardVal+upiVal+cashVal;
 
-        const laborVal  = getVal('인건비',  catTotals['인건비']||0);
+        const laborVal  = getVal('급여', (catTotals['급여']||0)+(catTotals['인건비']||0)) + getVal('인센티브', catTotals['인센티브']||0);
         const rentVal   = getVal('임대로',  (catTotals['임대로']||0)+(catTotals['임대료']||0));
         const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
         const fixedTot  = laborVal+rentVal+mgmtVal;
@@ -4062,7 +4063,9 @@ function renderProfit(){
         // ── 고정비 ──
         h+=`<tr>
           <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
-          ${td('인건비')}${editCell('인건비',laborVal,catTotals['인건비']||0)}${td(pct(laborVal),'text-align:right;color:var(--text3);')}
+          ${td('급여')}${editCell((catTotals['급여']||0)+(catTotals['인건비']||0),(catTotals['급여']||0)+(catTotals['인건비']||0))}${td(pct((catTotals['급여']||0)+(catTotals['인건비']||0)),'text-align:right;color:var(--text3);')}
+          </tr><tr>
+          ${td('인센티브')}${editCell(catTotals['인센티브']||0,catTotals['인센티브']||0)}${td(pct(catTotals['인센티브']||0),'text-align:right;color:var(--text3);')}
         </tr>`;
         h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
@@ -4226,7 +4229,7 @@ function calcPeriodData(p, callback){
         Object.values(combinedExp).forEach(cats=>{
           Object.entries(cats).forEach(([cat,v])=>{ catTotals[cat]=(catTotals[cat]||0)+v; });
         });
-        const laborVal  = catTotals['인건비']||0;
+        const laborVal  = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
         const rentVal   = (catTotals['임대로']||0)+(catTotals['임대료']||0);
         const mgmtVal   = catTotals['관리비']||0;
         const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
@@ -4372,7 +4375,7 @@ window.switchProfitSubTab = function(tab){
             }
           });
 
-          const laborVal = catTotals['인건비']||0;
+          const laborVal = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
           const rentVal  = (catTotals['임대로']||0)+(catTotals['임대료']||0);
           const mgmtVal  = catTotals['관리비']||0;
           const varCalc  = (catTotals['주류']||0)+(catTotals['음료']||0)+
