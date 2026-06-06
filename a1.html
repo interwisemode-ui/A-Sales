@@ -1045,10 +1045,19 @@ function toggleBooker(n){
     else if(selBookers.length<2)selBookers.push(n);
     else{showToast('⚠ 부킹자는 최대 2명');return;}
   }
+  const el=document.getElementById('bookerSearch');if(el)el.value='';
   renderPickers();
 }
-function toggleStaff(n){selStaff=selStaff.includes(n)?selStaff.filter(x=>x!==n):[...selStaff,n];renderPickers();}
-function toggleStaff2(n){selStaff2=selStaff2.includes(n)?selStaff2.filter(x=>x!==n):[...selStaff2,n];renderPickers();}
+function toggleStaff(n){
+  selStaff=selStaff.includes(n)?selStaff.filter(x=>x!==n):[...selStaff,n];
+  const el=document.getElementById('staffSearch');if(el)el.value='';
+  renderPickers();
+}
+function toggleStaff2(n){
+  selStaff2=selStaff2.includes(n)?selStaff2.filter(x=>x!==n):[...selStaff2,n];
+  const el=document.getElementById('staff2Search');if(el)el.value='';
+  renderPickers();
+}
 function _renderBookerTags(){
   const c=document.getElementById('bookerTags');c.innerHTML='';
   selBookers.forEach(s=>{const isWk=s==='WALKIN';const t=document.createElement('div');t.className='tag tag-booker';if(isWk){t.style.borderColor='#c084fc';t.style.color='#c084fc';}t.innerHTML=`${isWk?'🚶':managerList.includes(s)?'🌟':''}${s} <span class="remove" onclick="toggleBooker('${s.replace(/'/g,"\\'")}')">×</span>`;c.appendChild(t);});
