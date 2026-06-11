@@ -4302,7 +4302,7 @@ function renderProfit(){
       let sepPending=sepMonthsToLoad.length;
       const sepMonthlyData={};
       sepMonthsToLoad.forEach(mk=>{
-        onValue(ref(db,'expenses/'+mk),snap=>{
+        get(ref(db,'expenses/'+mk)).then(snap=>{
           if(snap.exists()){
             const data=snap.val().data||{};
             Object.entries(data).forEach(([date,cats])=>{
@@ -4336,7 +4336,7 @@ function renderProfit(){
             tbl+='</tbody></table></div>';
             el.innerHTML=tbl;
           }
-        },{onlyOnce:true});
+        }).catch(()=>{sepPending--;if(sepPending===0){const el=document.getElementById('separateSummaryTable');if(el)el.innerHTML='<div style="font-size:12px;color:var(--text3);">데이터 없음</div>';}});
       });
       } // end buildTable
 
