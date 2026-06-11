@@ -4109,8 +4109,7 @@ function renderProfit(){
       // 표시할 최종값: override가 있으면 override, 없으면 계산값
       const ovKey='profitOverrides/'+monthVal;
 
-      function buildTable(overrides, _monthKey){
-        const monthKey = _monthKey || monthEl.value;
+      function buildTable(overrides){
         const ov=overrides||{};
 
         // override 적용된 최종값 계산
@@ -4289,7 +4288,8 @@ function renderProfit(){
 
       // 이전 월들 포함 별도항목 월별 테이블 렌더
       const PROFIT_SEP=separateCatsList;
-      const [pcy,pcm]=monthKey.split('-').map(Number);
+      const _mk = monthEl.value;
+      const [pcy,pcm]=_mk.split('-').map(Number);
       const sepMonthsToLoad=[];
       for(let i=11;i>=0;i--){
         const d=new Date(pcy,pcm-1-i,1);
@@ -4343,7 +4343,7 @@ function renderProfit(){
 
       // Load overrides from Firebase then build table
       onValue(ref(db,ovKey),ovSnap=>{
-        buildTable(ovSnap.exists()?ovSnap.val():{}, monthKey);
+        buildTable(ovSnap.exists()?ovSnap.val():{});
       },{onlyOnce:true});
 
     },{onlyOnce:true});
