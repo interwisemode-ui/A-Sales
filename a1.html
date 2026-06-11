@@ -3790,13 +3790,6 @@ function renderExpenseTable(data, monthKey){
   if(Object.keys(separateTotals).length>0){
     // 이전 월들 데이터 로드해서 월별로 표시
     const [cy,cm] = monthKey.split('-').map(Number);
-    // 표시할 월 목록: 데이터 있는 모든 월 (현재월 포함)
-    fetch('https://'+window.location.hostname.replace('interwisemode-ui.github.io','')+'/expenses.json?shallow=true')
-    .catch(()=>null);
-    
-    // Firebase에서 모든 expenses 키 가져오기
-    import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js').catch(()=>{});
-    
     // 현재 월까지 존재하는 월 목록 생성 (최대 12개월 + 익월 포함)
     const monthsToLoad = [];
     for(let i=11; i>=0; i--){
@@ -4288,7 +4281,8 @@ function renderProfit(){
 
       // 이전 월들 포함 별도항목 월별 테이블 렌더
       const PROFIT_SEP=separateCatsList;
-      const _mk = monthEl.value;
+      const _mk = document.getElementById('profitMonth')?.value || '';
+      if(!_mk) return;
       const [pcy,pcm]=_mk.split('-').map(Number);
       const sepMonthsToLoad=[];
       for(let i=11;i>=0;i--){
