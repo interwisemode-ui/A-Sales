@@ -3786,19 +3786,29 @@ function renderExpenseTable(data, monthKey){
   html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+grandTotal.toLocaleString()+'</td></tr>';
   html+='</tbody></table></div>';
 
-  // 별도 항목 표시 (대여금 등) - 월별 누적 표시
+  // 별도 항목 표시 (대여금 등) - 기간별 누적 표시
   if(Object.keys(separateTotals).length>0){
-    // 이전 월들 데이터 로드해서 월별로 표시
     const [cy,cm] = monthKey.split('-').map(Number);
-    // 현재 월까지 존재하는 월 목록 생성 (최대 12개월 + 익월 포함)
+    // 로드할 월 목록 (최대 12개월 + 익월)
     const monthsToLoad = [];
     for(let i=11; i>=0; i--){
       const d = new Date(cy, cm-1-i, 1);
       monthsToLoad.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
     }
-    // 익월 추가 (11일~익월10일 기간 포함)
     const nextD = new Date(cy, cm, 1);
     monthsToLoad.push(nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0'));
+
+    // 기간 정의 (4/11~5/10 방식) - JS Date 음수월 자동 처리
+    const expPeriods=[];
+    for(let i=5;i>=0;i--){
+      const fromD=new Date(cy, cm-2-i, 11);
+      const toD=new Date(cy, cm-1-i, 10);
+      const fy=fromD.getFullYear(), fm=fromD.getMonth()+1, fd=fromD.getDate();
+      const ty=toD.getFullYear(), tm=toD.getMonth()+1, td=toD.getDate();
+      const fromStr=`${fy}-${String(fm).padStart(2,'0')}-${String(fd).padStart(2,'0')}`;
+      const toStr=`${ty}-${String(tm).padStart(2,'0')}-${String(td).padStart(2,'0')}`;
+      expPeriods.push({label:`${fm}/${fd}~${tm}/${td}`, fromStr, toStr});
+    }
 
     const separateEl = document.createElement('div');
     separateEl.style.cssText='margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;';
@@ -3806,59 +3816,51 @@ function renderExpenseTable(data, monthKey){
     document.getElementById('expenseContent').innerHTML=html;
     document.getElementById('expenseContent').appendChild(separateEl);
 
-    // 각 월 데이터 로드
     const SEPARATE_CATS=separateCatsList;
     let pending = monthsToLoad.length;
-    const monthlyData = {}; // {monthKey: {cat: total}}
-    
+    const allExpData = {};
+
     monthsToLoad.forEach(mk=>{
-      onValue(ref(db,'expenses/'+mk), snap=>{
-        if(snap.exists()){
-          const data = snap.val().data||{};
-          Object.entries(data).forEach(([date,cats])=>{
-            if(typeof cats==='object'){
-              Object.entries(cats).forEach(([cat,v])=>{
-                if(typeof v==='number' && SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
-                  if(!monthlyData[mk]) monthlyData[mk]={};
-                  monthlyData[mk][cat]=(monthlyData[mk][cat]||0)+v;
-                }
-              });
-            }
-          });
-        }
+      get(ref(db,'expenses/'+mk)).then(snap=>{
+        if(snap.exists()) allExpData[mk]=snap.val().data||{};
         pending--;
         if(pending===0){
-          // 데이터 있는 월만 필터링
-          const activeMths = monthsToLoad.filter(mk=>monthlyData[mk]&&Object.keys(monthlyData[mk]).length>0);
-          if(!activeMths.length){ separateEl.innerHTML=''; return; }
-          
-          // 모든 카테고리 수집
-          const allCats = [...new Set(activeMths.flatMap(mk=>Object.keys(monthlyData[mk]||{})))];
-          
-          // 테이블 생성
+          // 기간별 집계
+          const periodData={};
+          expPeriods.forEach(p=>{
+            Object.values(allExpData).forEach(data=>{
+              Object.entries(data).forEach(([date,cats])=>{
+                if(date>=p.fromStr&&date<=p.toStr&&typeof cats==='object'){
+                  Object.entries(cats).forEach(([cat,v])=>{
+                    if(typeof v==='number'&&SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+                      if(!periodData[p.label])periodData[p.label]={};
+                      periodData[p.label][cat]=(periodData[p.label][cat]||0)+v;
+                    }
+                  });
+                }
+              });
+            });
+          });
+
+          const activePeriods=expPeriods.filter(p=>periodData[p.label]&&Object.keys(periodData[p.label]).length>0);
+          if(!activePeriods.length){separateEl.innerHTML='';return;}
+          const allCats=[...new Set(activePeriods.flatMap(p=>Object.keys(periodData[p.label]||{})))];
+
           let tbl='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:10px;">💰 별도 항목 (경비 합계 미포함)</div>';
           tbl+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
           tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
-          activeMths.forEach(mk=>{
-            const [y,m]=mk.split('-');
-            tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${m}월</th>`;
-          });
+          activePeriods.forEach(p=>{tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${p.label}</th>`;});
           tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
-          
           allCats.forEach(cat=>{
             tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
             let rowTotal=0;
-            activeMths.forEach(mk=>{
-              const v=monthlyData[mk]?.[cat]||0;
-              rowTotal+=v;
-              tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?v.toLocaleString():'-'}</td>`;
-            });
+            activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?v.toLocaleString():'-'}</td>`;});
             tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${rowTotal.toLocaleString()}</td></tr>`;
           });
           tbl+='</tbody></table></div>';
           separateEl.innerHTML=tbl;
         }
-      },{onlyOnce:true});
+      }).catch(()=>{pending--;});
     });
     return;
   }
@@ -4294,44 +4296,65 @@ function renderProfit(){
       const nextMk=nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0');
       if(!sepMonthsToLoad.includes(nextMk)) sepMonthsToLoad.push(nextMk);
 
+      // 기간 정의: 현재월 기준으로 최근 6기간 생성 (11일~익월10일)
+      const periods=[];
+      for(let i=5;i>=0;i--){
+        // 현재 기간의 시작: (현재월 - i - 1)월 11일
+        const fromD=new Date(pcy, pcm-2-i, 11); // JS Date는 월 음수 처리 가능
+        const toD=new Date(pcy, pcm-1-i, 10);
+        const fy=fromD.getFullYear(), fm=fromD.getMonth()+1, fd=fromD.getDate();
+        const ty=toD.getFullYear(), tm=toD.getMonth()+1, td=toD.getDate();
+        const fromStr=`${fy}-${String(fm).padStart(2,'0')}-${String(fd).padStart(2,'0')}`;
+        const toStr=`${ty}-${String(tm).padStart(2,'0')}-${String(td).padStart(2,'0')}`;
+        const label=`${fm}/${fd}~${tm}/${td}`;
+        periods.push({label, fromStr, toStr});
+      }
+
       let sepPending=sepMonthsToLoad.length;
-      const sepMonthlyData={};
+      const allExpData={}; // {mk: data}
       sepMonthsToLoad.forEach(mk=>{
         get(ref(db,'expenses/'+mk)).then(snap=>{
-          if(snap.exists()){
-            const data=snap.val().data||{};
-            Object.entries(data).forEach(([date,cats])=>{
-              if(typeof cats==='object'){
-                Object.entries(cats).forEach(([cat,v])=>{
-                  if(typeof v==='number'&&PROFIT_SEP.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
-                    if(!sepMonthlyData[mk])sepMonthlyData[mk]={};
-                    sepMonthlyData[mk][cat]=(sepMonthlyData[mk][cat]||0)+v;
-                  }
-                });
-              }
-            });
-          }
+          if(snap.exists()) allExpData[mk]=snap.val().data||{};
           sepPending--;
           if(sepPending===0){
             const el=document.getElementById('separateSummaryTable');
             if(!el)return;
-            const activeMks=sepMonthsToLoad.filter(mk=>sepMonthlyData[mk]&&Object.keys(sepMonthlyData[mk]).length>0);
-            if(!activeMks.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">해당 항목 없음</div>';return;}
-            const allCats=[...new Set(activeMks.flatMap(mk=>Object.keys(sepMonthlyData[mk]||{})))];
+
+            // 기간별로 집계
+            const periodData={}; // {label: {cat: total}}
+            periods.forEach(p=>{
+              Object.values(allExpData).forEach(data=>{
+                Object.entries(data).forEach(([date,cats])=>{
+                  if(date>=p.fromStr&&date<=p.toStr&&typeof cats==='object'){
+                    Object.entries(cats).forEach(([cat,v])=>{
+                      if(typeof v==='number'&&PROFIT_SEP.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+                        if(!periodData[p.label])periodData[p.label]={};
+                        periodData[p.label][cat]=(periodData[p.label][cat]||0)+v;
+                      }
+                    });
+                  }
+                });
+              });
+            });
+
+            const activePeriods=periods.filter(p=>periodData[p.label]&&Object.keys(periodData[p.label]).length>0);
+            if(!activePeriods.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">해당 항목 없음</div>';return;}
+            const allCats=[...new Set(activePeriods.flatMap(p=>Object.keys(periodData[p.label]||{})))];
+
             let tbl='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
             tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
-            activeMks.forEach(mk=>{const[,m]=mk.split('-');tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${m}월</th>`;});
+            activePeriods.forEach(p=>{tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${p.label}</th>`;});
             tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
             allCats.forEach(cat=>{
               tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
               let rowTotal=0;
-              activeMks.forEach(mk=>{const v=sepMonthlyData[mk]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?'₹'+v.toLocaleString():'-'}</td>`;});
+              activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?'₹'+v.toLocaleString():'-'}</td>`;});
               tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">₹${rowTotal.toLocaleString()}</td></tr>`;
             });
             tbl+='</tbody></table></div>';
             el.innerHTML=tbl;
           }
-        }).catch(()=>{sepPending--;if(sepPending===0){const el=document.getElementById('separateSummaryTable');if(el)el.innerHTML='<div style="font-size:12px;color:var(--text3);">데이터 없음</div>';}});
+        }).catch(()=>{sepPending--;});
       });
       } // end buildTable
 
