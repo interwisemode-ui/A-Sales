@@ -3786,15 +3786,85 @@ function renderExpenseTable(data, monthKey){
   html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+grandTotal.toLocaleString()+'</td></tr>';
   html+='</tbody></table></div>';
 
-  // 별도 항목 표시 (대여금 등)
+  // 별도 항목 표시 (대여금 등) - 월별 누적 표시
   if(Object.keys(separateTotals).length>0){
-    html+='<div style="margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;">';
-    html+='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;">💰 별도 항목 (경비 합계 미포함)</div>';
-    Object.entries(separateTotals).forEach(([cat,tot])=>{
-      html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">';
-      html+='<span>'+cat+'</span><span style="font-weight:700;color:var(--blue)">'+tot.toLocaleString()+'</span></div>';
+    // 이전 월들 데이터 로드해서 월별로 표시
+    const [cy,cm] = monthKey.split('-').map(Number);
+    // 표시할 월 목록: 데이터 있는 모든 월 (현재월 포함)
+    fetch('https://'+window.location.hostname.replace('interwisemode-ui.github.io','')+'/expenses.json?shallow=true')
+    .catch(()=>null);
+    
+    // Firebase에서 모든 expenses 키 가져오기
+    import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js').catch(()=>{});
+    
+    // 현재 월까지 존재하는 월 목록 생성 (최대 12개월)
+    const monthsToLoad = [];
+    for(let i=11; i>=0; i--){
+      const d = new Date(cy, cm-1-i, 1);
+      monthsToLoad.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+    }
+
+    const separateEl = document.createElement('div');
+    separateEl.style.cssText='margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;';
+    separateEl.innerHTML='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;">💰 별도 항목 (경비 합계 미포함)</div><div style="font-size:11px;color:var(--text3);">로딩중...</div>';
+    document.getElementById('expenseContent').innerHTML=html;
+    document.getElementById('expenseContent').appendChild(separateEl);
+
+    // 각 월 데이터 로드
+    const SEPARATE_CATS=separateCatsList;
+    let pending = monthsToLoad.length;
+    const monthlyData = {}; // {monthKey: {cat: total}}
+    
+    monthsToLoad.forEach(mk=>{
+      onValue(ref(db,'expenses/'+mk), snap=>{
+        if(snap.exists()){
+          const data = snap.val().data||{};
+          Object.entries(data).forEach(([date,cats])=>{
+            if(typeof cats==='object'){
+              Object.entries(cats).forEach(([cat,v])=>{
+                if(typeof v==='number' && SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+                  if(!monthlyData[mk]) monthlyData[mk]={};
+                  monthlyData[mk][cat]=(monthlyData[mk][cat]||0)+v;
+                }
+              });
+            }
+          });
+        }
+        pending--;
+        if(pending===0){
+          // 데이터 있는 월만 필터링
+          const activeMths = monthsToLoad.filter(mk=>monthlyData[mk]&&Object.keys(monthlyData[mk]).length>0);
+          if(!activeMths.length){ separateEl.innerHTML=''; return; }
+          
+          // 모든 카테고리 수집
+          const allCats = [...new Set(activeMths.flatMap(mk=>Object.keys(monthlyData[mk]||{})))];
+          
+          // 테이블 생성
+          let tbl='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:10px;">💰 별도 항목 (경비 합계 미포함)</div>';
+          tbl+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+          tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
+          activeMths.forEach(mk=>{
+            const [y,m]=mk.split('-');
+            tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${m}월</th>`;
+          });
+          tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
+          
+          allCats.forEach(cat=>{
+            tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
+            let rowTotal=0;
+            activeMths.forEach(mk=>{
+              const v=monthlyData[mk]?.[cat]||0;
+              rowTotal+=v;
+              tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?v.toLocaleString():'-'}</td>`;
+            });
+            tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${rowTotal.toLocaleString()}</td></tr>`;
+          });
+          tbl+='</tbody></table></div>';
+          separateEl.innerHTML=tbl;
+        }
+      },{onlyOnce:true});
     });
-    html+='</div>';
+    return;
   }
 
   document.getElementById('expenseContent').innerHTML=html;
