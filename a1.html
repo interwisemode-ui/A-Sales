@@ -3797,12 +3797,15 @@ function renderExpenseTable(data, monthKey){
     // Firebase에서 모든 expenses 키 가져오기
     import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js').catch(()=>{});
     
-    // 현재 월까지 존재하는 월 목록 생성 (최대 12개월)
+    // 현재 월까지 존재하는 월 목록 생성 (최대 12개월 + 익월 포함)
     const monthsToLoad = [];
     for(let i=11; i>=0; i--){
       const d = new Date(cy, cm-1-i, 1);
       monthsToLoad.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
     }
+    // 익월 추가 (11일~익월10일 기간 포함)
+    const nextD = new Date(cy, cm, 1);
+    monthsToLoad.push(nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0'));
 
     const separateEl = document.createElement('div');
     separateEl.style.cssText='margin-top:12px;padding:12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;';
@@ -4276,20 +4279,65 @@ function renderProfit(){
         <span style="font-size:11px;color:var(--blue);font-weight:700;">💰 별도 항목 (비용 합계 미포함)</span>
       </div>`;
       h+=`<div id="separateCatsUI" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>`;
-      if(Object.keys(separateCatTotals).length>0){
-        Object.entries(separateCatTotals).forEach(([cat,tot])=>{
-          h+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">
-            <span>${cat}</span><span style="font-weight:700;color:var(--blue)">₹${tot.toLocaleString()}</span>
-          </div>`;
-        });
-      } else {
-        h+=`<div style="font-size:12px;color:var(--text3);">해당 항목 없음</div>`;
-      }
+      h+=`<div id="separateSummaryTable"><div style="font-size:12px;color:var(--text3);">로딩중...</div></div>`;
       h+=`</div>`;
-        h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
-        h+=`</div>`;
-        document.getElementById('profitContent').innerHTML=h;
-        renderSeparateCatsUI();
+      h+=`<div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;">${baseDate} 누계 기준</div>`;
+      h+=`</div>`;
+      document.getElementById('profitContent').innerHTML=h;
+      renderSeparateCatsUI();
+
+      // 이전 월들 포함 별도항목 월별 테이블 렌더
+      const PROFIT_SEP=separateCatsList;
+      const [pcy,pcm]=monthKey.split('-').map(Number);
+      const sepMonthsToLoad=[];
+      for(let i=11;i>=0;i--){
+        const d=new Date(pcy,pcm-1-i,1);
+        sepMonthsToLoad.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+      }
+      // 익월도 추가 (11일~익월10일 기준)
+      const nextD=new Date(pcy,pcm,1);
+      const nextMk=nextD.getFullYear()+'-'+String(nextD.getMonth()+1).padStart(2,'0');
+      if(!sepMonthsToLoad.includes(nextMk)) sepMonthsToLoad.push(nextMk);
+
+      let sepPending=sepMonthsToLoad.length;
+      const sepMonthlyData={};
+      sepMonthsToLoad.forEach(mk=>{
+        onValue(ref(db,'expenses/'+mk),snap=>{
+          if(snap.exists()){
+            const data=snap.val().data||{};
+            Object.entries(data).forEach(([date,cats])=>{
+              if(typeof cats==='object'){
+                Object.entries(cats).forEach(([cat,v])=>{
+                  if(typeof v==='number'&&PROFIT_SEP.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+                    if(!sepMonthlyData[mk])sepMonthlyData[mk]={};
+                    sepMonthlyData[mk][cat]=(sepMonthlyData[mk][cat]||0)+v;
+                  }
+                });
+              }
+            });
+          }
+          sepPending--;
+          if(sepPending===0){
+            const el=document.getElementById('separateSummaryTable');
+            if(!el)return;
+            const activeMks=sepMonthsToLoad.filter(mk=>sepMonthlyData[mk]&&Object.keys(sepMonthlyData[mk]).length>0);
+            if(!activeMks.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">해당 항목 없음</div>';return;}
+            const allCats=[...new Set(activeMks.flatMap(mk=>Object.keys(sepMonthlyData[mk]||{})))];
+            let tbl='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+            tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
+            activeMks.forEach(mk=>{const[,m]=mk.split('-');tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${m}월</th>`;});
+            tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
+            allCats.forEach(cat=>{
+              tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
+              let rowTotal=0;
+              activeMks.forEach(mk=>{const v=sepMonthlyData[mk]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?'₹'+v.toLocaleString():'-'}</td>`;});
+              tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">₹${rowTotal.toLocaleString()}</td></tr>`;
+            });
+            tbl+='</tbody></table></div>';
+            el.innerHTML=tbl;
+          }
+        },{onlyOnce:true});
+      });
       } // end buildTable
 
       // Load overrides from Firebase then build table
