@@ -389,9 +389,11 @@ const thisMonth = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,
 
 // 매출장부의 Staff/Manager 목록 불러오기
 onValue(ref(db,'config/staffList'), snap=>{
-  const sNames = snap.exists() ? snap.val() : [];
+  const sv = snap.exists() ? snap.val() : [];
+  const sNames = Array.isArray(sv) ? sv : Object.values(sv);
   onValue(ref(db,'config/managerList'), snap2=>{
-    const mNames = snap2.exists() ? snap2.val() : [];
+    const mv = snap2.exists() ? snap2.val() : [];
+    const mNames = Array.isArray(mv) ? mv : Object.values(mv);
     // 중복 제거하고 role 부여
     const all = [...new Set([...sNames,...mNames])].filter(Boolean).sort();
     staffList = all.map(name=>({ name, role: mNames.includes(name)?'manager':'staff' }));
