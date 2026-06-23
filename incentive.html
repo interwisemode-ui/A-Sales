@@ -1678,7 +1678,7 @@ let _bkCount = 0;
 let _bkLastBookings = null;
 let _bkLastDate = null;
 let _bkStaffList = [];
-onValue(ref(db,'config/staffList'), function(snap){ if(snap.exists()) _bkStaffList=snap.val(); });
+onValue(ref(db,'config/staffList'), function(snap){ if(snap.exists()){ const v=snap.val(); _bkStaffList=Array.isArray(v)?v:Object.values(v); } });
 
 function _mkSel(cls, opts, rowId){
   const onChange = cls==='bk-nation'&&rowId ? 'onchange="bkNationChange(this)"' : '';

@@ -952,10 +952,10 @@ function init(){
     renderTable();renderTable2();refreshRoomCounts();
   });
   onValue(ref(db,'config/staffList'),snap=>{
-    if(snap.exists()&&Array.isArray(snap.val())){
-      staffList=snap.val();
+    if(snap.exists()){
+      const v=snap.val();
+      staffList=Array.isArray(v)?v:Object.values(v);
     } else {
-      // First time: save defaults to Firebase
       saveStaffDB();
     }
     renderPickers();renderManageGrid();
@@ -996,8 +996,9 @@ function init(){
   });
   loadSeparateCats();
   onValue(ref(db,'config/managerList'),snap=>{
-    if(snap.exists()&&Array.isArray(snap.val())){
-      managerList=snap.val();
+    if(snap.exists()){
+      const v=snap.val();
+      managerList=Array.isArray(v)?v:Object.values(v);
     }
     renderPickers();renderManageGrid();
   });
