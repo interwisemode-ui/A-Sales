@@ -293,8 +293,33 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
+<!-- 로그인 화면 -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:#0d0d0d;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:40px;width:320px;max-width:90vw;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:32px;margin-bottom:8px;">💰</div>
+      <div style="font-size:20px;font-weight:700;color:#fff;">A+ Management</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <input id="loginEmail" type="email" placeholder="이메일" 
+        style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #2a2a4a;background:#0d0d0d;color:#fff;font-size:14px;outline:none;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <input id="loginPw" type="password" placeholder="비밀번호"
+        style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #2a2a4a;background:#0d0d0d;color:#fff;font-size:14px;outline:none;"
+        onkeydown="if(event.key==='Enter')window.doLogin()">
+    </div>
+    <button onclick="window.doLogin()" 
+      style="width:100%;padding:12px;border-radius:8px;border:none;background:#6366f1;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">
+      로그인
+    </button>
+    <div id="loginError" style="color:#f87171;font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
+  </div>
+</div>
+<div id="mainApp" style="display:none;">
 <div class="header">
   <div class="header-title">A+ Management</div>
+  <button onclick="window.doLogout()" style="margin-left:auto;background:none;border:1px solid #444;color:#aaa;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;">로그아웃</button>
   <div style="display:flex;align-items:center;gap:14px;">
     <div style="display:flex;gap:12px;align-items:center;"><span id="syncStatus" style="font-size:11px;font-family:'JetBrains Mono',monospace;">⏳ 연결 중...</span><div class="header-date" id="headerDate"></div></div>
     <div style="display:flex;gap:7px;">
@@ -846,6 +871,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, set, onValue, get, remove, update }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0MehTEqcHuBIHEBjYGbwoirJhYP7Mo6o",
@@ -858,6 +885,7 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
+const auth = getAuth(app);
 
 const DEFAULT_STAFF=['WALKIN','ABUN','AKA','ALO','AJUNG','ANABO','ANNIE','ATI','BIBI','CATHERINE','CINDY','DAUDAU','DINDIN','ELLI','ELO','ELYSIA','EVIE','FIONA','GRACE','HENNA','JENJEN','JENNY','JESSICA','KAKA','KAKA2','KANI','KEMCHI','KIMKIM','KUKU','LINA','LUCY','MIMI','MARIA','MOII','NINI','NINGNING','NUNU','RUDDY','SEDE','SEMSEM','SEYA','SHILA','SISI','TUSHILA','VINA','WANGWANG','WIWI','ZAIZAI','ZOEY','ADI','AIEN','ALICE','BERNI','KIPI','KIPWA','SUNIN CA','ALI','ALEM','RAFIC','RAZ','PARBIN','SUSIL','SAGAL','ROHIT'];
 const DEFAULT_MGR=['ADI','AIEN','ALICE','BERNI','KIPI','KIPWA'];
@@ -5221,7 +5249,33 @@ Object.assign(window,{
   renderBkConfirmStaffGrid,renderBkConfirmStaff2Grid,confirmBkToSales
 });
 
-init();
+// 로그인 로직
+window.doLogin = function(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display='none';
+  signInWithEmailAndPassword(auth, email, pw)
+    .catch(()=>{
+      errEl.textContent = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      errEl.style.display='block';
+    });
+};
+
+window.doLogout = function(){
+  if(confirm('로그아웃 하시겠습니까?')) signOut(auth);
+};
+
+onAuthStateChanged(auth, user=>{
+  if(user){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    init();
+  } else {
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('mainApp').style.display='none';
+  }
+});
 
 // PWA Service Worker
 if('serviceWorker' in navigator){
@@ -5230,5 +5284,6 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+</div><!-- /mainApp -->
 </body>
 </html>
