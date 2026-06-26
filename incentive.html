@@ -1318,11 +1318,9 @@ function renderSummaryTable(){
   const wrap = document.getElementById('summaryTableWrap');
   wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">Loading...</div>';
 
-  // 날짜 범위
-  const fromDate = `${y}-${String(m).padStart(2,'0')}-11`;
-  const prevM = m===1?12:m-1; const prevY = m===1?y-1:y;
-  const toDate = `${y}-${String(m).padStart(2,'0')}-10`;
-  const fromDate2 = `${prevY}-${String(prevM).padStart(2,'0')}-11`;
+  // 날짜 범위 (해당 월 전체)
+  const fromDate = `${y}-${String(m).padStart(2,'0')}-01`;
+  const toDate = `${y}-${String(m).padStart(2,'0')}-31`;
 
   // incentive/data + records 동시에 읽기
   onValue(ref(db,'incentive/data'), snap=>{
@@ -1338,12 +1336,7 @@ function renderSummaryTable(){
         snap2.forEach(child=>{
           const r = child.val();
           if(!r.date) return;
-          // billing 날짜 범위 (11일~10일)
-          if(r.date < fromDate2 || r.date > toDate) return;
-          if(r.date >= fromDate || r.date <= toDate){
-            // 이번달 범위 내 레코드만
-            if(r.date < fromDate) return;
-          }
+          if(r.date < fromDate || r.date > toDate) return;
 
           const bookers = (r.bookers||[]).filter(Boolean);
           const sel1 = (r.staff||[]).filter(Boolean);
