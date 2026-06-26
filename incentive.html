@@ -637,9 +637,7 @@ function loadFromRecords(name){
       Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
         const bRow = newData[bid];
         if(!bRow?.date || !bRow?.book) return;
-        // 날짜 + 룸번호로 매칭
-        const bRoom = (bRow.room||'').toUpperCase();
-        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date && (bRoom===''||((newData[id].room||'').toUpperCase()===bRoom)));
+        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date);
         if(rRows.length>0){
           rRows.forEach(rid=>{ 
             // 사용자가 이미 book을 수동 입력한 경우 덮어쓰지 않음
@@ -1320,29 +1318,88 @@ function renderSummaryTable(){
   const wrap = document.getElementById('summaryTableWrap');
   wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">Loading...</div>';
 
+  // 날짜 범위
+  const fromDate = `${y}-${String(m).padStart(2,'0')}-11`;
+  const prevM = m===1?12:m-1; const prevY = m===1?y-1:y;
+  const toDate = `${y}-${String(m).padStart(2,'0')}-10`;
+  const fromDate2 = `${prevY}-${String(prevM).padStart(2,'0')}-11`;
+
+  // incentive/data + records 동시에 읽기
   onValue(ref(db,'incentive/data'), snap=>{
     const allData = snap.exists() ? snap.val() : {};
     const INC_COLS = ['book','juice','beer','food','select'];
-    const names = Object.keys(allData).filter(name=>{
-      const md = allData[name]?.[monthKey];
-      return md && Object.keys(md).length>0;
-    }).sort();
 
-    if(!names.length){ wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">해당  No data</div>'; return; }
+    onValue(ref(db,'records'), snap2=>{
+      // records에서 SELECT, SALES 계산
+      const selectMap = {}; // name -> select 합계
+      const salesMap = {};  // name -> sales 합계
 
-    // Staff별 Total 계산
-    const staffTots = names.map(name=>{
-      const md = allData[name]?.[monthKey]||{};
-      const tots = {};
-      INC_COLS.forEach(col=>{
-        tots[col] = Math.round(Object.values(md).reduce((s,r)=>
-          s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0));
+      if(snap2.exists()){
+        snap2.forEach(child=>{
+          const r = child.val();
+          if(!r.date) return;
+          // billing 날짜 범위 (11일~10일)
+          if(r.date < fromDate2 || r.date > toDate) return;
+          if(r.date >= fromDate || r.date <= toDate){
+            // 이번달 범위 내 레코드만
+            if(r.date < fromDate) return;
+          }
+
+          const bookers = (r.bookers||[]).filter(Boolean);
+          const sel1 = (r.staff||[]).filter(Boolean);
+          const sel2 = (r.staff2||[]).filter(Boolean);
+          const total = r.total||0;
+
+          // SELECT 200 — sel1에 있는 스탭
+          sel1.forEach(name=>{
+            if(!selectMap[name]) selectMap[name]=0;
+            selectMap[name]+=200;
+          });
+
+          // SALES — booker 몫
+          if(bookers.length>0){
+            const share = Math.round(total/bookers.length);
+            bookers.forEach(name=>{
+              if(!salesMap[name]) salesMap[name]=0;
+              salesMap[name]+=share;
+            });
+          }
+        });
+      }
+
+      const names = [...new Set([
+        ...Object.keys(allData).filter(name=>{
+          const md = allData[name]?.[monthKey];
+          return md && Object.keys(md).length>0;
+        }),
+        ...Object.keys(selectMap),
+        ...Object.keys(salesMap)
+      ])].sort();
+
+      if(!names.length){ wrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:10px;">해당  No data</div>'; return; }
+
+      // Staff별 Total 계산
+      const staffTots = names.map(name=>{
+        const md = allData[name]?.[monthKey]||{};
+        const tots = {};
+        INC_COLS.forEach(col=>{
+          if(col==='select'){
+            // Firebase 저장값 + records 계산값 중 큰 쪽 (또는 합산)
+            const saved = Math.round(Object.values(md).reduce((s,r)=>
+              s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0));
+            tots[col] = saved || (selectMap[name]||0);
+          } else {
+            tots[col] = Math.round(Object.values(md).reduce((s,r)=>
+              s+(parseFloat(String(r[col]||'').replace(/[^0-9.-]/g,''))||0),0));
+          }
+        });
+        tots.incTotal = INC_COLS.reduce((s,col)=>s+tots[col],0);
+        // SALES: Firebase 저장값 또는 records 계산값
+        const savedSales = Math.round(Object.values(md).reduce((s,r)=>
+          s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0));
+        tots.sales = savedSales || (salesMap[name]||0);
+        return {name, ...tots};
       });
-      tots.incTotal = INC_COLS.reduce((s,col)=>s+tots[col],0);
-      tots.sales = Math.round(Object.values(md).reduce((s,r)=>
-        s+(parseFloat(String(r['sales']||'').replace(/[^0-9.-]/g,''))||0),0));
-      return {name, ...tots};
-    });
 
     // 전체 Total
     const grandTot = {};
@@ -1396,6 +1453,7 @@ function renderSummaryTable(){
           </tfoot>
         </table>
       </div>`;
+    },{onlyOnce:true});
   },{onlyOnce:true});
 }
 
