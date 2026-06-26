@@ -634,10 +634,12 @@ function loadFromRecords(name){
       const rKeys = Object.keys(newData).filter(id=>id.startsWith('r_'));
       console.log('[merge] b_ keys:', bKeys, 'r_ keys:', rKeys.slice(0,3));
       let changed = false;
-      Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
+      Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{\
         const bRow = newData[bid];
         if(!bRow?.date || !bRow?.book) return;
-        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date);
+        // 날짜 + 룸번호로 매칭
+        const bRoom = (bRow.room||'').toUpperCase();
+        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date && (bRoom===''||((newData[id].room||'').toUpperCase()===bRoom)));
         if(rRows.length>0){
           rRows.forEach(rid=>{ 
             // 사용자가 이미 book을 수동 입력한 경우 덮어쓰지 않음
@@ -1222,7 +1224,7 @@ window.loadBookXlsx = function(input){
       }
 
       // Staff별 데이터 수집 (DATE+NAME+NO 기준으로 합산)
-      const noCol = headerRow.findIndex(h=>h==='NO'||h==='R NO'||h==='RNO'||h==='ROOM'||h==='R_NO');
+      const noCol = headerRow.findIndex(h=>h==='NO');
       const staffData = {};
       if(dateCol>=0 && nameCol>=0 && incCol>=0){
         raw.slice(1).forEach(row=>{
@@ -1233,8 +1235,7 @@ window.loadBookXlsx = function(input){
           if(!staffName || staffName==='WALKIN' || staffName==='TOTAL') return;
           const amt = parseFloat(String(row[incCol]||'').replace(/[^0-9.-]/g,''))||0;
           if(!amt) return;
-          const rawRoom = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
-          const room = rawRoom ? (rawRoom.startsWith('R') ? rawRoom : 'R'+rawRoom) : '';
+          const room = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
           if(!staffData[staffName]) staffData[staffName]={};
           // DATE+ROOM 조합으로 키 만들어서 합산
           const key = dateStr+'_'+(room||'X');
