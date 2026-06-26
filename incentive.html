@@ -1222,7 +1222,7 @@ window.loadBookXlsx = function(input){
       }
 
       // Staff별 데이터 수집 (DATE+NAME+NO 기준으로 합산)
-      const noCol = headerRow.findIndex(h=>h==='NO');
+      const noCol = headerRow.findIndex(h=>h==='NO'||h==='R NO'||h==='RNO'||h==='ROOM'||h==='R_NO');
       const staffData = {};
       if(dateCol>=0 && nameCol>=0 && incCol>=0){
         raw.slice(1).forEach(row=>{
@@ -1233,7 +1233,8 @@ window.loadBookXlsx = function(input){
           if(!staffName || staffName==='WALKIN' || staffName==='TOTAL') return;
           const amt = parseFloat(String(row[incCol]||'').replace(/[^0-9.-]/g,''))||0;
           if(!amt) return;
-          const room = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
+          const rawRoom = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
+          const room = rawRoom ? (rawRoom.startsWith('R') ? rawRoom : 'R'+rawRoom) : '';
           if(!staffData[staffName]) staffData[staffName]={};
           // DATE+ROOM 조합으로 키 만들어서 합산
           const key = dateStr+'_'+(room||'X');
