@@ -634,7 +634,7 @@ function loadFromRecords(name){
       const rKeys = Object.keys(newData).filter(id=>id.startsWith('r_'));
       console.log('[merge] b_ keys:', bKeys, 'r_ keys:', rKeys.slice(0,3));
       let changed = false;
-      Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{\
+      Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
         const bRow = newData[bid];
         if(!bRow?.date || !bRow?.book) return;
         // 날짜 + 룸번호로 매칭
