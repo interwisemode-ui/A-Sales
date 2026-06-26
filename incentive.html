@@ -637,7 +637,7 @@ function loadFromRecords(name){
       Object.keys(newData).filter(id=>id.startsWith('b_')).forEach(bid=>{
         const bRow = newData[bid];
         if(!bRow?.date || !bRow?.book) return;
-        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date);
+        const rRows = Object.keys(newData).filter(id=>!id.startsWith('b_') && newData[id].date===bRow.date && ((bRow.room||'')=== ''||((newData[id].room||'').toUpperCase()===(bRow.room||'').toUpperCase())));
         if(rRows.length>0){
           rRows.forEach(rid=>{ 
             // 사용자가 이미 book을 수동 입력한 경우 덮어쓰지 않음
