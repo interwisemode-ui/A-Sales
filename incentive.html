@@ -1063,10 +1063,12 @@ window.applyCalc = function(mode='self'){
       const bookerStr = (incData[calcTargetId]||{}).booker||'';
       const myRoomNum = (incData[calcTargetId]||{}).room||'';
       const roomInfo = (window._dateRoomInfo||{})[date]||[];
+      console.log('[applyCalc] calcTargetId:', calcTargetId, 'date:', date, 'bookerStr:', bookerStr, 'myRoomNum:', myRoomNum, 'roomInfo:', JSON.stringify(roomInfo));
       const myRoom = roomInfo.find(r=>
         ('R'+(r.room||'')).toUpperCase() === myRoomNum.toUpperCase() ||
         r.bookers.slice().sort().join('/') === bookerStr.split('/').sort().join('/')
       );
+      console.log('[applyCalc] myRoom:', JSON.stringify(myRoom));
 
       if(myRoom){
         // 셀렉션 Staff
