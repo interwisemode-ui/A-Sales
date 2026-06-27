@@ -1060,8 +1060,12 @@ window.applyCalc = function(mode='self'){
     if(mode==='sel'||mode==='all'){
       const date = (incData[calcTargetId]||{}).date;
       const bookerStr = (incData[calcTargetId]||{}).booker||'';
+      const myRoomNum = (incData[calcTargetId]||{}).room||'';
       const roomInfo = (window._dateRoomInfo||{})[date]||[];
-      const myRoom = roomInfo.find(r=>r.bookers.join('/')=== bookerStr);
+      const myRoom = roomInfo.find(r=>
+        ('R'+(r.room||'')).toUpperCase() === myRoomNum.toUpperCase() ||
+        r.bookers.slice().sort().join('/') === bookerStr.split('/').sort().join('/')
+      );
 
       if(myRoom){
         // 셀렉션 Staff
