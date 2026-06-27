@@ -968,6 +968,25 @@ window.openCalc = function(id, col, input){
   document.getElementById('calcModal').classList.add('show');
 };
 
+// 키보드 입력 지원
+document.addEventListener('keydown', function(e){
+  const modal = document.getElementById('calcModal');
+  if(!modal.classList.contains('show')) return;
+  e.preventDefault();
+  const key = e.key;
+  if(key>='0'&&key<='9') calcInput(key);
+  else if(key==='.') calcInput('.');
+  else if(key==='+'||key==='-') calcInput(key);
+  else if(key==='*') calcInput('×');
+  else if(key==='/') calcInput('÷');
+  else if(key==='(') calcInput('(');
+  else if(key===')') calcInput(')');
+  else if(key==='Enter'||key==='=') document.getElementById('calcModal').querySelector('.btn-primary')?.click();
+  else if(key==='Backspace') window.calcDel();
+  else if(key==='Escape') modal.classList.remove('show');
+  else if(key==='c'||key==='C') { calcExpr=''; document.getElementById('calcExpr').textContent=''; document.getElementById('calcResult').textContent='0'; }
+});
+
 window.closeCalc = function(e){
   if(e.target===document.getElementById('calcModal'))
     document.getElementById('calcModal').classList.remove('show');
