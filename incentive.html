@@ -973,12 +973,13 @@ document.addEventListener('keydown', function(e){
   const modal = document.getElementById('calcModal');
   if(!modal.classList.contains('show')) return;
   const key = e.key;
-  if(key>='0'&&key<='9'){ e.preventDefault(); calcInput(key); }
-  else if(key==='.'){ e.preventDefault(); calcInput('.'); }
-  else if(key==='+'){ e.preventDefault(); calcInput('+'); }
-  else if(key==='-'){ e.preventDefault(); calcInput('-'); }
-  else if(key==='*'){ e.preventDefault(); calcInput('×'); }
-  else if(key==='/'){ e.preventDefault(); calcInput('÷'); }
+  // 일반 숫자 + 숫자패드
+  if((key>='0'&&key<='9')||key==='Numpad0'||key==='Numpad1'||key==='Numpad2'||key==='Numpad3'||key==='Numpad4'||key==='Numpad5'||key==='Numpad6'||key==='Numpad7'||key==='Numpad8'||key==='Numpad9'){ e.preventDefault(); calcInput(key.replace('Numpad','')); }
+  else if(key==='.'||key==='Decimal'){ e.preventDefault(); calcInput('.'); }
+  else if(key==='+'||key==='Add'){ e.preventDefault(); calcInput('+'); }
+  else if(key==='-'||key==='Subtract'){ e.preventDefault(); calcInput('-'); }
+  else if(key==='*'||key==='Multiply'){ e.preventDefault(); calcInput('×'); }
+  else if(key==='/'||key==='Divide'){ e.preventDefault(); calcInput('÷'); }
   else if(key==='('){ e.preventDefault(); calcInput('('); }
   else if(key===')'){ e.preventDefault(); calcInput(')'); }
   else if(key==='Enter'||key==='='){ e.preventDefault(); window.applyCalc('self'); }
