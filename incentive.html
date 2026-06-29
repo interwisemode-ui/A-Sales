@@ -1248,7 +1248,7 @@ window.loadBookXlsx = function(input){
       }
 
       // Staff별 데이터 수집 (DATE+NAME+NO 기준으로 합산)
-      const noCol = headerRow.findIndex(h=>h==='NO');
+      const noCol = headerRow.findIndex(h=>h==='NO'||h==='R NO'||h==='RNO'||h==='ROOM'||h==='R_NO');
       const staffData = {};
       if(dateCol>=0 && nameCol>=0 && incCol>=0){
         raw.slice(1).forEach(row=>{
@@ -1259,7 +1259,8 @@ window.loadBookXlsx = function(input){
           if(!staffName || staffName==='WALKIN' || staffName==='TOTAL') return;
           const amt = parseFloat(String(row[incCol]||'').replace(/[^0-9.-]/g,''))||0;
           if(!amt) return;
-          const room = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
+          const rawRoom = noCol>=0 ? String(row[noCol]||'').trim().toUpperCase() : '';
+          const room = rawRoom ? (rawRoom.startsWith('R') ? rawRoom : 'R'+rawRoom) : '';
           if(!staffData[staffName]) staffData[staffName]={};
           // DATE+ROOM 조합으로 키 만들어서 합산
           const key = dateStr+'_'+(room||'X');
@@ -1291,21 +1292,18 @@ window.loadBookXlsx = function(input){
               const target = dateRows.find(id=>(newData[id].room||'').toUpperCase()===room.toUpperCase());
               if(target){ newData[target].book = amt; matched=true; }
             }
-            if(!matched && dateRows.length>=1){
-              // 룸 매칭 안되면 book 없는 첫 번째 행에 입력
-              const empty = dateRows.find(id=>!newData[id].book) || dateRows[0];
-              newData[empty].book = amt;
-              matched=true;
-            }
             if(!matched){
-              // r_ 행이 없으면 b_ 행 생성
+              // r_ 행이 없거나 룸 매칭 안되면 b_ 행 생성
               const bKey = 'b_'+dateStr.replace(/-/g,'')+'_'+(room||'X');
-              newData[bKey] = {date:dateStr, room, book:amt};
+              if(!newData[bKey]) newData[bKey] = {date:dateStr, room, book:amt};
+              else newData[bKey].book = amt;
             }
-            // b_ 행 정리
-            Object.keys(newData).filter(id=>id.startsWith('b_')&&newData[id].date===dateStr).forEach(bid=>{
-              if(dateRows.length>=1) delete newData[bid];
-            });
+            // b_ 행 정리 - 룸 매칭된 경우만 삭제
+            if(matched){
+              Object.keys(newData).filter(id=>id.startsWith('b_')&&newData[id].date===dateStr&&(newData[id].room||'').toUpperCase()===(room||'').toUpperCase()).forEach(bid=>{
+                delete newData[bid];
+              });
+            }
           });
           set(ref(db,`incentive/data/${staffName}/${monthKey}`), newData).then(()=>{
             savedCount++;
