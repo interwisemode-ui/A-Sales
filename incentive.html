@@ -210,18 +210,19 @@ input:focus,select:focus{border-color:var(--accent);}
 
 <!-- SCREEN 2: Incentive 입력 -->
 <div class="screen" id="screen-entry">
-  <div class="back-btn" onclick="goHome()">← Staff List</div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-    <div>
-      <div style="font-size:18px;font-weight:700;" id="entryName"></div>
-      <div style="font-size:12px;color:var(--text3);" id="entryMonth"></div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button class="btn btn-primary btn-sm" onclick="addRow()">+ Add Date</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 Upload BOOK</button>
-      <input type="file" id="bookXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
-      <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ Excel</button>
-
+  <div style="position:sticky;top:52px;z-index:99;background:var(--bg);padding:10px 0 8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;">
+    <div class="back-btn" onclick="goHome()" style="margin-bottom:6px;">← Staff List</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;" id="entryName"></div>
+        <div style="font-size:12px;color:var(--text3);" id="entryMonth"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="addRow()">+ Add Date</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bookXlsxInput').click()">📊 Upload BOOK</button>
+        <input type="file" id="bookXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="loadBookXlsx(this)">
+        <button class="btn btn-green btn-sm" onclick="downloadXlsxSingle()">⬇ Excel</button>
+      </div>
     </div>
   </div>
 
