@@ -1980,14 +1980,87 @@ function renderManageGrid(){
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
-    d.innerHTML=`<span class="mg-name">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
+    d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
+    const nameEl=d.querySelector('.mg-name');
+    if(nameEl) nameEl.addEventListener('click',()=>showStaffStat(s));
     if(!isWk){
       const renBtn=d.querySelector('.rename-btn');
-      if(renBtn) renBtn.addEventListener('click',()=>renameStaff(s));
+      if(renBtn) renBtn.addEventListener('click',(e)=>{e.stopPropagation();renameStaff(s);});
       const remBtn=d.querySelector('.remove-btn');
-      if(remBtn) remBtn.addEventListener('click',()=>removeStaff(s));
+      if(remBtn) remBtn.addEventListener('click',(e)=>{e.stopPropagation();removeStaff(s);});
     }
     g.appendChild(d);
+  });
+}
+
+function showStaffStat(name){
+  const modal=document.getElementById('staffStatModal');
+  const content=document.getElementById('staffStatContent');
+  content.innerHTML=`<div style="color:var(--text3);padding:20px;text-align:center;">불러오는 중...</div>`;
+  modal.style.display='block';
+
+  get(ref(db,'records')).then(snap=>{
+    if(!snap.exists()){content.innerHTML='데이터 없음';return;}
+    const monthMap={}; // {YYYY-MM: {bookCnt, selCnt, sales, dc}}
+    snap.forEach(child=>{
+      const r=child.val();
+      if(!r.date) return;
+      const mk=r.date.slice(0,7);
+      if(!monthMap[mk]) monthMap[mk]={bookCnt:0,selCnt:0,sales:0,dc:0};
+      const bookers=(r.bookers||[]).filter(Boolean);
+      const isMgr=managerList.includes(name);
+      if(bookers.includes(name)){
+        monthMap[mk].bookCnt++;
+        monthMap[mk].sales+=Math.round((r.total||0)/bookers.length);
+        monthMap[mk].dc+=(r.dc||0);
+      }
+      if((r.staff||[]).includes(name)||(r.staff2||[]).includes(name)){
+        monthMap[mk].selCnt++;
+      }
+    });
+
+    const months=Object.keys(monthMap).sort().reverse();
+    if(!months.length){content.innerHTML=`<div style="color:var(--text3);text-align:center;padding:20px;">${name} 실적 없음</div>`;return;}
+
+    const isMgr=managerList.includes(name);
+    let html=`
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${isMgr?'🌟':''}${name}</div>
+      <div style="color:var(--text3);font-size:12px;margin-bottom:20px;">${isMgr?'매니저':'스태프'} · 월별 실적</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--text3);font-size:11px;">
+            <th style="padding:8px 6px;text-align:left;">월</th>
+            <th style="padding:8px 6px;text-align:center;">부킹</th>
+            <th style="padding:8px 6px;text-align:center;">셀렉션</th>
+            <th style="padding:8px 6px;text-align:right;">매출</th>
+            <th style="padding:8px 6px;text-align:right;">DC</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    let totalBook=0,totalSel=0,totalSales=0,totalDc=0;
+    months.forEach(mk=>{
+      const d=monthMap[mk];
+      totalBook+=d.bookCnt;totalSel+=d.selCnt;totalSales+=d.sales;totalDc+=d.dc;
+      html+=`<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 6px;font-weight:600;">${mk}</td>
+        <td style="padding:8px 6px;text-align:center;">${d.bookCnt||'-'}</td>
+        <td style="padding:8px 6px;text-align:center;">${d.selCnt||'-'}</td>
+        <td style="padding:8px 6px;text-align:right;color:var(--green);">${d.sales?d.sales.toLocaleString():'-'}</td>
+        <td style="padding:8px 6px;text-align:right;color:var(--red);">${d.dc?d.dc.toLocaleString():'-'}</td>
+      </tr>`;
+    });
+
+    html+=`<tr style="font-weight:700;background:var(--bg3);">
+        <td style="padding:8px 6px;">합계</td>
+        <td style="padding:8px 6px;text-align:center;">${totalBook}</td>
+        <td style="padding:8px 6px;text-align:center;">${totalSel}</td>
+        <td style="padding:8px 6px;text-align:right;color:var(--green);">${totalSales.toLocaleString()}</td>
+        <td style="padding:8px 6px;text-align:right;color:var(--red);">${totalDc?totalDc.toLocaleString():'-'}</td>
+      </tr>
+      </tbody></table>`;
+
+    content.innerHTML=html;
   });
 }
 function addStaff(){
@@ -5237,5 +5310,12 @@ if('serviceWorker' in navigator){
 }
 </script>
 </div><!-- /mainApp -->
+<!-- 개인 실적 팝업 -->
+<div id="staffStatModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;overflow-y:auto;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;max-width:520px;margin:40px auto;padding:24px;position:relative;">
+    <button onclick="document.getElementById('staffStatModal').style.display='none'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">×</button>
+    <div id="staffStatContent"></div>
+  </div>
+</div>
 </body>
 </html>
