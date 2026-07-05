@@ -1980,6 +1980,8 @@ function renderManageGrid(){
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
+    d.style.cursor='pointer';
+    d.onclick=(e)=>{ if(!e.target.classList.contains('del-s-btn')&&!e.target.classList.contains('rename-btn')&&!e.target.classList.contains('remove-btn')) window.showStaffStat(s); };
     d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기" onclick="window.showStaffStat('${s.replace(/'/g,"\\'")}')">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
     const nameEl=d.querySelector('.mg-name');
     if(nameEl) nameEl.addEventListener('click',()=>window.showStaffStat(s));
