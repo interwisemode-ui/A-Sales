@@ -1980,9 +1980,9 @@ function renderManageGrid(){
     const isMgr=managerList.includes(s),isWk=s==='WALKIN';
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
-    d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
+    d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기" onclick="window.showStaffStat('${s.replace(/'/g,"\\'")}')">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
     const nameEl=d.querySelector('.mg-name');
-    if(nameEl) nameEl.addEventListener('click',()=>showStaffStat(s));
+    if(nameEl) nameEl.addEventListener('click',()=>window.showStaffStat(s));
     if(!isWk){
       const renBtn=d.querySelector('.rename-btn');
       if(renBtn) renBtn.addEventListener('click',(e)=>{e.stopPropagation();renameStaff(s);});
@@ -1993,7 +1993,7 @@ function renderManageGrid(){
   });
 }
 
-function showStaffStat(name){
+window.showStaffStat = function showStaffStat(name){
   const modal=document.getElementById('staffStatModal');
   const content=document.getElementById('staffStatContent');
   content.innerHTML=`<div style="color:var(--text3);padding:20px;text-align:center;">불러오는 중...</div>`;
