@@ -1561,7 +1561,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       const isManager=managerList.includes(s);
       const isWalkin=s==='WALKIN';
       tableHtml+=`<tr style="background:${isWalkin?'rgba(192,132,252,0.05)':isManager?'rgba(167,154,248,0.05)':''}">
-        ${td((isWalkin?'🚶 ':isManager?'🌟':'')+s,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
+        ${td(`<span style="cursor:pointer;text-decoration:underline dotted;" onclick="window.showStaffStat('${s}')">${(isWalkin?'🚶 ':isManager?'🌟':'')+s}</span>`,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
         ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
         ${td(isWalkin?'-':att>0?att+'일':'-','text-align:center;color:var(--green);')}
@@ -1679,7 +1679,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       const isManager=managerList.includes(s);
       const isWalkin=s==='WALKIN';
       tableHtml+=`<tr style="background:${isWalkin?'rgba(192,132,252,0.05)':isManager?'rgba(167,154,248,0.05)':''}">
-        ${td((isWalkin?'🚶 ':isManager?'🌟':'')+s,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
+        ${td(`<span style="cursor:pointer;text-decoration:underline dotted;" onclick="window.showStaffStat('${s}')">${(isWalkin?'🚶 ':isManager?'🌟':'')+s}</span>`,'font-weight:600;color:'+(isWalkin?'#c084fc':''))}
         ${td(Math.round(b.tot).toLocaleString(),'text-align:right;color:var(--accent2);')}
         ${td(b.cnt+'건','text-align:center;')}
         ${td(isWalkin?'-':att>0?att+'일':'-','text-align:center;color:var(--green);')}
