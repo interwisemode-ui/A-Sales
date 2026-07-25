@@ -1324,6 +1324,13 @@ function renderSummary(){
   // country stats
   const ctyMap={};COUNTRIES.forEach(c=>{const rs=recs.filter(r=>r.country===c);if(rs.length)ctyMap[c]={cnt:rs.length,tot:rs.reduce((s,r)=>s+r.total,0)};});
   const pct=v=>tot?Math.round(v/tot*100):0;
+  // 인원별 부킹 분포 (인원수 기준, 총건수 대비 %)
+  const paxMap={};recs.forEach(r=>{const p=parseInt(r.pax)||0;paxMap[p]=(paxMap[p]||0)+1;});
+  const paxKeys=Object.keys(paxMap).map(Number).filter(p=>p>0).sort((a,b)=>a-b);
+  const maxPax=Math.max(1,...paxKeys.map(p=>paxMap[p]));
+  const totalCnt=recs.length;
+  const paxItems=paxKeys.map(p=>({label:p+'인',value:paxMap[p],sub:(totalCnt?Math.round(paxMap[p]/totalCnt*100):0)+'%'}));
+  const noPax=paxMap[0]||0;
 
   // 요일별 매출
   const dowNames=['일','월','화','수','목','금','토'];
@@ -1357,6 +1364,7 @@ function renderSummary(){
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,valExtra:' (avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()+')',sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
     <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건'})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
+    <div class="sum-sec"><div class="sum-sec-title">인원별 부킹</div>${paxItems.length?buildBarChart(paxItems,maxPax,()=>'var(--accent2)'):'<span style="color:var(--text3)">없음</span>'}${noPax?`<div style="margin-top:9px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">인원 미입력 ${noPax}건</div>`:''}</div>
     `;
   } else {
   document.getElementById('summaryContent').innerHTML=`
@@ -1396,7 +1404,8 @@ function renderSummary(){
       <div style="background:var(--blue);width:${pct(card)}%;min-width:${card?3:0}px"></div>
       <div style="background:var(--yellow);width:${pct(upi)}%;min-width:${upi?3:0}px"></div>
     </div>
-  </div>`;
+  </div>
+  <div class="sum-sec"><div class="sum-sec-title">인원별 부킹</div>${paxItems.length?buildBarChart(paxItems,maxPax,()=>'var(--accent2)'):'<span style="color:var(--text3)">없음</span>'}${noPax?`<div style="margin-top:9px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">인원 미입력 ${noPax}건</div>`:''}</div>`;
   }
 }
 
