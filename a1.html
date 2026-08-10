@@ -1329,7 +1329,7 @@ function renderSummary(){
   const paxKeys=Object.keys(paxMap).map(Number).filter(p=>p>0).sort((a,b)=>a-b);
   const maxPax=Math.max(1,...paxKeys.map(p=>paxMap[p]));
   const totalCnt=recs.length;
-  const paxItems=paxKeys.map(p=>({label:p+'인',value:paxMap[p],sub:(totalCnt?Math.round(paxMap[p]/totalCnt*100):0)+'%'}));
+  const paxItems=paxKeys.map(p=>({label:p+'인',value:paxMap[p],valExtra:'/'+totalCnt,sub:(totalCnt?Math.round(paxMap[p]/totalCnt*100):0)+'%'}));
   const noPax=paxMap[0]||0;
 
   // 요일별 매출
@@ -3618,7 +3618,11 @@ function renderSeparateCatsUI(){
   `<button onclick="window.addSeparateCat()" style="background:rgba(96,165,250,0.12);color:var(--blue);border:1px dashed rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;cursor:pointer;">+ 추가</button>`;
 }
 
-const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신비', '영업비', '접대비'];
+const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신/구독/렌탈', '영업비', '접대비'];
+// 옛 항목명 → 새 항목명 (기존 저장 데이터를 새 이름으로 자동 흡수)
+const CAT_ALIASES={'통신비':'통신/구독/렌탈'};
+const normCat=c=>CAT_ALIASES[c]||c;
+function mergeCatAliases(data){const out={};for(const d in data){out[d]={};for(const c in data[d]){const nc=normCat(c);out[d][nc]=(out[d][nc]||0)+data[d][c];}}return out;}
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
 function loadExpenseFile(input){
@@ -3795,6 +3799,7 @@ function parseExpense(raw, monthKey, colInfo=[]){
 }
 
 function renderExpenseTable(data, monthKey){
+  data = mergeCatAliases(data); // 옛 항목명(통신비 등)을 새 이름으로 합쳐서 표시
   // 선택한 월의 11일 ~ 익월 10일 필터링
   const [year,month]=monthKey.split('-').map(Number);
   const periodFrom=monthKey+'-11';
@@ -4096,7 +4101,7 @@ const PROFIT_GROUPS = {
   '비품': { label: '비품', group: '비용', sub: '비용' },
   '교통비': { label: '교통비', group: '비용', sub: '비용' },
   '기타': { label: '기타', group: '비용', sub: '비용' },
-  '통신비': { label: '통신비', group: '비용', sub: '비용' },
+  '통신/구독/렌탈': { label: '통신/구독/렌탈', group: '비용', sub: '비용' },
   '접대비': { label: '접대비', group: '비용', sub: '비용' },
 };
 
@@ -4174,7 +4179,7 @@ function renderProfit(){
       const laborCost = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
       const rentCost = (catTotals['임대로']||0)+(catTotals['임대료']||0)+(catTotals['관리비']||0);
       const fixedTotal = laborCost + rentCost;
-      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','접대비','수도광열'];
+      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','통신/구독/렌탈','접대비','수도광열'];
       const varTotal = sum(varCats);
       const taxTotal = catTotals['TAX']||0;
       const licTotal = catTotals['라이선스']||0;
@@ -4209,7 +4214,7 @@ function renderProfit(){
         const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
         const fixedTot  = laborVal+rentVal+mgmtVal;
 
-        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
+        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신/구독/렌탈','영업비','접대비','기타'];
         const varCalc={
           '주류':     catTotals['주류']||0,
           '음료':     catTotals['음료']||0,
@@ -4219,7 +4224,7 @@ function renderProfit(){
           '유지보수': catTotals['유지보수']||0,
           '교통비':   catTotals['교통비']||0,
           '수도광열': catTotals['수도광열']||0,
-          '통신비':   catTotals['통신비']||0,
+          '통신/구독/렌탈':   (catTotals['통신비']||0)+(catTotals['통신/구독/렌탈']||0),
           '영업비':   catTotals['영업비']||0,
           '접대비':   catTotals['접대비']||0,
           '기타':     catTotals['기타']||0,
@@ -4524,7 +4529,7 @@ function calcPeriodData(p, callback){
         const laborVal  = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
         const rentVal   = (catTotals['임대로']||0)+(catTotals['임대료']||0);
         const mgmtVal   = catTotals['관리비']||0;
-        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','영업비','접대비','기타'];
+        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','통신/구독/렌탈','영업비','접대비','기타'];
         const varTotal  = varCats.reduce((s,k)=>s+(catTotals[k]||0),0);
         const taxTotal  = catTotals['TAX']||0;
         const licTotal  = catTotals['라이선스']||0;
@@ -4673,7 +4678,7 @@ window.switchProfitSubTab = function(tab){
           const varCalc  = (catTotals['주류']||0)+(catTotals['음료']||0)+
             (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)+(catTotals['staff 식자재']||0)+
             (catTotals['비품']||0)+(catTotals['소모품']||0)+(catTotals['장비']||0)+(catTotals['유지보수']||0)+
-            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['영업비']||0)+
+            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['통신/구독/렌탈']||0)+(catTotals['영업비']||0)+
             (catTotals['접대비']||0)+(catTotals['기타']||0);
           const taxVal   = catTotals['TAX']||0;
           const licVal   = catTotals['라이선스']||0;
