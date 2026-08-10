@@ -629,7 +629,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <input class="input-field" type="month" id="expenseMonth" style="font-size:11px;width:auto;" onchange="window.loadExpenseFromDB(this.value)">
           <button class="quick-btn" onclick="window.setExpenseMonth('this')">이번달</button>
           <button class="quick-btn" onclick="window.setExpenseMonth('last')">지난달</button>
-          <button class="btn btn-primary btn-sm" onclick="document.getElementById('expenseFileInput').click()">📊 엑셀 업로드</button>
+          <button class="btn btn-primary btn-sm" onclick="var _fi=document.getElementById('expenseFileInput');_fi.value='';_fi.click()">📊 엑셀 업로드</button>
           <input type="file" id="expenseFileInput" accept=".xlsx,.xls" style="display:none;" onchange="window.loadExpenseFile(this)">
           <button class="btn btn-sm" style="background:rgba(96,165,250,0.15);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onclick="document.getElementById('expenseImageInput').click()">📷 이미지 업로드</button>
           <input type="file" id="expenseImageInput" accept="image/*" style="display:none;" onchange="window.loadExpenseImage(this)">
@@ -3627,6 +3627,8 @@ let expenseData={}; // {monthKey: {date: {category: amount}}}
 
 function loadExpenseFile(input){
   const file=input.files[0];if(!file)return;
+  showToast('📊 파일 읽는 중... ('+file.name+')');
+  if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패 — 새로고침 후 다시 시도해주세요');return;}
   const monthEl=document.getElementById('expenseMonth');
   const reader=new FileReader();
   reader.onload=e=>{
@@ -3639,6 +3641,7 @@ function loadExpenseFile(input){
       parseExpense(raw, monthEl.value, colInfo);
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
+  reader.onerror=()=>{showToast('⚠ 파일을 여는 데 실패했어요');};
   reader.readAsArrayBuffer(file);
   input.value='';
 }
