@@ -3777,21 +3777,32 @@ function parseExpense(raw, monthKey, colInfo=[]){
   const months=Object.keys(byMonth);
   console.log('saving months:', months);
 
+  if(months.length) showToast('💾 저장 중... ('+months.length+'개월)');
+
   const savePromises=months.map(mk=>{
     const {year:y,month:m,data:newData}=byMonth[mk];
     return new Promise(resolve=>{
+      let done=false;
+      const finish=(r)=>{ if(!done){done=true;resolve(r);} };
+      const timer=setTimeout(()=>finish({mk,ok:false,err:'응답 지연 (인터넷/로그인 확인)'}),10000);
       onValue(ref(db,'expenses/'+mk),snap=>{
         const existing=snap.exists()?(snap.val().data||{}):{};
         Object.assign(existing, newData);
         set(ref(db,'expenses/'+mk),{monthKey:mk,year:y,month:m,data:existing})
-          .then(()=>{ console.log('saved:',mk); resolve(); })
-          .catch(e=>{ console.error('save error:',mk,e); resolve(); });
-      },{onlyOnce:true});
+          .then(()=>{ clearTimeout(timer); console.log('saved:',mk); finish({mk,ok:true}); })
+          .catch(e=>{ clearTimeout(timer); console.error('save error:',mk,e); finish({mk,ok:false,err:(e&&e.message)||String(e)}); });
+      },(e)=>{ clearTimeout(timer); console.error('read error:',mk,e); finish({mk,ok:false,err:'읽기 거부: '+((e&&e.message)||e)}); },{onlyOnce:true});
     });
   });
 
-  Promise.all(savePromises).then(()=>{
-    showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일, '+months.length+'개월)');
+  Promise.all(savePromises).then((results)=>{
+    const fails=(results||[]).filter(r=>r&&!r.ok);
+    if(fails.length){
+      const f=fails[0];
+      showToast('⚠ 저장 실패 ['+f.mk+']: '+f.err);
+    } else {
+      showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일, '+months.length+'개월)');
+    }
     // 선택한 월 데이터만 표시
     loadExpenseFromDB(monthKey);
   });
