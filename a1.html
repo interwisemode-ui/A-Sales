@@ -3625,6 +3625,7 @@ const normCat=c=>CAT_ALIASES[c]||c;
 // Firebase 키에 못 쓰는 문자(/ . # $ [ ])를 전각(全角)으로 치환 → 저장 실패 방지
 const _SAFE_MAP={'/':'／','.':'．','#':'＃','$':'＄','[':'［',']':'］'};
 const safeCatKey=c=>String(c).replace(/[\/.#$\[\]]/g,m=>_SAFE_MAP[m]);
+function fmtWon(v){return Math.round(Number(v)||0).toLocaleString();} // 금액 표시: 소수점 반올림
 function mergeCatAliases(data){const out={};for(const d in data){out[d]={};for(const c in data[d]){const nc=normCat(safeCatKey(c));out[d][nc]=(out[d][nc]||0)+data[d][c];}}return out;}
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
@@ -3882,9 +3883,9 @@ function renderExpenseTable(data, monthKey){
       } else {
         catTotals[cat]=(catTotals[cat]||0)+amt;
       }
-      row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt>0?'var(--text)':'var(--text3)')+'">'+( amt>0?amt.toLocaleString():'-')+'</td>';
+      row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt>0?'var(--text)':'var(--text3)')+'">'+( amt>0?fmtWon(amt):'-')+'</td>';
     });
-    row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:'+(isSeparate?'var(--blue)':'var(--accent2)')+'">'+(rowTotal>0?rowTotal.toLocaleString():'-')+'</td></tr>';
+    row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:'+(isSeparate?'var(--blue)':'var(--accent2)')+'">'+(rowTotal>0?fmtWon(rowTotal):'-')+'</td></tr>';
     if(hasData)html+=row;
   });
 
@@ -3896,9 +3897,9 @@ function renderExpenseTable(data, monthKey){
       .filter(([cat])=>!SEPARATE_CATS.some(s=>cat.toUpperCase().includes(s.toUpperCase())))
       .reduce((s,[,v])=>s+v,0);
     grandTotal+=dayTotal;
-    html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+(dayTotal>0?dayTotal.toLocaleString():'-')+'</td>';
+    html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+(dayTotal>0?fmtWon(dayTotal):'-')+'</td>';
   });
-  html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+grandTotal.toLocaleString()+'</td></tr>';
+  html+='<td style="padding:6px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:var(--red)">'+fmtWon(grandTotal)+'</td></tr>';
   html+='</tbody></table></div>';
 
   // 별도 항목 표시 (대여금 등) - 기간별 누적 표시
@@ -3969,8 +3970,8 @@ function renderExpenseTable(data, monthKey){
           allCats.forEach(cat=>{
             tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
             let rowTotal=0;
-            activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?v.toLocaleString():'-'}</td>`;});
-            tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${rowTotal.toLocaleString()}</td></tr>`;
+            activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?fmtWon(v):'-'}</td>`;});
+            tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${fmtWon(rowTotal)}</td></tr>`;
           });
           tbl+='</tbody></table></div>';
           separateEl.innerHTML=tbl;
@@ -4209,7 +4210,7 @@ function renderProfit(){
       const profitColor = profit>=0?'var(--green)':'var(--red)';
 
       const pct=(v)=>totalSales>0?((v/totalSales)*100).toFixed(1)+'%':'-';
-      const fmt=(v)=>v>0?'₹'+v.toLocaleString():'-';
+      const fmt=(v)=>v>0?'₹'+fmtWon(v):'-';
 
       // ── 오늘 날짜 제목 ──
       // baseDisp already set above
@@ -4263,7 +4264,7 @@ function renderProfit(){
         if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal};
 
         const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
-        const fmt=(v)=>v>0?'₹'+v.toLocaleString():'-';
+        const fmt=(v)=>v>0?'₹'+fmtWon(v):'-';
 
         // 수동 편집 인풋 렌더
         const editCell=(key,val,calcVal)=>{
