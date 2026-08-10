@@ -3618,11 +3618,14 @@ function renderSeparateCatsUI(){
   `<button onclick="window.addSeparateCat()" style="background:rgba(96,165,250,0.12);color:var(--blue);border:1px dashed rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;cursor:pointer;">+ 추가</button>`;
 }
 
-const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신/구독/렌탈', '영업비', '접대비'];
-// 옛 항목명 → 새 항목명 (기존 저장 데이터를 새 이름으로 자동 흡수)
-const CAT_ALIASES={'통신비':'통신/구독/렌탈'};
+const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신／구독／렌탈', '영업비', '접대비'];
+// 옛/변형 항목명 → 표준 항목명 (기존 데이터 자동 흡수)
+const CAT_ALIASES={'통신비':'통신／구독／렌탈','통신/구독/렌탈':'통신／구독／렌탈'};
 const normCat=c=>CAT_ALIASES[c]||c;
-function mergeCatAliases(data){const out={};for(const d in data){out[d]={};for(const c in data[d]){const nc=normCat(c);out[d][nc]=(out[d][nc]||0)+data[d][c];}}return out;}
+// Firebase 키에 못 쓰는 문자(/ . # $ [ ])를 전각(全角)으로 치환 → 저장 실패 방지
+const _SAFE_MAP={'/':'／','.':'．','#':'＃','$':'＄','[':'［',']':'］'};
+const safeCatKey=c=>String(c).replace(/[\/.#$\[\]]/g,m=>_SAFE_MAP[m]);
+function mergeCatAliases(data){const out={};for(const d in data){out[d]={};for(const c in data[d]){const nc=normCat(safeCatKey(c));out[d][nc]=(out[d][nc]||0)+data[d][c];}}return out;}
 let expenseData={}; // {monthKey: {date: {category: amount}}}
 
 function loadExpenseFile(input){
@@ -3750,7 +3753,8 @@ function parseExpense(raw, monthKey, colInfo=[]){
     if(catRaw.includes('합계')||catRaw.includes('합 계'))continue;
     // 특수 매핑: staff 식자재 → 식자재
     const catMapped=catRaw.replace(/^staff\s*/i,'').trim();
-    const cat=EXPENSE_CATEGORIES.find(c=>catMapped.toUpperCase()===c.toUpperCase())||catMapped;
+    let cat=EXPENSE_CATEGORIES.find(c=>catMapped.toUpperCase()===c.toUpperCase())||catMapped;
+    cat=safeCatKey(normCat(cat)); // 표준 이름으로 + Firebase 금지문자 제거
     dayCols.forEach(({col,dateStr})=>{
       const v=row[col];
       const amt=(v===''||v===null||v===undefined||isNaN(v))?0:parseFloat(v)||0;
@@ -3788,7 +3792,10 @@ function parseExpense(raw, monthKey, colInfo=[]){
       onValue(ref(db,'expenses/'+mk),snap=>{
         const existing=snap.exists()?(snap.val().data||{}):{};
         Object.assign(existing, newData);
-        set(ref(db,'expenses/'+mk),{monthKey:mk,year:y,month:m,data:existing})
+        // 안전장치: Firebase 금지문자가 든 항목 키를 정리 (저장 실패 방지)
+        const clean={};
+        for(const d in existing){clean[d]={};for(const k in existing[d]){const sk=safeCatKey(k);clean[d][sk]=(clean[d][sk]||0)+existing[d][k];}}
+        set(ref(db,'expenses/'+mk),{monthKey:mk,year:y,month:m,data:clean})
           .then(()=>{ clearTimeout(timer); console.log('saved:',mk); finish({mk,ok:true}); })
           .catch(e=>{ clearTimeout(timer); console.error('save error:',mk,e); finish({mk,ok:false,err:(e&&e.message)||String(e)}); });
       },(e)=>{ clearTimeout(timer); console.error('read error:',mk,e); finish({mk,ok:false,err:'읽기 거부: '+((e&&e.message)||e)}); },{onlyOnce:true});
@@ -4115,7 +4122,7 @@ const PROFIT_GROUPS = {
   '비품': { label: '비품', group: '비용', sub: '비용' },
   '교통비': { label: '교통비', group: '비용', sub: '비용' },
   '기타': { label: '기타', group: '비용', sub: '비용' },
-  '통신/구독/렌탈': { label: '통신/구독/렌탈', group: '비용', sub: '비용' },
+  '통신／구독／렌탈': { label: '통신／구독／렌탈', group: '비용', sub: '비용' },
   '접대비': { label: '접대비', group: '비용', sub: '비용' },
 };
 
@@ -4193,7 +4200,7 @@ function renderProfit(){
       const laborCost = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
       const rentCost = (catTotals['임대로']||0)+(catTotals['임대료']||0)+(catTotals['관리비']||0);
       const fixedTotal = laborCost + rentCost;
-      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','통신/구독/렌탈','접대비','수도광열'];
+      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','통신／구독／렌탈','접대비','수도광열'];
       const varTotal = sum(varCats);
       const taxTotal = catTotals['TAX']||0;
       const licTotal = catTotals['라이선스']||0;
@@ -4228,7 +4235,7 @@ function renderProfit(){
         const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
         const fixedTot  = laborVal+rentVal+mgmtVal;
 
-        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신/구독/렌탈','영업비','접대비','기타'];
+        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신／구독／렌탈','영업비','접대비','기타'];
         const varCalc={
           '주류':     catTotals['주류']||0,
           '음료':     catTotals['음료']||0,
@@ -4238,7 +4245,7 @@ function renderProfit(){
           '유지보수': catTotals['유지보수']||0,
           '교통비':   catTotals['교통비']||0,
           '수도광열': catTotals['수도광열']||0,
-          '통신/구독/렌탈':   (catTotals['통신비']||0)+(catTotals['통신/구독/렌탈']||0),
+          '통신／구독／렌탈':   (catTotals['통신비']||0)+(catTotals['통신／구독／렌탈']||0),
           '영업비':   catTotals['영업비']||0,
           '접대비':   catTotals['접대비']||0,
           '기타':     catTotals['기타']||0,
@@ -4543,7 +4550,7 @@ function calcPeriodData(p, callback){
         const laborVal  = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
         const rentVal   = (catTotals['임대로']||0)+(catTotals['임대료']||0);
         const mgmtVal   = catTotals['관리비']||0;
-        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','통신/구독/렌탈','영업비','접대비','기타'];
+        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','통신／구독／렌탈','영업비','접대비','기타'];
         const varTotal  = varCats.reduce((s,k)=>s+(catTotals[k]||0),0);
         const taxTotal  = catTotals['TAX']||0;
         const licTotal  = catTotals['라이선스']||0;
@@ -4692,7 +4699,7 @@ window.switchProfitSubTab = function(tab){
           const varCalc  = (catTotals['주류']||0)+(catTotals['음료']||0)+
             (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)+(catTotals['staff 식자재']||0)+
             (catTotals['비품']||0)+(catTotals['소모품']||0)+(catTotals['장비']||0)+(catTotals['유지보수']||0)+
-            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['통신/구독/렌탈']||0)+(catTotals['영업비']||0)+
+            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['통신／구독／렌탈']||0)+(catTotals['영업비']||0)+
             (catTotals['접대비']||0)+(catTotals['기타']||0);
           const taxVal   = catTotals['TAX']||0;
           const licVal   = catTotals['라이선스']||0;
