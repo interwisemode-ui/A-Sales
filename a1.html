@@ -4261,7 +4261,7 @@ function renderProfit(){
         const profitColor= profitVal>=0?'var(--green)':'var(--red)';
         // 그래프용 캐시 저장
         const _profitMonthKey = document.getElementById('profitMonth')?.value||'';
-        if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal, dv:sumDividend(catTotals)};
+        if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal, dv:sumDividend(separateCatTotals)};
 
         const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
         const fmt=(v)=>v>0?'₹'+fmtWon(v):'-';
@@ -4649,6 +4649,19 @@ function renderProfitChart(){
           : `<span style="font-size:10px;color:var(--text3);white-space:nowrap;">자동</span>`}
       </div>`).join('');
 
+    // 손익 데이터 표 (매출/매입/손익/배당) — 그래프와 동일 데이터
+    const rowDef=[['매출','sales','var(--accent2)'],['매입','expense','var(--red)'],['손익','profit','var(--green)'],['배당','dividend','#a78bfa']];
+    const fmtCell=v=>(v===0||v==null)?'-':fmtWon(v);
+    let sumTbl='<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:11px;">';
+    sumTbl+='<thead><tr><th style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;color:var(--text3);white-space:nowrap;">항목</th>';
+    sumTbl+=allData.map(d=>`<th style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);white-space:nowrap;">${d.label}</th>`).join('');
+    sumTbl+='</tr></thead><tbody>';
+    sumTbl+=rowDef.map(([name,key,color])=>
+      `<tr><td style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 10px;border-bottom:1px solid var(--border);font-weight:700;color:${color};white-space:nowrap;">${name}</td>`
+      + allData.map(d=>{const v=d[key];const neg=(key==='profit'&&v<0);return `<td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;color:${neg?'var(--red)':'var(--text2)'};">${fmtCell(v)}</td>`;}).join('')
+      + '</tr>').join('');
+    sumTbl+='</tbody></table></div>';
+
     el.innerHTML=`
       <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px;">📊 손익 추이</div>
@@ -4666,6 +4679,10 @@ function renderProfitChart(){
         <div style="font-weight:700;font-size:13px;margin-bottom:4px;">💜 배당 입력 <span style="font-size:11px;color:var(--text3);font-weight:400;">(기본값 = 배당금 자동합산, 직접 수정 가능)</span></div>
         <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">숫자를 바꾸면 그 기간 배당이 입력값으로 고정돼요. ↺ 누르면 자동합산으로 돌아가요.</div>
         ${dvEdit||'<div style="font-size:11px;color:var(--text3);">편집 가능한 기간이 없어요.</div>'}
+      </div>
+      <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">📋 손익 데이터 표 <span style="font-size:11px;color:var(--text3);font-weight:400;">(그래프와 동일, 기간 마감 시 자동 반영)</span></div>
+        ${sumTbl}
       </div>`;
   }
 }
@@ -4720,10 +4737,13 @@ window.switchProfitSubTab = function(tab){
           if(snap2.exists()) Object.assign(combinedExp, snap2.val().data||{});
 
           const catTotals={};
+          let dvAuto=0;
           Object.keys(combinedExp).forEach(date=>{
             if(date>=periodFrom&&date<=periodTo){
               Object.entries(combinedExp[date]).forEach(([cat,amt])=>{
-                if(typeof amt==='number' && !separateCatsList.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
+                if(typeof amt!=='number') return;
+                if(cat.includes('배당')) dvAuto+=amt; // 배당금은 별도로 합산
+                if(!separateCatsList.some(s=>cat.toUpperCase().includes(s.toUpperCase()))){
                   catTotals[cat]=(catTotals[cat]||0)+amt;
                 }
               });
@@ -4748,7 +4768,7 @@ window.switchProfitSubTab = function(tab){
             const getVal=(key,calc)=>ov[key]!==undefined?ov[key]:calc;
             const finalSales = getVal('CARD',0)+getVal('UPI',0)+getVal('CASH',0)||totalSales;
             const finalExp = expTot; // 간략화
-            profitPeriodCache[monthKey]={sales:totalSales, expense:expTot, profit:totalSales-expTot, dv:sumDividend(catTotals)};
+            profitPeriodCache[monthKey]={sales:totalSales, expense:expTot, profit:totalSales-expTot, dv:dvAuto};
             pending--; if(pending===0) renderProfitChart();
           },{onlyOnce:true});
         },{onlyOnce:true});
