@@ -4261,7 +4261,7 @@ function renderProfit(){
         const profitColor= profitVal>=0?'var(--green)':'var(--red)';
         // 그래프용 캐시 저장
         const _profitMonthKey = document.getElementById('profitMonth')?.value||'';
-        if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal};
+        if(_profitMonthKey) profitPeriodCache[_profitMonthKey] = {sales:salesTotal, expense:expTot, profit:profitVal, dv:sumDividend(catTotals)};
 
         const pct=(v)=>salesTotal>0?((v/salesTotal)*100).toFixed(1)+'%':'-';
         const fmt=(v)=>v>0?'₹'+fmtWon(v):'-';
@@ -4486,6 +4486,10 @@ function renderProfit(){
 // ── 손익 추이 그래프 ──────────────────────────────────────────
 // 기간별 손익 결과 저장소 (그래프용)
 const profitPeriodCache = {};
+// 배당금(별도항목) 자동 합산: 카테고리명에 '배당' 포함되면 합산
+const sumDividend=ct=>Object.entries(ct||{}).filter(([k])=>k.includes('배당')).reduce((s,[,v])=>s+(typeof v==='number'?v:0),0);
+// 배당 수동입력 저장 경로 (라벨의 특수문자 제거해 안전한 키로)
+const dvPath=label=>'profitDividend/'+String(label).replace(/[\/.#$\[\]~]/g,'_');
 
 const PROFIT_HISTORY_STATIC = [
   {label:'25/09월', sales:3503552, expense:6780667, profit:-3277115, dividend:0},
@@ -4515,9 +4519,11 @@ function calcPeriodData(p, callback){
   const cacheKey = p.expMonths[0];
   if(profitPeriodCache[cacheKey]){
     const cached = profitPeriodCache[cacheKey];
-    onValue(ref(db,'profitDividend/'+p.label), dvSnap=>{
-      const dividend = dvSnap.exists() ? dvSnap.val() : 0;
-      callback({label:p.label, sales:cached.sales, expense:cached.expense, profit:cached.profit, dividend});
+    onValue(ref(db,dvPath(p.label)), dvSnap=>{
+      const autoDv = cached.dv||0;
+      const dvOverride = dvSnap.exists();
+      const dividend = dvOverride ? dvSnap.val() : autoDv;
+      callback({label:p.label, sales:cached.sales, expense:cached.expense, profit:cached.profit, dividend, autoDv, dvOverride});
     },{onlyOnce:true});
     return;
   }
@@ -4557,10 +4563,12 @@ function calcPeriodData(p, callback){
         const licTotal  = catTotals['라이선스']||0;
         const expense   = laborVal+rentVal+mgmtVal+varTotal+taxTotal+licTotal;
 
-        // 배당
-        onValue(ref(db,'profitDividend/'+p.label), dvSnap=>{
-          const dividend = dvSnap.exists() ? dvSnap.val() : 0;
-          callback({label:p.label, sales, expense, profit:sales-expense, dividend});
+        // 배당 (기본값=배당금 자동합산, 수동입력 있으면 그 값)
+        onValue(ref(db,dvPath(p.label)), dvSnap=>{
+          const autoDv = sumDividend(catTotals);
+          const dvOverride = dvSnap.exists();
+          const dividend = dvOverride ? dvSnap.val() : autoDv;
+          callback({label:p.label, sales, expense, profit:sales-expense, dividend, autoDv, dvOverride});
         },{onlyOnce:true});
       }
     },{onlyOnce:true});
@@ -4630,6 +4638,17 @@ function renderProfitChart(){
 
     const zeroLine=`<line x1="${padL-8}" y1="${zeroY}" x2="${chartW-padR}" y2="${zeroY}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4,2"/>`;
 
+    // 기간별 배당 입력칸 (동적 기간만 편집 가능)
+    const dvEdit = autoData.map(d=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;">
+        <span style="min-width:92px;font-size:11px;color:var(--text3);">${d.label}</span>
+        <input type="number" value="${Math.round(d.dividend||0)}" onchange="window.saveDividendOverride('${d.label}',this.value)"
+          style="width:120px;background:${d.dvOverride?'rgba(251,191,36,0.12)':'transparent'};border:1px solid ${d.dvOverride?'var(--yellow)':'var(--border)'};border-radius:4px;padding:3px 6px;color:var(--text);font-size:12px;text-align:right;font-family:inherit;">
+        ${d.dvOverride
+          ? `<span onclick="window.resetDividendOverride('${d.label}')" title="자동값으로 되돌리기" style="cursor:pointer;color:var(--yellow);font-size:11px;white-space:nowrap;">↺ 자동(${(d.autoDv||0).toLocaleString()})</span>`
+          : `<span style="font-size:10px;color:var(--text3);white-space:nowrap;">자동</span>`}
+      </div>`).join('');
+
     el.innerHTML=`
       <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px;">📊 손익 추이</div>
@@ -4642,10 +4661,27 @@ function renderProfitChart(){
           <span><span style="display:inline-block;width:10px;height:10px;background:${colors.profit};border-radius:2px;margin-right:4px;"></span>손익</span>
           <span><span style="display:inline-block;width:10px;height:10px;background:${colors.dividend};border-radius:2px;margin-right:4px;"></span>배당</span>
         </div>
+      </div>
+      <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">💜 배당 입력 <span style="font-size:11px;color:var(--text3);font-weight:400;">(기본값 = 배당금 자동합산, 직접 수정 가능)</span></div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">숫자를 바꾸면 그 기간 배당이 입력값으로 고정돼요. ↺ 누르면 자동합산으로 돌아가요.</div>
+        ${dvEdit||'<div style="font-size:11px;color:var(--text3);">편집 가능한 기간이 없어요.</div>'}
       </div>`;
   }
 }
 
+
+window.saveDividendOverride = function(label, val){
+  const v = Math.round(Number(val)||0);
+  set(ref(db, dvPath(label)), v)
+    .then(()=>{ showToast('✓ 배당 저장: '+label+' ₹'+v.toLocaleString()); renderProfitChart(); })
+    .catch(e=>showToast('⚠ 배당 저장 실패: '+((e&&e.message)||e)));
+};
+window.resetDividendOverride = function(label){
+  remove(ref(db, dvPath(label)))
+    .then(()=>{ showToast('↺ 자동값으로 복귀: '+label); renderProfitChart(); })
+    .catch(e=>showToast('⚠ 실패: '+((e&&e.message)||e)));
+};
 
 window.switchProfitSubTab = function(tab){
   ['summary','chart'].forEach(t=>{
@@ -4712,7 +4748,7 @@ window.switchProfitSubTab = function(tab){
             const getVal=(key,calc)=>ov[key]!==undefined?ov[key]:calc;
             const finalSales = getVal('CARD',0)+getVal('UPI',0)+getVal('CASH',0)||totalSales;
             const finalExp = expTot; // 간략화
-            profitPeriodCache[monthKey]={sales:totalSales, expense:expTot, profit:totalSales-expTot};
+            profitPeriodCache[monthKey]={sales:totalSales, expense:expTot, profit:totalSales-expTot, dv:sumDividend(catTotals)};
             pending--; if(pending===0) renderProfitChart();
           },{onlyOnce:true});
         },{onlyOnce:true});
