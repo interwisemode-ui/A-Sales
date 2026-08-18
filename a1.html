@@ -2011,14 +2011,14 @@ window.showStaffStat = function showStaffStat(name){
   content.innerHTML=`<div style="color:var(--text3);padding:20px;text-align:center;">불러오는 중...</div>`;
   modal.style.display='block';
 
-  get(ref(db,'records')).then(snap=>{
+  Promise.all([get(ref(db,'records')), get(ref(db,'attendance'))]).then(([snap, attSnap])=>{
     if(!snap.exists()){content.innerHTML='데이터 없음';return;}
-    const monthMap={}; // {YYYY-MM: {bookCnt, selCnt, sales, dc}}
+    const monthMap={}; // {YYYY-MM: {bookCnt, selCnt, sales, dc, att}}
     snap.forEach(child=>{
       const r=child.val();
       if(!r.date) return;
       const mk=r.date.slice(0,7);
-      if(!monthMap[mk]) monthMap[mk]={bookCnt:0,selCnt:0,sales:0,dc:0};
+      if(!monthMap[mk]) monthMap[mk]={bookCnt:0,selCnt:0,sales:0,dc:0,att:0};
       const bookers=(r.bookers||[]).filter(Boolean);
       const isMgr=managerList.includes(name);
       if(bookers.includes(name)){
@@ -2031,13 +2031,57 @@ window.showStaffStat = function showStaffStat(name){
       }
     });
 
+    // 월별 출석일수 집계 (출근부에서 이 스태프의 출근일 카운트)
+    const attMonths=new Set(); // 출근부가 존재하는 달 (분모 계산용)
+    if(attSnap&&attSnap.exists()){
+      attSnap.forEach(monthSnap=>{
+        const data=monthSnap.val()||{};
+        const dates=data.dates||[];
+        // 이 시트가 커버하는 달을 기록 (스태프 출석 여부와 무관)
+        dates.forEach(dt=>{ if(dt&&dt.dateStr) attMonths.add(dt.dateStr.slice(0,7)); });
+        (data.staff||[]).forEach(s=>{
+          if((s.name||'').toUpperCase()!==name) return;
+          (s.entries||[]).forEach((e,idx)=>{
+            const dateStr=(dates[idx]&&dates[idx].dateStr)||'';
+            if(!dateStr) return;
+            const present = e && (e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));
+            if(present){
+              const amk=dateStr.slice(0,7);
+              if(monthMap[amk]) monthMap[amk].att++; // 매출 기록 있는 달에만 반영 (잘못된 연도 등 제외)
+            }
+          });
+        });
+      });
+    }
+
     const months=Object.keys(monthMap).sort().reverse();
     if(!months.length){content.innerHTML=`<div style="color:var(--text3);text-align:center;padding:20px;">${name} 실적 없음</div>`;return;}
 
     const isMgr=managerList.includes(name);
+
+    // 직전 3개월 / 6개월 / 전체 평균 (월평균 기준)
+    const avgOver=(mks)=>{
+      const n=mks.length; if(!n) return {sales:0,book:0,sel:0,att:0};
+      let s=0,b=0,se=0,at=0;
+      mks.forEach(mk=>{const d=monthMap[mk];s+=d.sales;b+=d.bookCnt;se+=d.selCnt;at+=(d.att||0);});
+      const attN=mks.filter(mk=>attMonths.has(mk)).length; // 출근부 있는 달만 분모로
+      return {sales:Math.round(s/n), book:b/n, sel:se/n, att:attN?at/attN:0};
+    };
+    const avg3=avgOver(months.slice(0,3)), avg6=avgOver(months.slice(0,6)), avgAll=avgOver(months);
+    const avgBox=(title,a)=>`
+      <div style="flex:1;min-width:104px;background:var(--bg3);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${title}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--green);line-height:1.2;">₹${a.sales.toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px;">평균 매출/월</div>
+        <div style="font-size:11px;">부킹 <b>${a.book.toFixed(1)}</b> · 셀렉션 <b>${a.sel.toFixed(1)}</b></div>
+        <div style="font-size:11px;color:var(--blue);margin-top:3px;">출석 <b>${a.att.toFixed(1)}</b>일/월</div>
+      </div>`;
+    const avgSummary=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">${avgBox('직전 3개월',avg3)}${avgBox('직전 6개월',avg6)}${avgBox('전체기간',avgAll)}</div>`;
+
     let html=`
       <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${isMgr?'🌟':''}${name}</div>
-      <div style="color:var(--text3);font-size:12px;margin-bottom:20px;">${isMgr?'매니저':'스태프'} · 월별 실적</div>
+      <div style="color:var(--text3);font-size:12px;margin-bottom:16px;">${isMgr?'매니저':'스태프'} · 월별 실적</div>
+      ${avgSummary}
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="border-bottom:1px solid var(--border);color:var(--text3);font-size:11px;">
