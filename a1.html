@@ -3861,10 +3861,38 @@ function parseExpense(raw, monthKey, colInfo=[]){
 
   console.log('byMonth keys:', Object.keys(byMonth));
 
-  // 각 월별로 Promise 기반으로 순차 저장
+  // 기존 데이터와 비교 → 변경/삭제가 있으면 확인받고 저장
   const months=Object.keys(byMonth);
-  console.log('saving months:', months);
+  if(!months.length){ showToast('⚠ 저장할 데이터 없음'); return; }
 
+  showToast('🔍 기존 데이터 확인 중...');
+  const _normMap=(cats)=>{const m={};for(const c in cats){const k=normCat(safeCatKey(c));m[k]=(m[k]||0)+(Number(cats[c])||0);}return m;};
+  Promise.all(months.map(mk=>get(ref(db,'expenses/'+mk))
+      .then(snap=>({mk, existing:(snap.exists()&&snap.val().data)||{}}))
+      .catch(()=>({mk, existing:{}}))
+  )).then(arr=>{
+    const changes=[]; // 기존 값이 바뀌거나 사라지는 것만
+    arr.forEach(({mk, existing})=>{
+      const nd=byMonth[mk].data;
+      Object.keys(existing).forEach(date=>{
+        if(nd[date]===undefined) return; // 엑셀에 없는 날짜는 안 건드림
+        const oldN=_normMap(existing[date]||{}), newN=_normMap(nd[date]||{});
+        Object.keys(oldN).forEach(cat=>{
+          const o=oldN[cat], n=newN[cat]||0;
+          if(o>0 && Math.round(o)!==Math.round(n)) changes.push({date, cat, oldV:o, newV:n});
+        });
+      });
+    });
+    if(changes.length){
+      showExpenseChangeConfirm(changes, ()=>doSaveExpense(byMonth, result, monthKey));
+    } else {
+      doSaveExpense(byMonth, result, monthKey);
+    }
+  }).catch(e=>{ showToast('⚠ 확인 실패: '+((e&&e.message)||e)); });
+}
+
+function doSaveExpense(byMonth, result, monthKey){
+  const months=Object.keys(byMonth);
   if(months.length) showToast('💾 저장 중... ('+months.length+'개월)');
 
   const savePromises=months.map(mk=>{
@@ -3894,14 +3922,38 @@ function parseExpense(raw, monthKey, colInfo=[]){
     } else {
       showToast('✓ 경비 저장됨 ('+Object.keys(result).length+'일, '+months.length+'개월)');
     }
-    // 선택한 월 데이터만 표시
     loadExpenseFromDB(monthKey);
   });
-
-  if(!months.length){
-    showToast('⚠ 저장할 데이터 없음');
-  }
 }
+
+function showExpenseChangeConfirm(changes, onConfirm){
+  window._applyExpenseSave=function(){ const el=document.getElementById('expChangeModal'); if(el)el.remove(); onConfirm(); };
+  window._cancelExpenseSave=function(){ const el=document.getElementById('expChangeModal'); if(el)el.remove(); showToast('업로드 취소됨 — 기존 데이터 그대로 유지'); };
+  const sorted=changes.slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
+  const show=sorted.slice(0,60);
+  const rows=show.map(c=>{
+    const del=Math.round(c.newV)===0;
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <span style="color:var(--text3);white-space:nowrap;">${c.date}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${c.cat}</span>
+      <span style="white-space:nowrap;"><span style="color:var(--text3);">${Math.round(c.oldV).toLocaleString()}</span> → <span style="color:${del?'var(--red)':'var(--yellow)'};font-weight:700;">${del?'삭제':Math.round(c.newV).toLocaleString()}</span></span>
+    </div>`;
+  }).join('');
+  const more=sorted.length>60?`<div style="text-align:center;color:var(--text3);font-size:11px;padding:8px;">…외 ${sorted.length-60}건 더</div>`:'';
+  const modal=document.createElement('div');
+  modal.id='expChangeModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML=`
+    <div style="background:var(--bg2);border-radius:16px;max-width:540px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:20px;">
+      <div style="font-size:16px;font-weight:700;color:var(--yellow);margin-bottom:6px;">⚠ 기존 데이터 ${changes.length}건이 바뀝니다</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">이번 엑셀 업로드로 아래 <b>기존 값</b>들이 변경·삭제돼요. 의도한 변경이 맞는지 확인해주세요. (새로 추가되는 항목은 여기 안 나와요)</div>
+      <div style="overflow-y:auto;flex:1;background:var(--bg3);border-radius:10px;padding:8px 14px;margin-bottom:16px;">${rows}${more}</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="window._cancelExpenseSave()" style="padding:10px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:14px;">취소 (그대로 둠)</button>
+        <button onclick="window._applyExpenseSave()" style="padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:14px;">그대로 적용</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 
 function renderExpenseTable(data, monthKey){
   data = mergeCatAliases(data); // 옛 항목명(통신비 등)을 새 이름으로 합쳐서 표시
