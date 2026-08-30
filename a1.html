@@ -1272,7 +1272,7 @@ function saveInlineAmt(id){
 // EDIT / DELETE
 function editRecord(id){
   const r=records.find(x=>x.id===id);if(!r)return;
-  editId=id;selRoom=r.room;selBookers=[...(r.bookers||[])];selStaff=[...(r.staff||[])];
+  editId=id;selRoom=r.room;selBookers=[...(r.bookers||[])];selStaff=[...(r.staff||[])];selStaff2=[...(r.staff2||[])];
   // Restore selPayments
   if(r.payment==='MIX'){
     selPayments=[];
@@ -4450,7 +4450,7 @@ function renderProfit(){
 
         // ── 고정비 ──
         h+=`<tr>
-          <td rowspan="4" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
+          <td rowspan="5" style="padding:6px 10px;border:1px solid var(--border);text-align:center;font-weight:700;background:rgba(248,113,113,0.05);color:var(--red)">고정비</td>
           ${td('급여')}${editCell((catTotals['급여']||0)+(catTotals['인건비']||0),(catTotals['급여']||0)+(catTotals['인건비']||0))}${td(pct((catTotals['급여']||0)+(catTotals['인건비']||0)),'text-align:right;color:var(--text3);')}
           </tr><tr>
           ${td('인센티브')}${editCell(catTotals['인센티브']||0,catTotals['인센티브']||0)}${td(pct(catTotals['인센티브']||0),'text-align:right;color:var(--text3);')}
