@@ -554,6 +554,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="quick-btn" onclick="setQuickDate('all','staffstats')">전체</button>
           </div>
           <button class="btn btn-sm" onclick="downloadStaffStatsXlsx()" style="background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);white-space:nowrap;">⬇ 엑셀</button>
+          <button class="btn btn-sm" onclick="downloadStaffCardsXlsx()" style="background:rgba(96,165,250,0.15);color:var(--accent2);border:1px solid rgba(96,165,250,0.3);white-space:nowrap;">📇 실적카드 엑셀</button>
         </div>
       </div>
       <div id="staffStatsContent"></div>
@@ -1950,6 +1951,82 @@ async function downloadStaffStatsXlsx(){
   showToast('✓ Excel download complete!');
 }
 window.downloadStaffStatsXlsx=downloadStaffStatsXlsx;
+
+// 실적카드 엑셀: 스탭별 직전3/6/전체 평균 + 월별 상세
+window.downloadStaffCardsXlsx=function(){
+  if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패 — 새로고침 후 다시');return;}
+  showToast('📇 실적카드 엑셀 생성 중...');
+  Promise.all([get(ref(db,'records')), get(ref(db,'attendance'))]).then(([snap, attSnap])=>{
+    const recs=[]; if(snap.exists()) snap.forEach(c=>{const r=c.val(); if(r&&r.date) recs.push(r);});
+    const allMonths=new Set(); recs.forEach(r=>allMonths.add(r.date.slice(0,7)));
+
+    // 스탭별 월별 집계 (개별 카드와 동일 로직)
+    const perStaff={};
+    const cell=(name,mk)=>{ (perStaff[name]=perStaff[name]||{}); return (perStaff[name][mk]=perStaff[name][mk]||{book:0,sel:0,sales:0,dc:0,att:0}); };
+    recs.forEach(r=>{
+      const mk=r.date.slice(0,7);
+      const bookers=(r.bookers||[]).filter(Boolean);
+      bookers.forEach(bn=>{ const c=cell(bn,mk); c.book++; c.sales+=Math.round((r.total||0)/bookers.length); c.dc+=(r.dc||0); });
+      const selSet=new Set([...(r.staff||[]),...(r.staff2||[])].filter(Boolean));
+      selSet.forEach(sn=>{ cell(sn,mk).sel++; });
+    });
+
+    // 출근부: 출석일수 + 출근부 있는 달 집합
+    const attMonths=new Set();
+    if(attSnap&&attSnap.exists()){
+      attSnap.forEach(ms=>{
+        const data=ms.val()||{}; const dates=data.dates||[];
+        dates.forEach(dt=>{ if(dt&&dt.dateStr) attMonths.add(dt.dateStr.slice(0,7)); });
+        (data.staff||[]).forEach(s=>{
+          const nm=(s.name||'').toUpperCase();
+          (s.entries||[]).forEach((e,idx)=>{
+            const ds=(dates[idx]&&dates[idx].dateStr)||''; if(!ds)return;
+            const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));
+            if(present){ const amk=ds.slice(0,7); if(allMonths.has(amk)) cell(nm,amk).att++; }
+          });
+        });
+      });
+    }
+
+    const _now=new Date();
+    const nowMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
+    const r1=v=>Math.round(v*10)/10;
+    const avgOver=(mm,mks)=>{
+      const n=mks.length; if(!n) return {sales:0,book:0,sel:0,att:0};
+      let s=0,b=0,se=0,at=0;
+      mks.forEach(mk=>{const d=mm[mk]||{book:0,sel:0,sales:0,att:0};s+=d.sales;b+=d.book;se+=d.sel;at+=(d.att||0);});
+      const attN=mks.filter(mk=>attMonths.has(mk)).length;
+      return {sales:Math.round(s/n),book:r1(b/n),sel:r1(se/n),att:attN?r1(at/attN):0};
+    };
+
+    const summary=[['이름','[직전3]매출','[직전3]부킹','[직전3]셀렉션','[직전3]출석','[직전6]매출','[직전6]부킹','[직전6]셀렉션','[직전6]출석','[전체]매출','[전체]부킹','[전체]셀렉션','[전체]출석']];
+    const detail=[['이름','월','부킹','셀렉션','매출','DC','출석']];
+    const names=Object.keys(perStaff).filter(n=>n&&n!=='WALKIN');
+    // 전체 평균매출 높은 순 정렬
+    const nameAvg={};
+    names.forEach(n=>{ const mm=perStaff[n]; const act=Object.keys(mm).filter(m=>m<nowMk&&mm[m].sales>0); nameAvg[n]=avgOver(mm,act).sales; });
+    names.sort((a,b)=>nameAvg[b]-nameAvg[a]);
+
+    names.forEach(name=>{
+      const mm=perStaff[name];
+      const active=Object.keys(mm).filter(m=>m<nowMk && mm[m].sales>0).sort().reverse();
+      const a3=avgOver(mm,active.slice(0,3)), a6=avgOver(mm,active.slice(0,6)), aAll=avgOver(mm,active);
+      summary.push([name, a3.sales,a3.book,a3.sel,a3.att, a6.sales,a6.book,a6.sel,a6.att, aAll.sales,aAll.book,aAll.sel,aAll.att]);
+      const detMonths=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0).sort().reverse();
+      detMonths.forEach(m=>{ const d=mm[m]; detail.push([name, m, d.book, d.sel, d.sales, d.dc, d.att]); });
+    });
+
+    const wb=XLSX.utils.book_new();
+    const ws1=XLSX.utils.aoa_to_sheet(summary);
+    const ws2=XLSX.utils.aoa_to_sheet(detail);
+    ws1['!cols']=[{wch:12},{wch:12},{wch:9},{wch:10},{wch:9},{wch:12},{wch:9},{wch:10},{wch:9},{wch:12},{wch:9},{wch:10},{wch:9}];
+    ws2['!cols']=[{wch:12},{wch:10},{wch:8},{wch:9},{wch:12},{wch:10},{wch:8}];
+    XLSX.utils.book_append_sheet(wb, ws1, '요약');
+    XLSX.utils.book_append_sheet(wb, ws2, '월별상세');
+    XLSX.writeFile(wb, '스탭실적_'+nowMk+'.xlsx');
+    showToast('✓ 엑셀 다운로드 완료 ('+names.length+'명)');
+  }).catch(e=>{ showToast('⚠ 엑셀 생성 실패: '+((e&&e.message)||e)); });
+};
 
 // ── FIX EXISTING NAMES UPPERCASE ───────────────────────────
 async function fixExistingNamesCase(){
