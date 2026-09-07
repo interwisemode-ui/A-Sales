@@ -5340,7 +5340,9 @@ function parseAttendance(raw){
         const mins=parseTimeStr(timeStr);
 
         if(mins===null){
-          entries.push({time:cell,type:'unknown',booking:hasB,date});
+          // 시간이 아닌 표시(1, O, 출근 등)도 출근으로 인정
+          presentCnt++;
+          entries.push({time:cell,type:'present',booking:hasB,date});
         } else {
           const isLate=mins>=(7*60+31); // 7:31 이후
           const effectiveLate=isLate&&!hasB;
@@ -5442,14 +5444,18 @@ function renderAttFromFirebase(data){
     return {date:new Date(+p[0],+p[1]-1,+p[2]),dow:d.dow};
   });
   // Reconstruct staffData
-  const staffData=data.staff.map(s=>({
+  const staffData=data.staff.map(s=>{
+    const entries=s.entries.map(e=>({time:e.time,type:e.type,booking:e.booking,date:new Date()}));
+    // 저장된 출근수 대신 항목에서 다시 계산 (1/O 등 표시도 출근 인정)
+    const presentCnt=entries.filter(e=>e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!=='0'&&e.time!=='')).length;
+    return {
     name:s.name,
-    presentCnt:s.presentCnt,
+    presentCnt,
     lateCnt:s.lateCnt,
     absentCnt:s.absentCnt,
     avgTime:s.avgTime,
-    entries:s.entries.map(e=>({time:e.time,type:e.type,booking:e.booking,date:new Date()}))
-  }));
+    entries
+  };});
   document.getElementById('attMonthBadge').textContent=`${data.year}년 ${data.month}월`;
   if(attView==='card'){
     renderAttCards(staffData);
@@ -5510,9 +5516,6 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
     return `<tr>
       <td class="att-name">${s.name}</td>
       <td class="stat-present">${s.presentCnt}</td>
-      <td class="stat-late">${s.lateCnt}</td>
-      <td class="stat-absent">${s.absentCnt}</td>
-      <td class="stat-avg">${s.avgTime}</td>
       ${cells}
     </tr>`;
   }).join('');
@@ -5545,9 +5548,6 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
       <thead><tr>
         <th style="text-align:left">이름</th>
         <th style="color:var(--green)">출근</th>
-        <th style="color:var(--yellow)">지각</th>
-        <th style="color:var(--red)">결근</th>
-        <th style="color:var(--blue)">평균</th>
         ${dayHeaders}
       </tr></thead>
       <tbody>${rows}</tbody>
