@@ -3839,9 +3839,9 @@ function renderSeparateCatsUI(){
   `<button onclick="window.addSeparateCat()" style="background:rgba(96,165,250,0.12);color:var(--blue);border:1px dashed rgba(96,165,250,0.3);border-radius:20px;padding:2px 10px;font-size:12px;cursor:pointer;">+ 추가</button>`;
 }
 
-const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신／구독／렌탈', '영업비', '접대비'];
+const EXPENSE_CATEGORIES=['급여', '인센티브', '임대료', '관리비', '수도광열', 'TAX', '라이선스', '주류', '음료', 'FRUITS', 'VEGETABLE', '식자재', '장비', '유지보수', '소모품', '비품', '교통비', '기타', '통신／구독／렌탈', '카드수수료', '영업비', '접대비'];
 // 옛/변형 항목명 → 표준 항목명 (기존 데이터 자동 흡수)
-const CAT_ALIASES={'통신비':'통신／구독／렌탈','통신/구독/렌탈':'통신／구독／렌탈'};
+const CAT_ALIASES={'통신비':'통신／구독／렌탈','통신/구독/렌탈':'통신／구독／렌탈','임대로':'임대료'};
 const normCat=c=>CAT_ALIASES[c]||c;
 // Firebase 키에 못 쓰는 문자(/ . # $ [ ])를 전각(全角)으로 치환 → 저장 실패 방지
 const _SAFE_MAP={'/':'／','.':'．','#':'＃','$':'＄','[':'［',']':'］'};
@@ -4513,7 +4513,7 @@ function renderProfit(){
       const laborCost = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
       const rentCost = (catTotals['임대로']||0)+(catTotals['임대료']||0)+(catTotals['관리비']||0);
       const fixedTotal = laborCost + rentCost;
-      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','통신／구독／렌탈','접대비','수도광열'];
+      const varCats = ['주류','음료','FRUITS','VEGETABLE','식자재','장비','유지보수','소모품','비품','교통비','기타','통신비','통신／구독／렌탈','카드수수료','접대비','수도광열'];
       const varTotal = sum(varCats);
       const taxTotal = catTotals['TAX']||0;
       const licTotal = catTotals['라이선스']||0;
@@ -4548,7 +4548,7 @@ function renderProfit(){
         const mgmtVal   = getVal('관리비',  catTotals['관리비']||0);
         const fixedTot  = laborVal+rentVal+mgmtVal;
 
-        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신／구독／렌탈','영업비','접대비','기타'];
+        const varKeys=['주류','음료','식자재','비품/소모품','장비','유지보수','교통비','수도광열','통신／구독／렌탈','카드수수료','영업비','접대비','기타'];
         const varCalc={
           '주류':     catTotals['주류']||0,
           '음료':     catTotals['음료']||0,
@@ -4559,6 +4559,7 @@ function renderProfit(){
           '교통비':   catTotals['교통비']||0,
           '수도광열': catTotals['수도광열']||0,
           '통신／구독／렌탈':   (catTotals['통신비']||0)+(catTotals['통신／구독／렌탈']||0),
+          '카드수수료':   catTotals['카드수수료']||0,
           '영업비':   catTotals['영업비']||0,
           '접대비':   catTotals['접대비']||0,
           '기타':     catTotals['기타']||0,
@@ -4631,7 +4632,7 @@ function renderProfit(){
           </tr><tr>
           ${td('인센티브')}${editCell(catTotals['인센티브']||0,catTotals['인센티브']||0)}${td(pct(catTotals['인센티브']||0),'text-align:right;color:var(--text3);')}
         </tr>`;
-        h+=`<tr>${td('임대로')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
+        h+=`<tr>${td('임대료')}${editCell('임대로',rentVal,(catTotals['임대로']||0)+(catTotals['임대료']||0))}${td(pct(rentVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr>${td('관리비')}${editCell('관리비',mgmtVal,catTotals['관리비']||0)}${td(pct(mgmtVal),'text-align:right;color:var(--text3);')}</tr>`;
         h+=`<tr style="background:rgba(248,113,113,0.04);">
           <td style="padding:5px 6px;border:1px solid var(--border);font-weight:700;text-align:right;">소계</td>
@@ -4869,7 +4870,7 @@ function calcPeriodData(p, callback){
         const laborVal  = (catTotals['급여']||0)+(catTotals['인건비']||0)+(catTotals['인센티브']||0);
         const rentVal   = (catTotals['임대로']||0)+(catTotals['임대료']||0);
         const mgmtVal   = catTotals['관리비']||0;
-        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','통신／구독／렌탈','영업비','접대비','기타'];
+        const varCats   = ['주류','음료','식자재','FRUITS','VEGETABLE','staff 식자재','비품','소모품','장비','유지보수','교통비','수도광열','통신비','통신／구독／렌탈','카드수수료','영업비','접대비','기타'];
         const varTotal  = varCats.reduce((s,k)=>s+(catTotals[k]||0),0);
         const taxTotal  = catTotals['TAX']||0;
         const licTotal  = catTotals['라이선스']||0;
@@ -5068,7 +5069,7 @@ window.switchProfitSubTab = function(tab){
           const varCalc  = (catTotals['주류']||0)+(catTotals['음료']||0)+
             (catTotals['식자재']||0)+(catTotals['FRUITS']||0)+(catTotals['VEGETABLE']||0)+(catTotals['staff 식자재']||0)+
             (catTotals['비품']||0)+(catTotals['소모품']||0)+(catTotals['장비']||0)+(catTotals['유지보수']||0)+
-            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['통신／구독／렌탈']||0)+(catTotals['영업비']||0)+
+            (catTotals['교통비']||0)+(catTotals['수도광열']||0)+(catTotals['통신비']||0)+(catTotals['통신／구독／렌탈']||0)+(catTotals['카드수수료']||0)+(catTotals['영업비']||0)+
             (catTotals['접대비']||0)+(catTotals['기타']||0);
           const taxVal   = catTotals['TAX']||0;
           const licVal   = catTotals['라이선스']||0;
