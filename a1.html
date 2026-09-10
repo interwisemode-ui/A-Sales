@@ -4285,6 +4285,15 @@ function renderExpenseTable(data, monthKey){
             activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?fmtWon(v):'-'}</td>`;});
             tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${fmtWon(rowTotal)}</td></tr>`;
           });
+          // 월별 합계 행
+          tbl+='<tr style="border-top:2px solid var(--border);"><td style="padding:6px 8px;font-weight:700;color:var(--blue);">합계</td>';
+          let grandSep=0;
+          activePeriods.forEach(p=>{
+            let colSum=0; allCats.forEach(cat=>{colSum+=periodData[p.label]?.[cat]||0;});
+            grandSep+=colSum;
+            tbl+=`<td style="text-align:right;padding:6px 8px;font-weight:700;color:var(--blue);">${colSum>0?fmtWon(colSum):'-'}</td>`;
+          });
+          tbl+=`<td style="text-align:right;padding:6px 8px;font-weight:700;color:var(--accent2);">${fmtWon(grandSep)}</td></tr>`;
           tbl+='</tbody></table></div>';
           separateEl.innerHTML=tbl;
         }
