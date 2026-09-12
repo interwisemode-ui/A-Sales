@@ -5535,6 +5535,9 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
     return `<tr>
       <td class="att-name">${s.name}</td>
       <td class="stat-present">${s.presentCnt}</td>
+      <td class="stat-late">${s.lateCnt}</td>
+      <td class="stat-absent">${s.absentCnt}</td>
+      <td class="stat-avg">${s.avgTime}</td>
       ${cells}
     </tr>`;
   }).join('');
@@ -5567,6 +5570,9 @@ function renderAttTable(staffData,dates,dailyHeadCount={}){
       <thead><tr>
         <th style="text-align:left">이름</th>
         <th style="color:var(--green)">출근</th>
+        <th style="color:var(--yellow)">지각</th>
+        <th style="color:var(--red)">결근</th>
+        <th style="color:var(--blue)">평균</th>
         ${dayHeaders}
       </tr></thead>
       <tbody>${rows}</tbody>
