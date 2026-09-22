@@ -37,6 +37,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .picker-search:focus{border-color:var(--accent);}
 .picker-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-height:155px;overflow-y:auto;}
 .picker-btn{background:var(--bg4);border:1px solid var(--border);border-radius:5px;padding:5px 3px;text-align:center;cursor:pointer;font-size:11px;color:var(--text2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .1s;}
+.picker-btn.picker-hi{outline:2px solid var(--accent2);outline-offset:-1px;background:rgba(96,165,250,0.25);color:var(--text);}
 .picker-btn:hover{border-color:var(--border2);color:var(--text);}
 .picker-btn.sel-booker{background:#2a0a1a;border-color:var(--pink);color:var(--pink);}
 .picker-btn.sel-staff{background:#1a1a4a;border-color:var(--accent);color:var(--accent2);}
@@ -331,21 +332,21 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <div class="section">
       <div class="sec-title">부킹자 <span class="btype-badge" id="btypeBadge">-</span></div>
-      <input class="picker-search" id="bookerSearch" placeholder="검색..." oninput="renderPickers()">
+      <input class="picker-search" id="bookerSearch" placeholder="검색..." oninput="renderPickers()" onkeydown="pickerKeydown(event,'bookerGrid')">
       <div class="picker-grid" id="bookerGrid"></div>
       <div class="tags-row" id="bookerTags"></div>
     </div>
 
     <div class="section">
       <div class="sec-title">셀렉션 1 <span style="font-size:9px;opacity:.55;color:var(--green)">×200</span></div>
-      <input class="picker-search" id="staffSearch" placeholder="검색..." oninput="renderPickers()">
+      <input class="picker-search" id="staffSearch" placeholder="검색..." oninput="renderPickers()" onkeydown="pickerKeydown(event,'staffGrid')">
       <div class="picker-grid" id="staffGrid"></div>
       <div class="tags-row" id="staffTags"></div>
     </div>
 
     <div class="section">
       <div class="sec-title">셀렉션 2 <span style="font-size:9px;opacity:.55;color:var(--blue)">×100</span></div>
-      <input class="picker-search" id="staff2Search" placeholder="검색..." oninput="renderPickers()">
+      <input class="picker-search" id="staff2Search" placeholder="검색..." oninput="renderPickers()" onkeydown="pickerKeydown(event,'staff2Grid')">
       <div class="picker-grid" id="staff2Grid"></div>
       <div class="tags-row" id="staff2Tags"></div>
     </div>
@@ -1006,6 +1007,24 @@ function setCountry(v,el){
 }
 
 // PICKERS
+const _pickerHi={bookerGrid:-1,staffGrid:-1,staff2Grid:-1};
+function pickerKeydown(e,gid){
+  const g=document.getElementById(gid); if(!g)return;
+  const btns=[...g.querySelectorAll('.picker-btn:not([disabled])')];
+  if(!btns.length)return;
+  let hi=_pickerHi[gid];
+  if(e.key==='ArrowDown'){e.preventDefault();hi=hi+1;if(hi>=btns.length)hi=0;}
+  else if(e.key==='ArrowUp'){e.preventDefault();hi=hi-1;if(hi<0)hi=btns.length-1;}
+  else if(e.key==='Enter'){
+    e.preventDefault();
+    (btns[hi>=0?hi:0]||btns[0]).click();
+    if(e.target){e.target.value='';renderPickers();} // 선택 후 검색창 비움
+    return;
+  } else return;
+  _pickerHi[gid]=hi;
+  btns.forEach((b,i)=>b.classList.toggle('picker-hi',i===hi));
+  btns[hi].scrollIntoView({block:'nearest'});
+}
 function renderPickers(){
   const bq=(document.getElementById('bookerSearch').value||'').toLowerCase();
   const sq=(document.getElementById('staffSearch').value||'').toLowerCase();
@@ -1044,6 +1063,9 @@ function _renderGrid(gid,q,role){
     btn.textContent=(isWk?'🚶':isMgr?'🌟':'')+s;
     g.appendChild(btn);
   });
+  // 검색어가 있으면 첫 후보 자동 하이라이트 (엔터로 바로 선택 가능)
+  const first=g.querySelector('.picker-btn:not([disabled])');
+  if(q && first){ first.classList.add('picker-hi'); _pickerHi[gid]=0; } else { _pickerHi[gid]=-1; }
 }
 function toggleBooker(n){
   if(n==='WALKIN'){selBookers=selBookers.includes('WALKIN')?[]:['WALKIN'];}
@@ -5722,7 +5744,7 @@ Object.assign(window,{
   submitEntry,resetForm,editRecord,deleteRecord,closeModal,
   inlineEditAmt,saveInlineAmt,togglePayment,
   addStaff,removeStaff,renderManageGrid,
-  toggleBooker,toggleStaff,toggleStaff2,renderPickers,
+  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,
   exportToClipboard,downloadExport,showToast,
   loadAttendanceFile,renderAttFromFirebase,openMobilePanel,closeMobilePanel,
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
