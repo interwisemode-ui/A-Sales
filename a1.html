@@ -354,7 +354,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <!-- 나라 / 인원수 -->
     <div class="section">
       <div class="sec-title" style="margin-bottom:8px;">나라</div>
-      <div class="country-group" id="countryGroup">
+      <div class="country-group" id="countryGroup" onkeydown="countryKeydown(event)">
         <button class="cty-btn" data-v="J"   onclick="setCountry('J',this)">J</button>
         <button class="cty-btn" data-v="K"   onclick="setCountry('K',this)">K</button>
         <button class="cty-btn" data-v="C"   onclick="setCountry('C',this)">C</button>
@@ -362,7 +362,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <button class="cty-btn" data-v="ETC" onclick="setCountry('ETC',this)">ETC</button>
       </div>
       <div class="sec-title" style="margin-top:11px;margin-bottom:8px;">인원수</div>
-      <div class="pax-group" id="paxGroup"></div>
+      <div class="pax-group" id="paxGroup" onkeydown="paxKeydown(event)"></div>
     </div>
 
     <!-- 금액 -->
@@ -1016,7 +1016,7 @@ function pickerKeydown(e,gid){
   const fi=_pickerFields.findIndex(f=>f[1]===gid);
   let hi=_pickerHi[gid];
   const setHi=v=>{_pickerHi[gid]=v;btns.forEach((b,i)=>b.classList.toggle('picker-hi',i===v));if(v>=0&&btns[v])btns[v].scrollIntoView({block:'nearest'});};
-  const gotoField=(d)=>{const ni=fi+d;if(ni>=0&&ni<_pickerFields.length){setHi(-1);_focusPickerField(ni);return true;}return false;};
+  const gotoField=(d)=>{const ni=fi+d;if(ni>=0&&ni<_pickerFields.length){setHi(-1);_focusPickerField(ni);return true;}if(ni===_pickerFields.length){setHi(-1);focusCountryGroup();return true;}return false;};
 
   if(e.key==='Enter'){
     if(btns.length){e.preventDefault();(btns[hi>=0?hi:0]||btns[0]).click();if(e.target)e.target.value='';setHi(-1);renderPickers();}
@@ -1037,6 +1037,36 @@ function pickerKeydown(e,gid){
     if(hi-1>=0) setHi(hi-1); else if(!gotoField(-1)) setHi(0);
     return;
   }
+}
+function _gridColsOf(g){const b=[...g.querySelectorAll('button')];if(b.length<2)return b.length||1;const t=b[0].offsetTop;let c=1;for(let i=1;i<b.length;i++){if(b[i].offsetTop===t)c++;else break;}return c||1;}
+function focusCountryGroup(){const g=document.getElementById('countryGroup');if(!g)return;const b=g.querySelector('.cty-btn.active')||g.querySelector('.cty-btn');if(b)b.focus();}
+function focusPaxGroup(){const g=document.getElementById('paxGroup');if(!g)return;const b=g.querySelector('.pax-btn.active')||g.querySelector('.pax-btn');if(b)b.focus();}
+function focusAmount(){const el=document.getElementById('amtCash');if(el){el.focus();try{el.select();}catch(_){}}}
+function countryKeydown(e){
+  const g=document.getElementById('countryGroup');if(!g)return;
+  const btns=[...g.querySelectorAll('.cty-btn')];if(!btns.length)return;
+  let cur=btns.indexOf(document.activeElement); if(cur<0)cur=0;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();btns[cur].click();focusPaxGroup();return;}
+  if(!['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key))return;
+  e.preventDefault();
+  if(e.key==='ArrowUp'){_focusPickerField(2);return;}      // 위 → 셀렉션2
+  if(e.key==='ArrowDown'){focusPaxGroup();return;}          // 아래 → 인원
+  let ni=cur+(e.key==='ArrowRight'?1:-1);                   // 좌우 → 나라 이동
+  if(ni<0)ni=0; if(ni>=btns.length)ni=btns.length-1;
+  btns[ni].focus();
+}
+function paxKeydown(e){
+  const g=document.getElementById('paxGroup');if(!g)return;
+  const btns=[...g.querySelectorAll('.pax-btn')];if(!btns.length)return;
+  let cur=btns.indexOf(document.activeElement); if(cur<0)cur=0;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();btns[cur].click();focusAmount();return;}
+  if(!['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key))return;
+  e.preventDefault();
+  const cols=_gridColsOf(g);
+  if(e.key==='ArrowRight'){if(cur+1<btns.length)btns[cur+1].focus();}
+  else if(e.key==='ArrowLeft'){if(cur-1>=0)btns[cur-1].focus();}
+  else if(e.key==='ArrowDown'){const ni=cur+cols;if(ni<btns.length)btns[ni].focus();else focusAmount();}   // 마지막 행 아래 → 결제금액
+  else if(e.key==='ArrowUp'){const ni=cur-cols;if(ni>=0)btns[ni].focus();else focusCountryGroup();}         // 첫 행 위 → 나라
 }
 function renderPickers(){
   const bq=(document.getElementById('bookerSearch').value||'').toLowerCase();
@@ -5757,7 +5787,7 @@ Object.assign(window,{
   submitEntry,resetForm,editRecord,deleteRecord,closeModal,
   inlineEditAmt,saveInlineAmt,togglePayment,
   addStaff,removeStaff,renderManageGrid,
-  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,
+  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,
   exportToClipboard,downloadExport,showToast,
   loadAttendanceFile,renderAttFromFirebase,openMobilePanel,closeMobilePanel,
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
