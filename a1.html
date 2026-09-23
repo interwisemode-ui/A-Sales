@@ -327,7 +327,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <div class="section">
       <div class="sec-title">룸 선택</div>
-      <div class="room-grid" id="roomGrid"></div>
+      <div class="room-grid" id="roomGrid" onkeydown="roomKeydown(event)"></div>
     </div>
 
     <div class="section">
@@ -1077,6 +1077,27 @@ function payChainKey(e,prev,next){
   if(e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();_focusId(next);}
   else if(e.key==='ArrowUp'){e.preventDefault();_focusId(prev);}
 }
+function focusRoomGroup(){const g=document.getElementById('roomGrid');if(!g)return;const b=g.querySelector('.room-btn.active')||g.querySelector('.room-btn');if(b)b.focus();}
+function roomKeydown(e){
+  const g=document.getElementById('roomGrid');if(!g)return;
+  const btns=[...g.querySelectorAll('.room-btn')];if(!btns.length)return;
+  let cur=btns.indexOf(document.activeElement); if(cur<0)cur=0;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();btns[cur].click();_focusPickerField(0);return;} // 선택 후 부킹자
+  if(!['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key))return;
+  e.preventDefault();
+  const cols=_gridColsOf(g);
+  if(e.key==='ArrowRight'){if(cur+1<btns.length)btns[cur+1].focus();}
+  else if(e.key==='ArrowLeft'){if(cur-1>=0)btns[cur-1].focus();}
+  else if(e.key==='ArrowDown'){const ni=cur+cols;if(ni<btns.length)btns[ni].focus();else _focusPickerField(0);} // 맨 아래 → 부킹자
+  else if(e.key==='ArrowUp'){const ni=cur-cols;if(ni>=0)btns[ni].focus();}
+}
+// PgUp: 입력 탭에서 어디서든 룸 선택으로 점프
+document.addEventListener('keydown',e=>{
+  if(e.key==='PageUp'){
+    const t=document.getElementById('tab-entry');
+    if(t&&t.classList.contains('active')){e.preventDefault();focusRoomGroup();}
+  }
+});
 function renderPickers(){
   const bq=(document.getElementById('bookerSearch').value||'').toLowerCase();
   const sq=(document.getElementById('staffSearch').value||'').toLowerCase();
@@ -1224,6 +1245,7 @@ function submitEntry(){
   if(editId){editId=null;}
   resetForm();showToast('✓ 저장되었습니다');
   if(document.getElementById('mobileInputPanel').classList.contains('show')){closeMobilePanel();}
+  else{setTimeout(focusRoomGroup,50);} // 저장 후 룸 선택으로 커서 이동
 }
 
 function resetForm(){
@@ -5796,7 +5818,7 @@ Object.assign(window,{
   submitEntry,resetForm,editRecord,deleteRecord,closeModal,
   inlineEditAmt,saveInlineAmt,togglePayment,
   addStaff,removeStaff,renderManageGrid,
-  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,payChainKey,
+  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,payChainKey,roomKeydown,focusRoomGroup,
   exportToClipboard,downloadExport,showToast,
   loadAttendanceFile,renderAttFromFirebase,openMobilePanel,closeMobilePanel,
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
