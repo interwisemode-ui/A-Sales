@@ -372,15 +372,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div style="display:flex;flex-direction:column;gap:7px;">
         <div class="ig">
           <div class="ig-label" style="color:var(--green)">CASH</div>
-          <input class="input-field" type="number" id="amtCash" placeholder="0" oninput="calcTotal()">
+          <input class="input-field" type="number" id="amtCash" placeholder="0" oninput="calcTotal()" onkeydown="payChainKey(event,'pax','amtCard')">
         </div>
         <div class="ig">
           <div class="ig-label" style="color:var(--blue)">CARD</div>
-          <input class="input-field" type="number" id="amtCard" placeholder="0" oninput="calcTotal()">
+          <input class="input-field" type="number" id="amtCard" placeholder="0" oninput="calcTotal()" onkeydown="payChainKey(event,'amtCash','amtUPI')">
         </div>
         <div class="ig">
           <div class="ig-label" style="color:var(--yellow)">UPI</div>
-          <input class="input-field" type="number" id="amtUPI" placeholder="0" oninput="calcTotal()">
+          <input class="input-field" type="number" id="amtUPI" placeholder="0" oninput="calcTotal()" onkeydown="payChainKey(event,'amtCard','amtDC')">
         </div>
         <div class="ig">
           <div class="ig-label" style="color:var(--accent2)">합계</div>
@@ -401,7 +401,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <div class="section">
       <div class="sec-title">DC <span style="font-size:9px;opacity:.55;font-family:'Noto Sans KR'">(할인금액, 선택)</span></div>
-      <input class="input-field" type="number" id="amtDC" placeholder="DC 금액 (선택)" style="width:100%;">
+      <input class="input-field" type="number" id="amtDC" placeholder="DC 금액 (선택)" style="width:100%;" onkeydown="payChainKey(event,'amtUPI','save')">
     </div>
 
     <div class="section">
@@ -418,7 +418,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <input class="input-field" type="date" id="entryDate">
     </div>
 
-    <button class="btn btn-primary btn-full" onclick="submitEntry()" style="font-size:15px;padding:13px;">✚ 기록 저장</button>
+    <button class="btn btn-primary btn-full" id="saveBtn" onclick="submitEntry()" onkeydown="if(event.key==='ArrowUp'){event.preventDefault();document.getElementById('amtDC').focus();}" style="font-size:15px;padding:13px;">✚ 기록 저장</button>
   </div>
 
   <!-- RIGHT PANEL -->
@@ -1067,6 +1067,15 @@ function paxKeydown(e){
   else if(e.key==='ArrowLeft'){if(cur-1>=0)btns[cur-1].focus();}
   else if(e.key==='ArrowDown'){const ni=cur+cols;if(ni<btns.length)btns[ni].focus();else focusAmount();}   // 마지막 행 아래 → 결제금액
   else if(e.key==='ArrowUp'){const ni=cur-cols;if(ni>=0)btns[ni].focus();else focusCountryGroup();}         // 첫 행 위 → 나라
+}
+function _focusId(t){
+  if(t==='pax')return focusPaxGroup();
+  if(t==='save'){const b=document.getElementById('saveBtn');if(b)b.focus();return;}
+  const el=document.getElementById(t);if(el){el.focus();try{el.select();}catch(_){}}
+}
+function payChainKey(e,prev,next){
+  if(e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();_focusId(next);}
+  else if(e.key==='ArrowUp'){e.preventDefault();_focusId(prev);}
 }
 function renderPickers(){
   const bq=(document.getElementById('bookerSearch').value||'').toLowerCase();
@@ -5787,7 +5796,7 @@ Object.assign(window,{
   submitEntry,resetForm,editRecord,deleteRecord,closeModal,
   inlineEditAmt,saveInlineAmt,togglePayment,
   addStaff,removeStaff,renderManageGrid,
-  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,
+  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,payChainKey,
   exportToClipboard,downloadExport,showToast,
   loadAttendanceFile,renderAttFromFirebase,openMobilePanel,closeMobilePanel,
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
