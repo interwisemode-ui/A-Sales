@@ -2841,23 +2841,27 @@ window.setRecView=function(v){
 let _monthTrendAll=false; // false=최근12개월, true=전체
 window.setMonthTrend=function(all){ _monthTrendAll=all; if(window.renderRecGraph)renderRecGraph(); };
 function buildMonthlyTrendSvg(){
-  const m={};
-  records.forEach(r=>{ if(!r.date)return; const k=r.date.slice(0,7); m[k]=(m[k]||0)+(r.total||0); });
-  let keys=Object.keys(m).sort();
-  if(!keys.length) return '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center;">데이터 없음</div>';
-  if(!_monthTrendAll) keys=keys.slice(-12); // 최근 12개월
-  const maxV=Math.max(...keys.map(k=>m[k]),1);
-  // 막대가 적으면 화면 폭에 맞춰 크게, 많으면 스크롤
-  const W=Math.max(640, keys.length*66), H=240, PL=12, PR=12, PT=34, PB=38;
-  const cw=(W-PL-PR)/keys.length, bw=Math.min(cw*0.62,52);
+  const _d=new Date();
+  const todayStr=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+  // 손익그래프와 동일 기준: 26/03월까지 달력 월, 4월부터 11일~익월10일
+  let buckets=PROFIT_HISTORY_STATIC.map(h=>({label:h.label,sales:h.sales}));
+  AUTO_PERIODS.forEach(p=>{
+    if(p.from>todayStr) return; // 아직 시작 안 한 기간 제외
+    const sales=records.reduce((s,r)=>(r.date&&r.date>=p.from&&r.date<=p.to)?s+(r.total||0):s,0);
+    buckets.push({label:p.label,sales});
+  });
+  if(!buckets.length) return '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center;">데이터 없음</div>';
+  if(!_monthTrendAll) buckets=buckets.slice(-12); // 최근 12개
+  const maxV=Math.max(...buckets.map(b=>b.sales),1);
+  const W=Math.max(680, buckets.length*76), H=240, PL=12, PR=12, PT=34, PB=42;
+  const cw=(W-PL-PR)/buckets.length, bw=Math.min(cw*0.6,52);
   const fmtV=v=>v>=1000000?(v/1000000).toFixed(1)+'M':(v>=1000?Math.round(v/1000)+'k':v);
-  const bars=keys.map((k,i)=>{
-    const v=m[k]; const bh=Math.max((H-PT-PB)*(v/maxV),1);
+  const bars=buckets.map((b,i)=>{
+    const v=b.sales; const bh=Math.max((H-PT-PB)*(v/maxV),1);
     const x=PL+i*cw+(cw-bw)/2, y=H-PB-bh;
-    const label=k.slice(2).replace('-','/');
     return `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="4" fill="var(--accent)"/>
       <text x="${x+bw/2}" y="${y-7}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text2)" font-family="monospace">${fmtV(v)}</text>
-      <text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="13" fill="var(--text3)" font-family="monospace">${label}</text>`;
+      <text x="${x+bw/2}" y="${H-13}" text-anchor="middle" font-size="11" fill="var(--text3)" font-family="monospace">${b.label}</text>`;
   }).join('');
   return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;min-width:${W}px;height:auto;display:block;">${bars}</svg></div>`;
 }
