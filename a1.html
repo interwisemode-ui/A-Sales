@@ -1446,6 +1446,8 @@ function renderSummary(){
   const tot=recs.reduce((s,r)=>s+r.total,0),cash=recs.reduce((s,r)=>s+(r.cash||0),0),card=recs.reduce((s,r)=>s+(r.card||0),0),upi=recs.reduce((s,r)=>s+(r.upi||0),0),dc=recs.reduce((s,r)=>s+(r.dc||0),0);
   const wk=recs.filter(r=>(r.bookers||[]).includes('WALKIN')||(r.booking==='WALKIN')).length;
   const p1=recs.filter(r=>r.booking==='1P').length,p2=recs.filter(r=>r.booking==='2P').length;
+  // 실제 부킹 수 = 부킹자 인원 합계 (2P는 2명, WALKIN 1명). 평균단가·총건수 기준.
+  const totalBookings=recs.reduce((s,r)=>s+Math.max(1,(r.bookers||[]).filter(Boolean).length),0);
   const rd=[];ALL_ROOMS.forEach(n=>{const rs=recs.filter(r=>roomKey(r.room)==n);if(rs.length)rd.push({r:n,t:rs.reduce((s,r)=>s+r.total,0),c:rs.length});});rd.sort((a,b)=>b.t-a.t);
   // country stats
   const ctyMap={};COUNTRIES.forEach(c=>{const rs=recs.filter(r=>r.country===c);if(rs.length)ctyMap[c]={cnt:rs.length,tot:rs.reduce((s,r)=>s+r.total,0)};});
@@ -1479,7 +1481,7 @@ function renderSummary(){
     const maxRoom=rd[0]?.t||1;
     document.getElementById('summaryContent').innerHTML=`
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2)">${tot.toLocaleString()}</div><div class="stat-sub">${recs.length}건</div></div>
+      <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2)">${tot.toLocaleString()}</div><div class="stat-sub">${totalBookings}건</div></div>
       <div class="stat-card"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div></div>
       <div class="stat-card"><div class="stat-label">1P 부킹</div><div class="stat-value" style="color:var(--green)">${p1}</div></div>
       <div class="stat-card"><div class="stat-label">2P 부킹</div><div class="stat-value" style="color:var(--blue)">${p2}</div></div>
@@ -1495,7 +1497,7 @@ function renderSummary(){
   } else {
   document.getElementById('summaryContent').innerHTML=`
   <div class="stats-grid">
-    <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2)">${tot.toLocaleString()}</div><div class="stat-sub">${recs.length}건</div></div>
+    <div class="stat-card"><div class="stat-label">총 매출</div><div class="stat-value" style="color:var(--accent2)">${tot.toLocaleString()}</div><div class="stat-sub">${totalBookings}건</div></div>
     <div class="stat-card"><div class="stat-label">CASH</div><div class="stat-value" style="color:var(--green)">${cash.toLocaleString()}</div><div class="stat-sub">${pct(cash)}%</div></div>
     <div class="stat-card"><div class="stat-label">CARD</div><div class="stat-value" style="color:var(--blue)">${card.toLocaleString()}</div><div class="stat-sub">${pct(card)}%</div></div>
     <div class="stat-card"><div class="stat-label">UPI</div><div class="stat-value" style="color:var(--yellow)">${upi.toLocaleString()}</div><div class="stat-sub">${pct(upi)}%</div></div>
@@ -1503,7 +1505,7 @@ function renderSummary(){
     <div class="stat-card"><div class="stat-label">1P 부킹</div><div class="stat-value" style="color:var(--green)">${p1}</div><div class="stat-sub">건</div></div>
     <div class="stat-card"><div class="stat-label">2P 부킹</div><div class="stat-value" style="color:var(--blue)">${p2}</div><div class="stat-sub">건</div></div>
     <div class="stat-card"><div class="stat-label">WALKIN</div><div class="stat-value" style="color:#c084fc">${wk}</div><div class="stat-sub">건</div></div>
-    <div class="stat-card"><div class="stat-label">평균 단가</div><div class="stat-value" style="color:var(--text)">${recs.length?Math.round(tot/recs.length).toLocaleString():0}</div><div class="stat-sub">per 건</div></div>
+    <div class="stat-card"><div class="stat-label">평균 단가</div><div class="stat-value" style="color:var(--text)">${totalBookings?Math.round(tot/totalBookings).toLocaleString():0}</div><div class="stat-sub">per 건</div></div>
   </div>
   <div class="sum-sec"><div class="sum-sec-title">나라별</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${COUNTRIES.map(c=>ctyMap[c]?`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--blue)">${c}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${ctyMap[c].tot.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${ctyMap[c].cnt}건</span><span style="font-size:11px;color:var(--yellow)">avg ${Math.round(ctyMap[c].tot/ctyMap[c].cnt).toLocaleString()}</span></div>`:'').join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
   <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div><div class="room-pills">${rd.map(d=>`<div class="room-pill"><span style="font-family:'JetBrains Mono';font-weight:700;color:var(--text2)">${d.r}</span><span style="font-family:'JetBrains Mono';color:var(--green)">${d.t.toLocaleString()}</span><span style="font-size:11px;color:var(--text3)">${d.c}건</span></div>`).join('')||'<span style="color:var(--text3)">없음</span>'}</div></div>
