@@ -4182,7 +4182,7 @@ function parseExpense(raw, monthKey, colInfo=[]){
     dayCols.forEach(({col,dateStr})=>{
       const v=row[col];
       const amt=(v===''||v===null||v===undefined||isNaN(v))?0:parseFloat(v)||0;
-      if(amt>0){
+      if(amt!==0){ // 마이너스(-)도 저장 (0만 제외)
         if(!result[dateStr])result[dateStr]={};
         result[dateStr][cat]=(result[dateStr][cat]||0)+amt;
       }
@@ -4352,14 +4352,14 @@ function renderExpenseTable(data, monthKey){
     let row='<tr><td style="padding:5px 10px;border:1px solid var(--border);background:var(--bg2);position:sticky;left:0;font-weight:500;'+rowStyle+'">'+rowPrefix+cat+'</td>';
     dates.forEach(d=>{
       const amt=(data[d]&&data[d][cat])||0;
-      if(amt>0)hasData=true;
+      if(amt!==0)hasData=true;
       rowTotal+=amt;
       if(isSeparate){
         separateTotals[cat]=(separateTotals[cat]||0)+amt;
       } else {
         catTotals[cat]=(catTotals[cat]||0)+amt;
       }
-      row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt>0?'var(--text)':'var(--text3)')+'">'+( amt>0?fmtWon(amt):'-')+'</td>';
+      row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;color:'+(amt!==0?(amt<0?'var(--red)':'var(--text)'):'var(--text3)')+'">'+( amt!==0?fmtWon(amt):'-')+'</td>';
     });
     row+='<td style="padding:5px 8px;border:1px solid var(--border);text-align:right;font-weight:700;color:'+(isSeparate?'var(--blue)':'var(--accent2)')+'">'+(rowTotal>0?fmtWon(rowTotal):'-')+'</td></tr>';
     if(hasData)html+=row;
