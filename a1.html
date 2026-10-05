@@ -1694,6 +1694,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       ${th('DC','dc')}
     </tr>`;
 
+    window._staffNavOrder=rows.map(r=>r.s);
     rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
       const isWalkin=s==='WALKIN';
@@ -1812,6 +1813,7 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       ${th('DC','dc')}
     </tr>`;
 
+    window._staffNavOrder=rows.map(r=>r.s);
     rows.forEach(({s,b,sel,att,selPts})=>{
       const isManager=managerList.includes(s);
       const isWalkin=s==='WALKIN';
@@ -2393,8 +2395,20 @@ window.showStaffStat = function showStaffStat(name){
       </div>`;
     const avgSummary=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">${avgBox('직전 3개월',avg3)}${avgBox('직전 6개월',avg6)}${avgBox('전체기간',avgAll)}</div>`;
 
+    const navList=(Array.isArray(window._staffNavOrder)&&window._staffNavOrder.length)?window._staffNavOrder:[...staffList].filter(n=>n!=='WALKIN').sort();
+    const navIdx=navList.indexOf(name);
+    const prevName=navIdx>=0?navList[(navIdx-1+navList.length)%navList.length]:null;
+    const nextName=navIdx>=0?navList[(navIdx+1)%navList.length]:null;
+    const navBtnS='padding:6px 14px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;';
+    const navBtns=(navList.length>1)?`<div style="display:flex;gap:6px;">
+        <button onclick="showStaffStat('${(prevName||'').replace(/'/g,"\\'")}')" style="${navBtnS}">◀ 이전</button>
+        <button onclick="showStaffStat('${(nextName||'').replace(/'/g,"\\'")}')" style="${navBtnS}">다음 ▶</button>
+      </div>`:'';
     let html=`
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${isMgr?'🌟':''}${name}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px;">
+        <div style="font-size:20px;font-weight:700;">${isMgr?'🌟':''}${name}${navIdx>=0?`<span style="font-size:12px;color:var(--text3);font-weight:400;margin-left:8px;">${navIdx+1}/${navList.length}</span>`:''}</div>
+        ${navBtns}
+      </div>
       <div style="color:var(--text3);font-size:12px;margin-bottom:16px;">${isMgr?'매니저':'스태프'} · 월별 실적</div>
       ${avgSummary}
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
