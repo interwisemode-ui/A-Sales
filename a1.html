@@ -604,6 +604,21 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:11px;">🚶 WALKIN은 삭제 불가 · 🌟 매니저</div>
       <div class="manage-grid" id="staffManageGrid"></div>
+
+      <!-- 급여대장 -->
+      <div style="margin-top:28px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div class="rec-title">💰 급여대장</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="month" id="payrollMonth" class="input-field" style="font-size:12px;width:auto;" onchange="renderPayroll()">
+            <button class="btn btn-sm" onclick="var f=document.getElementById('payrollFile');f.value='';f.click()" style="background:rgba(96,165,250,0.15);color:var(--accent2);border:1px solid rgba(96,165,250,0.3);white-space:nowrap;">📊 인센티브/가불 업로드</button>
+            <input type="file" id="payrollFile" accept=".xlsx,.xls" style="display:none" onchange="uploadPayroll(this)">
+            <button class="btn btn-sm" onclick="downloadPayroll()" style="background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);white-space:nowrap;">⬇ 엑셀</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기본급·근무일수 자동 · 인센티브/가불은 칸에 입력하거나 엑셀 업로드 · Payable = 기본급×(근무일/30) · Total = Payable+인센−가불</div>
+        <div id="payrollContent" style="overflow-x:auto;"></div>
+      </div>
     </div>
 
     <div id="tab-attendance" class="tab-content">
@@ -2291,6 +2306,155 @@ async function fixExistingNamesCase(){
 window.fixExistingNamesCase=fixExistingNamesCase;
 
 // STAFF MANAGE
+// ===== 급여대장 =====
+function _payrollMonth(){
+  let el=document.getElementById('payrollMonth');
+  if(el&&!el.value){ el.value=new Date().toISOString().slice(0,7); }
+  return el?el.value:new Date().toISOString().slice(0,7);
+}
+function _workDaysMap(attSnap, month){
+  // {name: 근무일수} for the given month
+  const map={};
+  if(attSnap&&attSnap.exists()){
+    attSnap.forEach(ms=>{
+      const data=ms.val()||{}; const dates=data.dates||[];
+      (data.staff||[]).forEach(s=>{
+        const nm=(s.name||'').toUpperCase();
+        (s.entries||[]).forEach((e,idx)=>{
+          const ds=(dates[idx]&&dates[idx].dateStr)||''; if(!ds)return;
+          if(ds.slice(0,7)!==month) return;
+          const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));
+          if(present) map[nm]=(map[nm]||0)+1;
+        });
+      });
+    });
+  }
+  return map;
+}
+window.renderPayroll=function(){
+  const month=_payrollMonth();
+  const wrap=document.getElementById('payrollContent'); if(!wrap)return;
+  wrap.innerHTML='<div style="color:var(--text3);padding:14px;font-size:12px;">불러오는 중...</div>';
+  Promise.all([get(ref(db,'config/baseSalary')), get(ref(db,'attendance')), get(ref(db,'config/payroll/'+month))]).then(([bsSnap, attSnap, pySnap])=>{
+    const baseAll=(bsSnap&&bsSnap.val())||{};
+    const payAll=(pySnap&&pySnap.val())||{};
+    const workMap=_workDaysMap(attSnap, month);
+    const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
+    const thS='padding:7px 8px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text3);white-space:nowrap;';
+    const tdS='padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;white-space:nowrap;';
+    const inpS='width:92px;background:var(--bg4);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-size:12px;text-align:right;';
+    let tot={basic:0,pay:0,book:0,daily:0,sales:0,adv:0,total:0,wd:0};
+    let rows='';
+    names.forEach(n=>{
+      const basic=Number((baseAll[n]||{})[month])||0;
+      const wd=workMap[n]||0;
+      const p=payAll[n]||{};
+      const book=Number(p.book)||0, daily=Number(p.daily)||0, sales=Number(p.sales)||0, adv=Number(p.advance)||0;
+      const payable=Math.round(basic*(wd/30));
+      const total=payable+book+daily+sales-adv;
+      tot.basic+=basic;tot.pay+=payable;tot.book+=book;tot.daily+=daily;tot.sales+=sales;tot.adv+=adv;tot.total+=total;tot.wd+=wd;
+      const cell=(f,v)=>`<td style="${tdS}text-align:right;"><input type="number" value="${v||''}" placeholder="0" onchange="savePayrollCell('${n}','${f}',this.value)" style="${inpS}"></td>`;
+      rows+=`<tr>
+        <td style="${tdS}font-weight:600;position:sticky;left:0;background:var(--bg2);">${managerList.includes(n)?'🌟':''}${n}</td>
+        <td style="${tdS}text-align:right;color:var(--text2);">${basic?basic.toLocaleString():'-'}</td>
+        <td style="${tdS}text-align:center;color:var(--blue);">${wd||'-'}</td>
+        <td style="${tdS}text-align:right;color:var(--green);font-weight:600;">${payable?payable.toLocaleString():'-'}</td>
+        ${cell('book',book)}${cell('daily',daily)}${cell('sales',sales)}${cell('advance',adv)}
+        <td style="${tdS}text-align:right;font-weight:700;color:var(--accent2);">${total?total.toLocaleString():'-'}</td>
+      </tr>`;
+    });
+    wrap.innerHTML=`<table style="width:100%;border-collapse:collapse;min-width:900px;">
+      <thead><tr>
+        <th style="${thS}text-align:left;position:sticky;left:0;background:var(--bg2);">Name</th>
+        <th style="${thS}text-align:right;">Basic Salary</th>
+        <th style="${thS}text-align:center;">Working Days</th>
+        <th style="${thS}text-align:right;">Payable Salary</th>
+        <th style="${thS}text-align:right;">Booking Inc</th>
+        <th style="${thS}text-align:right;">Daily Inc</th>
+        <th style="${thS}text-align:right;">Sales Inc</th>
+        <th style="${thS}text-align:right;">Advance</th>
+        <th style="${thS}text-align:right;">Total</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:700;background:var(--bg3);">
+        <td style="${tdS}position:sticky;left:0;background:var(--bg3);">합계</td>
+        <td style="${tdS}text-align:right;">${tot.basic.toLocaleString()}</td>
+        <td style="${tdS}text-align:center;color:var(--blue);">${tot.wd}</td>
+        <td style="${tdS}text-align:right;color:var(--green);">${tot.pay.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.book.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.daily.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.sales.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.adv.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;color:var(--accent2);">${tot.total.toLocaleString()}</td>
+      </tr></tfoot>
+    </table>`;
+  }).catch(e=>{ wrap.innerHTML='<div style="color:var(--red);padding:14px;">불러오기 실패: '+((e&&e.message)||e)+'</div>'; });
+};
+window.savePayrollCell=function(name,field,val){
+  const month=_payrollMonth();
+  const v=Math.round(Number(val)||0);
+  set(ref(db,'config/payroll/'+month+'/'+name+'/'+field), v)
+    .then(()=>renderPayroll())
+    .catch(()=>showToast('⚠ 저장 실패'));
+};
+window.uploadPayroll=function(input){
+  const file=input.files[0]; if(!file)return;
+  if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패');return;}
+  const month=_payrollMonth();
+  showToast('📊 읽는 중...');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=window.XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      // 헤더 행 찾기
+      let hi=rows.findIndex(r=>r.some(c=>/name|이름|staff/i.test(String(c))));
+      if(hi<0)hi=0;
+      const hdr=rows[hi].map(c=>String(c||'').toLowerCase());
+      const find=(...kw)=>hdr.findIndex(h=>kw.some(k=>h.includes(k)));
+      const ci={name:find('name','이름','staff'),book:find('booking','부킹','book'),daily:find('daily','일일','일당'),sales:find('sales','매출'),advance:find('advance','가불','선지급')};
+      if(ci.name<0){showToast('⚠ Name 열을 못 찾음');return;}
+      const updates={}; let cnt=0;
+      for(let r=hi+1;r<rows.length;r++){
+        const row=rows[r]||[]; const nm=String(row[ci.name]||'').trim().toUpperCase();
+        if(!nm)continue;
+        const num=i=>i>=0?(Math.round(Number(row[i])||0)):0;
+        updates[nm+'/book']=num(ci.book);
+        updates[nm+'/daily']=num(ci.daily);
+        updates[nm+'/sales']=num(ci.sales);
+        updates[nm+'/advance']=num(ci.advance);
+        cnt++;
+      }
+      if(!cnt){showToast('⚠ 데이터 행 없음');return;}
+      update(ref(db,'config/payroll/'+month), updates)
+        .then(()=>{showToast('✓ '+cnt+'명 업로드 완료 ('+month+')');renderPayroll();})
+        .catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
+    }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+};
+window.downloadPayroll=function(){
+  if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패');return;}
+  const month=_payrollMonth();
+  Promise.all([get(ref(db,'config/baseSalary')), get(ref(db,'attendance')), get(ref(db,'config/payroll/'+month))]).then(([bsSnap, attSnap, pySnap])=>{
+    const baseAll=(bsSnap&&bsSnap.val())||{}, payAll=(pySnap&&pySnap.val())||{}, workMap=_workDaysMap(attSnap, month);
+    const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
+    const aoa=[['Name','Basic Salary','Working Days','Payable Salary','Booking Inc','Daily Inc','Sales Inc','Advance','Total']];
+    names.forEach(n=>{
+      const basic=Number((baseAll[n]||{})[month])||0, wd=workMap[n]||0, p=payAll[n]||{};
+      const book=Number(p.book)||0,daily=Number(p.daily)||0,sales=Number(p.sales)||0,adv=Number(p.advance)||0;
+      const pay=Math.round(basic*(wd/30)); const total=pay+book+daily+sales-adv;
+      aoa.push([n,basic,wd,pay,book,daily,sales,adv,total]);
+    });
+    const wb=window.XLSX.utils.book_new();
+    const ws=window.XLSX.utils.aoa_to_sheet(aoa);
+    window.XLSX.utils.book_append_sheet(wb,ws,'급여대장');
+    window.XLSX.writeFile(wb,'급여대장_'+month+'.xlsx');
+    showToast('✓ 급여대장 다운로드');
+  });
+};
+
 function renderManageGrid(){
   const g=document.getElementById('staffManageGrid');g.innerHTML='';
   const sorted=[...staffList].sort((a,b)=>{
@@ -2554,7 +2718,7 @@ function switchTab(n){
   if(n==='records')renderTable2();
   if(n==='summary')renderSummary();
   if(n==='staffstats')renderStaffStats();
-  if(n==='manage')renderManageGrid();
+  if(n==='manage'){renderManageGrid();renderPayroll();}
   if(n==='booking')renderBookings();
   if(n==='expense'){const m=document.getElementById('expenseMonth').value;if(m)loadExpenseFromDB(m);}
   if(n==='profit'){renderProfit();loadCashFlow();}
