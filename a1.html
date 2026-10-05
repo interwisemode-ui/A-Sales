@@ -2344,8 +2344,7 @@ window.renderPayroll=function(){
     const tdS='padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;white-space:nowrap;';
     const inpS='width:92px;background:var(--bg4);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-size:12px;text-align:right;';
     let tot={basic:0,pay:0,book:0,daily:0,sales:0,adv:0,total:0,wd:0};
-    let rows='';
-    names.forEach(n=>{
+    const buildRow=n=>{
       const basic=Number((baseAll[n]||{})[month])||0;
       const wd=workMap[n]||0;
       const p=payAll[n]||{};
@@ -2354,7 +2353,7 @@ window.renderPayroll=function(){
       const total=payable+book+daily+sales-adv;
       tot.basic+=basic;tot.pay+=payable;tot.book+=book;tot.daily+=daily;tot.sales+=sales;tot.adv+=adv;tot.total+=total;tot.wd+=wd;
       const cell=(f,v)=>`<td style="${tdS}text-align:right;"><input type="number" value="${v||''}" placeholder="0" onchange="savePayrollCell('${n}','${f}',this.value)" style="${inpS}"></td>`;
-      rows+=`<tr>
+      return `<tr>
         <td style="${tdS}font-weight:600;position:sticky;left:0;background:var(--bg2);">${managerList.includes(n)?'🌟':''}${n}</td>
         <td style="${tdS}text-align:right;color:var(--text2);">${basic?basic.toLocaleString():'-'}</td>
         <td style="${tdS}text-align:center;color:var(--blue);">${wd||'-'}</td>
@@ -2362,7 +2361,15 @@ window.renderPayroll=function(){
         ${cell('book',book)}${cell('daily',daily)}${cell('sales',sales)}${cell('advance',adv)}
         <td style="${tdS}text-align:right;font-weight:700;color:var(--accent2);">${total?total.toLocaleString():'-'}</td>
       </tr>`;
-    });
+    };
+    const groupHdr=t=>`<tr><td colspan="9" style="padding:7px 8px;background:var(--bg3);font-weight:700;font-size:12px;color:var(--text2);position:sticky;left:0;">${t}</td></tr>`;
+    const mgrs=names.filter(n=>managerList.includes(n));
+    const staff=names.filter(n=>!managerList.includes(n) && (workMap[n]||0)>0); // 일반 스탭은 근무일수 있는 사람만
+    let rows='';
+    if(mgrs.length){ rows+=groupHdr('🌟 매니저'); mgrs.forEach(n=>rows+=buildRow(n)); }
+    rows+=groupHdr('일반 스탭 (근무일수 있는 사람만)'); 
+    if(staff.length) staff.forEach(n=>rows+=buildRow(n));
+    else rows+=`<tr><td colspan="9" style="${tdS}color:var(--text3);text-align:center;">근무일수가 있는 일반 스탭이 없어요</td></tr>`;
     wrap.innerHTML=`<table style="width:100%;border-collapse:collapse;min-width:900px;">
       <thead><tr>
         <th style="${thS}text-align:left;position:sticky;left:0;background:var(--bg2);">Name</th>
