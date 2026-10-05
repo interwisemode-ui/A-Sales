@@ -1679,6 +1679,8 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       if(sortKey==='count')   return b.b.cnt-a.b.cnt;
       if(sortKey==='sel')     return b.selPts-a.selPts;
       if(sortKey==='dc')      return Math.round(b.b.dc)-Math.round(a.b.dc);
+      if(sortKey==='name')    return a.s.localeCompare(b.s);
+      if(sortKey==='att')     return (b.att||0)-(a.att||0);
       return 0;
     });
 
@@ -1798,6 +1800,8 @@ function _renderStaffStatsInner(recs,from4,to4,attMap){
       if(sortKey==='count')   return b.b.cnt-a.b.cnt;
       if(sortKey==='sel')     return b.selPts-a.selPts;
       if(sortKey==='dc')      return Math.round(b.b.dc)-Math.round(a.b.dc);
+      if(sortKey==='name')    return a.s.localeCompare(b.s);
+      if(sortKey==='att')     return (b.att||0)-(a.att||0);
       return 0;
     });
 
