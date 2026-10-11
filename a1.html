@@ -74,6 +74,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .pax-btn{padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--bg4);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;transition:all .15s;min-width:34px;text-align:center;}
 .pax-btn:hover{border-color:var(--border2);color:var(--text);}
 .pax-btn.active{background:#1a2a1a;border-color:var(--green);color:var(--green);}
+.pax-input{width:120px;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg4);color:var(--text);font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace;outline:none;text-align:center;transition:border-color .15s;}
+.pax-input:focus{border-color:var(--green);}
+.cty-etc-input{margin-top:6px;width:160px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg4);color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;transition:border-color .15s;}
+.cty-etc-input:focus{border-color:var(--blue);}
 /* inputs */
 .amt-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
 .ig{display:flex;flex-direction:column;gap:4px;}
@@ -361,8 +365,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <button class="cty-btn" data-v="I"   onclick="setCountry('I',this)">I</button>
         <button class="cty-btn" data-v="ETC" onclick="setCountry('ETC',this)">ETC</button>
       </div>
+      <input type="text" class="cty-etc-input" id="countryEtcInput" placeholder="나라명 직접 입력" style="display:none;" oninput="onCountryEtcInput(this)" onkeydown="countryEtcKeydown(event)">
       <div class="sec-title" style="margin-top:11px;margin-bottom:8px;">인원수</div>
-      <div class="pax-group" id="paxGroup" onkeydown="paxKeydown(event)"></div>
+      <input type="number" class="pax-input" id="paxInput" min="1" step="1" inputmode="numeric" placeholder="인원수" oninput="setPaxInput(this)" onkeydown="paxInputKeydown(event)">
     </div>
 
     <!-- 금액 -->
@@ -889,6 +894,8 @@ const COUNTRIES=['J','K','C','I','ETC'];
 
 let records=[],staffList=[...DEFAULT_STAFF],managerList=[...DEFAULT_MGR];
 let selRoom=null,selPayments=[],selBookers=[],selStaff=[],selStaff2=[],selCountry='',selPax=0,editId=null;
+const FIXED_CTY=['J','K','C','I'];let _etcMode=false;
+function isEtcCountry(){return selCountry!=='' && !FIXED_CTY.includes(selCountry);}
 // 룸 체계: 2층 201~209, 3층 301~308. 옛 기록(1~9)은 2층으로 해석.
 const ROOMS_2F=[201,202,203,204,205,206,207,208,209];
 const ROOMS_3F=[301,302,303,304,305,306,307,308];
@@ -1023,13 +1030,44 @@ function selectRoom(n){selRoom=n;refreshRoomCounts();}
 
 // PAX GRID
 function buildPaxGrid(){
-  const g=document.getElementById('paxGroup');g.innerHTML='';
-  for(let i=1;i<=10;i++){const b=document.createElement('button');b.className='pax-btn'+(selPax===i?' active':'');b.textContent=i;b.onclick=()=>setPax(i);g.appendChild(b);}
+  // 인원수는 입력칸으로 바뀜 → selPax 값을 모든 입력칸에 반영
+  document.querySelectorAll('.pax-input').forEach(i=>{i.value=selPax>0?selPax:'';});
 }
 function setPax(n){selPax=(selPax===n?0:n);buildPaxGrid();}
+function setPaxInput(el){
+  const n=parseInt(el.value,10);
+  selPax=(isNaN(n)||n<=0)?0:n;
+  document.querySelectorAll('.pax-input').forEach(i=>{if(i!==el)i.value=el.value;});
+}
+function updateCountryUI(root){
+  root=root||document;
+  root.querySelectorAll('.cty-btn').forEach(b=>{
+    const v=b.dataset.v;
+    const on = (v==='ETC') ? (_etcMode||isEtcCountry()) : (v===selCountry);
+    b.classList.toggle('active',on);
+  });
+  root.querySelectorAll('.cty-etc-input').forEach(inp=>{
+    const show=_etcMode||isEtcCountry();
+    inp.style.display=show?'':'none';
+    inp.value=isEtcCountry()?selCountry:'';
+  });
+}
 function setCountry(v,el){
-  selCountry=(selCountry===v?'':v);
-  document.querySelectorAll('.cty-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===selCountry));
+  if(v==='ETC'){
+    if(_etcMode){_etcMode=false;selCountry='';}        // ETC 다시 누르면 해제
+    else{_etcMode=true;if(FIXED_CTY.includes(selCountry))selCountry='';}
+  } else {
+    _etcMode=false;
+    selCountry=(selCountry===v?'':v);
+  }
+  updateCountryUI(document);
+  const mp=document.getElementById('mobilePanelContent');if(mp)updateCountryUI(mp);
+  if(_etcMode){const inp=document.querySelector('.cty-etc-input');if(inp){inp.style.display='';try{inp.focus();}catch(_){}}}
+}
+function onCountryEtcInput(el){
+  selCountry=el.value.trim();_etcMode=true;
+  document.querySelectorAll('.cty-etc-input').forEach(i=>{if(i!==el)i.value=el.value;});
+  document.querySelectorAll('.cty-btn[data-v="ETC"]').forEach(b=>b.classList.add('active'));
 }
 
 // PICKERS
@@ -1066,13 +1104,13 @@ function pickerKeydown(e,gid){
 }
 function _gridColsOf(g){const b=[...g.querySelectorAll('button')];if(b.length<2)return b.length||1;const t=b[0].offsetTop;let c=1;for(let i=1;i<b.length;i++){if(b[i].offsetTop===t)c++;else break;}return c||1;}
 function focusCountryGroup(){const g=document.getElementById('countryGroup');if(!g)return;const b=g.querySelector('.cty-btn.active')||g.querySelector('.cty-btn');if(b)b.focus();}
-function focusPaxGroup(){const g=document.getElementById('paxGroup');if(!g)return;const b=g.querySelector('.pax-btn.active')||g.querySelector('.pax-btn');if(b)b.focus();}
+function focusPaxGroup(){const el=document.querySelector('.pax-input');if(el){el.focus();try{el.select();}catch(_){}}}
 function focusAmount(){const el=document.getElementById('amtCash');if(el){el.focus();try{el.select();}catch(_){}}}
 function countryKeydown(e){
   const g=document.getElementById('countryGroup');if(!g)return;
   const btns=[...g.querySelectorAll('.cty-btn')];if(!btns.length)return;
   let cur=btns.indexOf(document.activeElement); if(cur<0)cur=0;
-  if(e.key==='Enter'||e.key===' '){e.preventDefault();btns[cur].click();focusPaxGroup();return;}
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();const was=btns[cur].dataset.v;btns[cur].click();if(was!=='ETC')focusPaxGroup();return;}
   if(!['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key))return;
   e.preventDefault();
   if(e.key==='ArrowUp'){_focusPickerField(2);return;}      // 위 → 셀렉션2
@@ -1081,18 +1119,14 @@ function countryKeydown(e){
   if(ni<0)ni=0; if(ni>=btns.length)ni=btns.length-1;
   btns[ni].focus();
 }
-function paxKeydown(e){
-  const g=document.getElementById('paxGroup');if(!g)return;
-  const btns=[...g.querySelectorAll('.pax-btn')];if(!btns.length)return;
-  let cur=btns.indexOf(document.activeElement); if(cur<0)cur=0;
-  if(e.key==='Enter'||e.key===' '){e.preventDefault();btns[cur].click();focusAmount();return;}
-  if(!['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key))return;
-  e.preventDefault();
-  const cols=_gridColsOf(g);
-  if(e.key==='ArrowRight'){if(cur+1<btns.length)btns[cur+1].focus();}
-  else if(e.key==='ArrowLeft'){if(cur-1>=0)btns[cur-1].focus();}
-  else if(e.key==='ArrowDown'){const ni=cur+cols;if(ni<btns.length)btns[ni].focus();else focusAmount();}   // 마지막 행 아래 → 결제금액
-  else if(e.key==='ArrowUp'){const ni=cur-cols;if(ni>=0)btns[ni].focus();else focusCountryGroup();}         // 첫 행 위 → 나라
+function paxInputKeydown(e){
+  if(e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();focusAmount();}   // 인원 입력 후 → 결제금액
+  else if(e.key==='ArrowUp'){e.preventDefault();focusCountryGroup();}            // 위 → 나라
+}
+function countryEtcKeydown(e){
+  if(e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();focusPaxGroup();} // ETC 입력 후 → 인원
+  else if(e.key==='ArrowUp'){e.preventDefault();focusCountryGroup();}
+  e.stopPropagation();  // 나라 그룹의 방향키 핸들러로 전파 방지
 }
 function _focusId(t){
   if(t==='pax')return focusPaxGroup();
@@ -1104,6 +1138,13 @@ function payChainKey(e,prev,next){
   else if(e.key==='ArrowUp'){e.preventDefault();_focusId(prev);}
 }
 function focusRoomGroup(){const g=document.getElementById('roomGrid');if(!g)return;const b=g.querySelector('.room-btn.active')||g.querySelector('.room-btn');if(b)b.focus();}
+function focusRoomFloor(rk){ // 저장한 룸이 3층(>=300)이면 3층 첫 룸, 아니면 2층 첫 룸으로 포커스
+  const g=document.getElementById('roomGrid');if(!g)return;
+  const btns=[...g.querySelectorAll('.room-btn')];if(!btns.length)return;
+  const is3F=Number(rk)>=300;
+  const target=btns.find(b=>{const n=Number(b.id.replace('rb',''));return is3F?(n>=300):(n<300);});
+  (target||btns[0]).focus();
+}
 function roomKeydown(e){
   const g=document.getElementById('roomGrid');if(!g)return;
   const btns=[...g.querySelectorAll('.room-btn')];if(!btns.length)return;
@@ -1269,17 +1310,18 @@ function submitEntry(){
   };
   saveRecordDB(rec);
   if(editId){editId=null;}
+  const _savedRoom=rec.room; // 방금 저장한 룸(층 판별용)
   resetForm();showToast('✓ 저장되었습니다');
   if(document.getElementById('mobileInputPanel').classList.contains('show')){closeMobilePanel();}
-  else{setTimeout(focusRoomGroup,50);} // 저장 후 룸 선택으로 커서 이동
+  else{setTimeout(()=>focusRoomFloor(_savedRoom),50);} // 저장 후 같은 층 룸 선택으로 커서 이동
 }
 
 function resetForm(){
-  selRoom=null;selPayments=[];selBookers=[];selStaff=[];selStaff2=[];selCountry='';selPax=0;
+  selRoom=null;selPayments=[];selBookers=[];selStaff=[];selStaff2=[];selCountry='';selPax=0;_etcMode=false;
   refreshRoomCounts();
   document.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
   ['pmCashWrap','pmCardWrap','pmUPIWrap','pmTotalWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
-  document.querySelectorAll('.cty-btn').forEach(b=>b.classList.remove('active'));
+  updateCountryUI(document);
   buildPaxGrid();
   ['amtCash','amtCard','amtUPI','amtTotal','amtDC','checkinTime','checkoutTime'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
@@ -1438,7 +1480,8 @@ function editRecord(id){
   document.getElementById('amtCard').value=r.card||'';
   document.getElementById('amtUPI').value=r.upi||'';
   document.getElementById('amtTotal').value=r.total||'';
-  document.querySelectorAll('.cty-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===selCountry));
+  _etcMode=isEtcCountry();
+  updateCountryUI(document);
   buildPaxGrid();
   document.getElementById('checkinTime').value=r.checkin||'';document.getElementById('checkoutTime').value=r.checkout||'';
   document.getElementById('noteField').value=r.note||'';document.getElementById('entryDate').value=r.date||'';
@@ -6014,14 +6057,9 @@ function openMobilePanel(){
     btn.className='room-btn'+(selRoom==n?' active':'');
     btn.onclick=function(){selectRoom(n);dest.querySelectorAll('.room-btn').forEach(b=>b.classList.toggle('active',b.id==='rb'+selRoom));};
   });
-  // Pax grid
-  const pg=dest.querySelector('#paxGroup');
-  if(pg){pg.innerHTML='';for(let i=1;i<=10;i++){const b=document.createElement('button');b.className='pax-btn'+(selPax===i?' active':'');b.textContent=i;(function(n){b.onclick=function(){setPax(n);dest.querySelectorAll('.pax-btn').forEach((x,j)=>x.classList.toggle('active',j+1===selPax));}})(i);pg.appendChild(b);}}
-  // Country buttons
-  dest.querySelectorAll('.cty-btn').forEach(b=>{
-    b.classList.toggle('active',b.dataset.v===selCountry);
-    (function(v,el){el.onclick=function(){setCountry(v,el);dest.querySelectorAll('.cty-btn').forEach(x=>x.classList.toggle('active',x.dataset.v===selCountry));}})(b.dataset.v,b);
-  });
+  // Pax 입력칸 + 나라 UI 동기화 (onclick/oninput은 복제된 HTML에 이미 포함됨)
+  dest.querySelectorAll('.pax-input').forEach(i=>{i.value=selPax>0?selPax:'';});
+  updateCountryUI(dest);
   // Payment buttons
   dest.querySelectorAll('.toggle-btn').forEach(b=>{
     const pm=b.classList.contains('t-cash')?'CASH':b.classList.contains('t-card')?'CARD':b.classList.contains('t-upi')?'UPI':b.classList.contains('t-mix')?'MIX':null;
@@ -6140,7 +6178,7 @@ Object.assign(window,{
   submitEntry,resetForm,editRecord,deleteRecord,closeModal,
   inlineEditAmt,saveInlineAmt,togglePayment,
   addStaff,removeStaff,renderManageGrid,
-  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxKeydown,focusCountryGroup,focusPaxGroup,focusAmount,payChainKey,roomKeydown,focusRoomGroup,
+  toggleBooker,toggleStaff,toggleStaff2,renderPickers,pickerKeydown,countryKeydown,paxInputKeydown,countryEtcKeydown,setPaxInput,onCountryEtcInput,updateCountryUI,focusCountryGroup,focusPaxGroup,focusAmount,payChainKey,roomKeydown,focusRoomGroup,
   exportToClipboard,downloadExport,showToast,
   loadAttendanceFile,renderAttFromFirebase,openMobilePanel,closeMobilePanel,
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
