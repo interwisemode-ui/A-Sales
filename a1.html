@@ -2538,11 +2538,13 @@ function renderManageGrid(){
     const d=document.createElement('div');
     d.className='mg-item'+(isWk?' is-walkin':isMgr?' is-manager':'');
     d.style.cursor='pointer';
-    d.onclick=(e)=>{ if(!e.target.classList.contains('del-s-btn')&&!e.target.classList.contains('rename-btn')&&!e.target.classList.contains('remove-btn')) window.showStaffStat(s); };
-    d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기" onclick="window.showStaffStat('${s.replace(/'/g,"\\'")}')">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
+    d.onclick=(e)=>{ if(!e.target.classList.contains('del-s-btn')&&!e.target.classList.contains('rename-btn')&&!e.target.classList.contains('remove-btn')&&!e.target.classList.contains('mgr-toggle-btn')) window.showStaffStat(s); };
+    d.innerHTML=`<span class="mg-name" style="cursor:pointer;text-decoration:underline dotted;" title="실적 보기" onclick="window.showStaffStat('${s.replace(/'/g,"\\'")}')">${isWk?'🚶':isMgr?'🌟':''}${s}</span><div style="display:flex;gap:2px;">${isWk?'':`<button class="del-s-btn mgr-toggle-btn" style="color:${isMgr?'var(--yellow)':'var(--text3)'};" title="${isMgr?'매니저 해제':'매니저 지정'}">${isMgr?'🌟':'☆'}</button>`}${isWk?'':'<button class="del-s-btn rename-btn" style="color:var(--blue);" title="이름변경">✏</button>'}<button class="del-s-btn remove-btn">×</button></div>`;
     const nameEl=d.querySelector('.mg-name');
     if(nameEl) nameEl.addEventListener('click',()=>window.showStaffStat(s));
     if(!isWk){
+      const mgrBtn=d.querySelector('.mgr-toggle-btn');
+      if(mgrBtn) mgrBtn.addEventListener('click',(e)=>{e.stopPropagation();toggleManager(s);});
       const renBtn=d.querySelector('.rename-btn');
       if(renBtn) renBtn.addEventListener('click',(e)=>{e.stopPropagation();renameStaff(s);});
       const remBtn=d.querySelector('.remove-btn');
@@ -2550,6 +2552,12 @@ function renderManageGrid(){
     }
     g.appendChild(d);
   });
+}
+function toggleManager(name){
+  const i=managerList.indexOf(name);
+  if(i>=0){managerList.splice(i,1);}else{managerList.push(name);}
+  saveStaffDB();renderManageGrid();renderPickers();
+  showToast(i>=0?`${name} 매니저 해제됨`:`🌟 ${name} 매니저 지정됨`);
 }
 
 window.copyPrevBaseSalary=function(){
