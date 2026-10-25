@@ -296,6 +296,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 </head>
 <body>
 <!-- 로그인 화면 -->
@@ -705,9 +707,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <option value="qty">수량순</option>
             <option value="avg">건당단가순</option>
           </select>
+          <input type="file" id="itemsPdfFile" accept=".pdf" multiple style="display:none" onchange="uploadPos(this)">
+          <button class="quick-btn" onclick="document.getElementById('itemsPdfFile').click()">📄 PDF 업로드</button>
           <input type="file" id="itemsFile" accept=".xlsx,.xls" style="display:none" onchange="uploadItems(this)">
           <button class="quick-btn" onclick="document.getElementById('itemsFile').click()">📥 엑셀 업로드</button>
         </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button id="itemsViewSales" class="quick-btn" onclick="setItemsView('sales')">📊 매출</button>
+        <button id="itemsViewMargin" class="quick-btn" onclick="setItemsView('margin')">💹 마진</button>
       </div>
       <div id="itemsContent"></div>
     </div>
@@ -911,7 +919,7 @@ const DEFAULT_MGR=['ADI','AIEN','ALICE','BERNI','KIPI','KIPWA'];
 const COUNTRIES=['J','K','C','I','ETC'];
 
 let records=[],staffList=[...DEFAULT_STAFF],managerList=[...DEFAULT_MGR];
-let itemSales={},itemsSort='amount';
+let itemSales={},itemMargin={},itemsSort='amount',itemsView='sales';
 let selRoom=null,selPayments=[],selBookers=[],selStaff=[],selStaff2=[],selCountry='',selPax=0,editId=null;
 const FIXED_CTY=['J','K','C','I'];let _etcMode=false;
 function isEtcCountry(){return selCountry!=='' && !FIXED_CTY.includes(selCountry);}
@@ -1032,6 +1040,11 @@ function init(){
   onValue(ref(db,'config/itemSales'),snap=>{
     itemSales=snap.exists()?(snap.val()||{}):{};
     populateItemsMonths();
+    const ti=document.getElementById('tab-items');
+    if(ti&&ti.classList.contains('active'))renderItems();
+  });
+  onValue(ref(db,'config/itemMargin'),snap=>{
+    itemMargin=snap.exists()?(snap.val()||{}):{};
     const ti=document.getElementById('tab-items');
     if(ti&&ti.classList.contains('active'))renderItems();
   });
@@ -4172,6 +4185,128 @@ function _itemParseSheet(rows){
   }
   return {period:period.trim(),totals,groups};
 }
+function _marginParseSheet(rows){
+  const money=v=>Math.round(Number(v)||0);
+  const frac =v=>{const n=Number(v);return isNaN(n)?0:n;};
+  const items=[];let mode=null;
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r]||[];
+    const a=String(row[0]||'').trim();
+    if(a==='NO'){ mode=/키워드/.test(String(row[2]||''))?'bev':'liq'; continue; }
+    if(!mode)continue;
+    const no=row[0];
+    if(no===''||no===null||no===undefined||isNaN(Number(no)))continue; // 합계·빈행 제외
+    const name=String(row[1]||'').trim();if(!name)continue;
+    if(mode==='liq')items.push({name,qty:money(row[3]),net:money(row[4]),cost:money(row[7]),margin:money(row[8]),mRate:frac(row[9]),cRate:frac(row[10]),sec:'주류'});
+    else            items.push({name,qty:money(row[5]),net:money(row[6]),cost:money(row[7]),margin:money(row[8]),mRate:frac(row[9]),cRate:frac(row[10]),sec:'음료·과일'});
+  }
+  return items.length?{items}:null;
+}
+// ── POS PDF 자동 집계 ───────────────────────────────────────
+const _POSMON={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+function _posDateISO(d){const p=String(d).split('/');return p[2]+'-'+(_POSMON[p[1]]||'01')+'-'+String(p[0]).padStart(2,'0');}
+function _posMonthKey(d){const p=String(d).split('/');return String(p[2]).slice(2)+(_POSMON[p[1]]||'01');}
+function _posGroupOf(pg,name){
+  const g=String(pg||'').toUpperCase();
+  if(g.includes('WINE')||g.includes('LIQUOR')||g.includes('BAR'))return 'LIQUOR';
+  if(g.includes('ROOM'))return 'ROOMS';
+  if(g.includes('BEVERAGE'))return 'BEVERAGE';
+  if(/COKE|SODA|JUICE|RED\s*BULL|TONIC|WATER|BEVERAGE/i.test(String(name)))return 'BEVERAGE';
+  return 'FOOD';
+}
+async function _posPdfPages(file){
+  const buf=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  const pages=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent();
+    const its=tc.items.map(it=>({x:it.transform[4],y:it.transform[5],s:it.str})).filter(i=>String(i.s).trim()!=='');
+    its.sort((a,b)=> (b.y-a.y) || (a.x-b.x));
+    const lines=[];let cur=null,curY=null;
+    its.forEach(it=>{ if(curY===null||Math.abs(it.y-curY)>3){cur=[];lines.push(cur);curY=it.y;} cur.push(it); });
+    pages.push(lines.map(arr=>arr.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean));
+  }
+  return pages;
+}
+function _posParsePage(lines){
+  let loc='',grp='';const rows=[];
+  for(const s of lines){
+    if(/^Location\s*:/.test(s)){loc=(s.replace(/^Location\s*:/,'').split(':')[0]||'').trim();continue;}
+    const gm=s.match(/^Group Name\s*:\s*(.+)$/);
+    if(gm){grp=gm[1].trim();continue;}
+    if(/^(Group Total|Location Total|Grand Total|Sales Date)/.test(s))continue;
+    const m=s.match(/^(\d{2}\/[A-Za-z]{3}\/\d{4})\s+(\d+)\s+(.*)$/);
+    if(!m)continue;
+    const toks=m[3].split(' ');
+    if(toks.length<11)continue;
+    const nums=toks.slice(-10).map(t=>Number(String(t).replace(/,/g,'')));
+    if(nums.some(n=>isNaN(n)))continue;
+    const name=toks.slice(0,-10).join(' ').trim();if(!name)continue;
+    rows.push({date:m[1],loc,code:m[2],name,posGroup:grp,qty:nums[1],excl:nums[2],disc:nums[3],tax:nums[5],sc:nums[6]});
+  }
+  return rows;
+}
+async function _posRebuildMonth(m){
+  const snap=await get(ref(db,'config/posDaily/'+m));
+  if(!snap.exists()){await remove(ref(db,'config/itemSales/'+m)).catch(()=>{});return;}
+  const blocks=snap.val();const agg={};const dayset=new Set();
+  Object.values(blocks).forEach(b=>{
+    if(b&&b.date)dayset.add(b.date);
+    ((b&&b.rows)||[]).forEach(r=>{
+      const a=agg[r.code]||(agg[r.code]={name:r.name||r.code,posGroup:r.posGroup||'',qty:0,excl:0,disc:0,tax:0,sc:0});
+      if(String(r.name||'').length>String(a.name||'').length)a.name=r.name;
+      if(r.posGroup)a.posGroup=r.posGroup;
+      a.qty+=Number(r.qty)||0;a.excl+=Number(r.excl)||0;a.disc+=Number(r.disc)||0;a.tax+=Number(r.tax)||0;a.sc+=Number(r.sc)||0;
+    });
+  });
+  const gmap={};let tQty=0,tExcl=0,tDisc=0,tTax=0,tSc=0,tAmt=0,icount=0;
+  Object.values(agg).forEach(a=>{
+    const grp=_posGroupOf(a.posGroup,a.name);
+    const amount=Math.round(a.excl+a.tax+a.sc);
+    const item={menu:a.name,qty:Math.round(a.qty),sales:Math.round(a.excl),dc:Math.round(a.disc),tax:Math.round(a.tax),sc:Math.round(a.sc),amount,shareG:0,shareT:0,avg:a.qty?Math.round(amount/a.qty):0};
+    (gmap[grp]=gmap[grp]||[]).push(item);
+    tQty+=a.qty;tExcl+=a.excl;tDisc+=a.disc;tTax+=a.tax;tSc+=a.sc;tAmt+=amount;icount++;
+  });
+  const groups=[];
+  ['LIQUOR','BEVERAGE','FOOD','ROOMS'].forEach(gn=>{
+    const items=gmap[gn];if(!items||!items.length)return;
+    const gAmt=items.reduce((s,i)=>s+i.amount,0);
+    items.sort((a,b)=>b.amount-a.amount);
+    items.forEach(i=>{i.shareG=gAmt?i.amount/gAmt:0;i.shareT=tAmt?i.amount/tAmt:0;});
+    groups.push({name:gn,share:tAmt?gAmt/tAmt:0,items});
+  });
+  const days=[...dayset].sort();
+  const period=days.length?('집계 기간: '+days[0]+' ~ '+days[days.length-1]+'  ·  '+days.length+'일 (PDF 자동집계)'):'';
+  const parsed={period,totals:{itemCount:icount+'개 품목',qty:Math.round(tQty),sales:Math.round(tExcl),dc:Math.round(tDisc),tax:Math.round(tTax),sc:Math.round(tSc),amount:Math.round(tAmt)},groups,posDays:days.length};
+  await set(ref(db,'config/itemSales/'+m),parsed);
+}
+window.uploadPos=async function(input){
+  const files=[...input.files];input.value='';
+  if(!files.length)return;
+  if(!window.pdfjsLib){showToast('⚠ PDF 기능 로딩 중, 잠시 후 다시 시도');return;}
+  showToast('📄 PDF 읽는 중...');
+  try{
+    const blocks={};
+    for(const f of files){
+      const pages=await _posPdfPages(f);
+      for(const lines of pages){
+        _posParsePage(lines).forEach(r=>{
+          const iso=_posDateISO(r.date),mk=_posMonthKey(r.date);
+          const key=iso+'_'+(r.loc||'NA');
+          if(!blocks[key])blocks[key]={date:iso,loc:r.loc||'',m:mk,rows:[]};
+          blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,qty:r.qty,excl:Math.round(r.excl),disc:Math.round(r.disc),tax:Math.round(r.tax),sc:Math.round(r.sc)});
+        });
+      }
+    }
+    const keys=Object.keys(blocks);
+    if(!keys.length){showToast('⚠ PDF에서 판매 데이터를 못 찾았어요');return;}
+    const months=new Set();
+    for(const k of keys){const b=blocks[k];months.add(b.m);await set(ref(db,'config/posDaily/'+b.m+'/'+k),{date:b.date,loc:b.loc,rows:b.rows});}
+    for(const m of months){await _posRebuildMonth(m);}
+    showToast('✓ '+keys.length+'건(일·매장) 반영 완료 · '+[...months].map(_itemMonthLabel).join(', '));
+  }catch(err){showToast('⚠ PDF 처리 오류: '+((err&&err.message)||err));}
+};
 window.uploadItems=function(input){
   const file=input.files[0];if(!file)return;
   if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패');return;}
@@ -4181,7 +4316,8 @@ window.uploadItems=function(input){
     try{
       const wb=window.XLSX.read(e.target.result,{type:'array'});
       const sheets=wb.SheetNames.filter(n=>/^품목별\s*\d{4}$/.test(String(n).trim()));
-      if(!sheets.length){showToast('⚠ "품목별 YYMM" 시트를 못 찾음');return;}
+      const mSheets=wb.SheetNames.filter(n=>/^마진\s*\d{4}$/.test(String(n).trim()));
+      if(!sheets.length&&!mSheets.length){showToast('⚠ "품목별 YYMM" 시트를 못 찾음');return;}
       const updates={};let cnt=0;
       sheets.forEach(sn=>{
         const yymm=String(sn).match(/(\d{4})/)[1];
@@ -4189,9 +4325,19 @@ window.uploadItems=function(input){
         const parsed=_itemParseSheet(rows);
         if(parsed&&parsed.groups.length){updates[yymm]=parsed;cnt++;}
       });
-      if(!cnt){showToast('⚠ 읽을 데이터가 없어요');return;}
-      update(ref(db,'config/itemSales'),updates)
-        .then(()=>showToast('✓ '+cnt+'개월 품목별 업로드 완료'))
+      const mUpdates={};let mcnt=0;
+      mSheets.forEach(sn=>{
+        const yymm=String(sn).match(/(\d{4})/)[1];
+        const rows=window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+        const parsed=_marginParseSheet(rows);
+        if(parsed){mUpdates[yymm]=parsed;mcnt++;}
+      });
+      const proms=[];
+      if(cnt)proms.push(update(ref(db,'config/itemSales'),updates));
+      if(mcnt)proms.push(update(ref(db,'config/itemMargin'),mUpdates));
+      if(!proms.length){showToast('⚠ 읽을 데이터가 없어요');return;}
+      Promise.all(proms)
+        .then(()=>showToast('✓ 품목별 '+cnt+'개월 · 마진 '+mcnt+'개월 업로드 완료'))
         .catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
@@ -4207,10 +4353,50 @@ function populateItemsMonths(){
   if(months.length)sel.value=(cur&&months.includes(cur))?cur:months[months.length-1];
 }
 function setItemsSort(v){itemsSort=v;renderItems();}
+function setItemsView(v){itemsView=v;renderItems();}
 function renderItems(){
   const el=document.getElementById('itemsContent');if(!el)return;
   const sel=document.getElementById('itemsMonth');
   const m=sel?sel.value:'';
+  // 보기 토글 버튼/정렬 표시
+  const bS=document.getElementById('itemsViewSales'),bM=document.getElementById('itemsViewMargin');
+  if(bS&&bM){
+    bS.style.background=itemsView==='sales'?'var(--accent)':'';bS.style.color=itemsView==='sales'?'#fff':'';
+    bM.style.background=itemsView==='margin'?'var(--accent)':'';bM.style.color=itemsView==='margin'?'#fff':'';
+  }
+  const sortSel=document.getElementById('itemsSort');if(sortSel)sortSel.style.display=itemsView==='margin'?'none':'';
+  if(itemsView==='margin')return renderItemsMargin(el,m);
+  return renderItemsSales(el,m);
+}
+function renderItemsMargin(el,m){
+  const d=itemMargin[m];
+  if(!d){el.innerHTML='<div style="color:var(--text3);padding:34px;text-align:center;line-height:1.7;">이 달의 <b>마진</b> 데이터가 아직 없어요.<br><span style="font-size:12px;">마진은 보통 월말에 작성돼요. "마진 YYMM" 시트가 든 워크북을 올리면 표시됩니다.</span></div>';return;}
+  const items=d.items||[];
+  let html='';
+  ['주류','음료·과일'].forEach(sc=>{
+    const list=items.filter(i=>i.sec===sc).sort((a,b)=>b.net-a.net);
+    if(!list.length)return;
+    const tNet=list.reduce((s,i)=>s+i.net,0),tMargin=list.reduce((s,i)=>s+i.margin,0);
+    const tRate=tNet?Math.round(tMargin/tNet*100):0;
+    html+=`<div class="sum-sec"><div class="sum-sec-title">${sc} <span style="color:var(--text3);font-weight:400;font-size:11px;">· 평균 마진율 ${tRate}% · ${list.length}품목</span></div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:6px 5px;">품목</th><th style="text-align:right;padding:6px 5px;">수량</th><th style="text-align:right;padding:6px 5px;">순매출</th><th style="text-align:right;padding:6px 5px;">사입원가</th><th style="text-align:right;padding:6px 5px;">마진</th><th style="text-align:right;padding:6px 5px;">마진율</th></tr></thead><tbody>`;
+    list.forEach(i=>{
+      const rc=i.mRate<0?'var(--red)':i.mRate>=0.8?'var(--green)':'var(--text)';
+      html+=`<tr style="border-bottom:1px solid var(--border);">
+        <td style="text-align:left;padding:6px 5px;font-weight:600;">${i.name}</td>
+        <td style="text-align:right;padding:6px 5px;font-family:'JetBrains Mono',monospace;">${i.qty.toLocaleString()}</td>
+        <td style="text-align:right;padding:6px 5px;font-family:'JetBrains Mono',monospace;">${i.net.toLocaleString()}</td>
+        <td style="text-align:right;padding:6px 5px;font-family:'JetBrains Mono',monospace;color:var(--text3);">${i.cost.toLocaleString()}</td>
+        <td style="text-align:right;padding:6px 5px;font-family:'JetBrains Mono',monospace;">${i.margin.toLocaleString()}</td>
+        <td style="text-align:right;padding:6px 5px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${rc};">${Math.round(i.mRate*100)}%</td></tr>`;
+    });
+    html+=`</tbody></table></div></div>`;
+  });
+  el.innerHTML=html||'<div style="color:var(--text3);padding:20px;text-align:center;">데이터 없음</div>';
+}
+function renderItemsSales(el,m){
   const d=itemSales[m];
   if(!d){el.innerHTML='<div style="color:var(--text3);padding:34px;text-align:center;line-height:1.7;">아직 데이터가 없어요.<br>오른쪽 위 <b>📥 엑셀 업로드</b>로 품목별 워크북을 올려주세요.<br><span style="font-size:11px;">("품목별 YYMM" 시트들을 자동으로 읽어요)</span></div>';return;}
   const t=d.totals||{};
@@ -6308,7 +6494,7 @@ Object.assign(window,{
   setStaffView,setSumView,setQuickDate,openDownloadModal,setDlQuick,openBkModal,closeBkModal,saveBking,cancelBking,deleteBking,setBkFilter,renderBookings,toggleBkSelectMode,deleteSelectedBkings,
   setBkCty,renderBkBookerGrid,openBkConfirmModal,closeBkConfirmModal,setBkConfirmPm,
   renderBkConfirmStaffGrid,renderBkConfirmStaff2Grid,confirmBkToSales,
-  uploadItems,renderItems,setItemsSort,populateItemsMonths
+  uploadItems,renderItems,setItemsSort,setItemsView,populateItemsMonths
 });
 
 // 바로 시작
