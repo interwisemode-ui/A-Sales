@@ -1549,8 +1549,8 @@ function renderSummary(){
     <div class="sum-sec"><div class="sum-sec-title">결제 방식별</div>${buildBarChart(pmItems,maxPm,it=>pmColors[it.label]||'var(--accent)')}</div>
     <div class="stat-card" style="margin-bottom:12px;"><div class="stat-label">DC</div><div class="stat-value" style="color:var(--red)">${dc.toLocaleString()}</div><div class="stat-sub">DC율 ${tot>0?Math.round(dc/(tot+dc)*100):0}%</div></div>
     <div class="sum-sec"><div class="sum-sec-title">룸별 매출</div>${buildBarChart(roomItems,maxRoom,()=>'var(--accent3)')}</div>
-    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,valExtra:' (avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()+')',sub:ctyMap[co].cnt+'건'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
-    <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건'})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
+    <div class="sum-sec"><div class="sum-sec-title">나라별</div>${buildBarChart(COUNTRIES.filter(co=>ctyMap[co]).map(co=>({label:co,value:ctyMap[co].tot,valExtra:' (avg '+Math.round(ctyMap[co].tot/ctyMap[co].cnt).toLocaleString()+')',sub:ctyMap[co].cnt+'건 '+pct(ctyMap[co].tot)+'%'})),Math.max(...COUNTRIES.filter(co=>ctyMap[co]).map(co=>ctyMap[co].tot)),()=>'var(--blue)')}</div>
+    <div class="sum-sec"><div class="sum-sec-title">요일별 매출</div>${buildBarChart(dowData.map(d=>({label:d.name,value:d.tot,sub:d.cnt+'건 avg '+Math.round(d.tot/d.cnt).toLocaleString()})),dowData[0]?.tot||1,it=>dowColors[dowNames.indexOf(it.label)])}</div>
     <div class="sum-sec"><div class="sum-sec-title">인원별 부킹</div>${paxItems.length?buildBarChart(paxItems,maxPax,()=>'var(--accent2)'):'<span style="color:var(--text3)">없음</span>'}${noPax?`<div style="margin-top:9px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">인원 미입력 ${noPax}건</div>`:''}</div>
     `;
   } else {
