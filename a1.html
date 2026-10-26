@@ -186,7 +186,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 /* Chart bars */
 .chart-wrap{margin-top:12px;}
 .chart-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
-.chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;width:60px;min-width:60px;max-width:60px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chart-bar-label{font-size:11px;color:var(--text2);font-weight:600;width:86px;min-width:86px;max-width:86px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
 .chart-bar-track{flex:1;background:var(--bg4);border-radius:4px;height:18px;position:relative;overflow:visible;}
 .chart-bar-fill{height:100%;border-radius:4px;transition:width .4s ease;position:relative;min-width:0;}
 .chart-bar-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:#fff;font-weight:700;white-space:nowrap;position:absolute;left:6px;top:50%;transform:translateY(-50%);}
@@ -4151,8 +4151,9 @@ function buildBarChart(items, maxVal, colorFn){
   // items = [{label, value, sub}]
   return '<div class="chart-wrap">'+items.map(it=>{
     const pct=maxVal>0?Math.round(it.value/maxVal*100):0;
+    const safe=String(it.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return `<div class="chart-bar-row">
-      <div class="chart-bar-label" title="${it.label}">${it.label}</div>
+      <div class="chart-bar-label" title="${it.label}" onclick="showToast('${safe}')">${it.label}</div>
       <div class="chart-bar-track">
         <div class="chart-bar-fill" style="width:${pct}%;background:${colorFn(it)};"><span class="chart-bar-val">${it.value.toLocaleString()}${it.valExtra||''}${it.sub?' <span style="opacity:0.75;font-size:9px;">'+it.sub+'</span>':''}</span></div>
       </div>
@@ -4247,6 +4248,22 @@ function _posParsePage(lines){
   }
   return rows;
 }
+function _posParseRawRows(rows){ // 엑셀 원본 'YYMM' 시트(일자별 POS 덤프) 파싱
+  let loc='',grp='';const out=[];
+  for(const row of rows){
+    const a=String((row&&row[0])||'').trim();
+    if(!a)continue;
+    if(/Location\s*:/.test(a)){loc=(a.replace(/^.*Location\s*:/,'').split(':')[0]||'').trim();continue;}
+    const gm=a.match(/Group Name\s*:\s*(.+)$/);
+    if(gm){grp=gm[1].trim();continue;}
+    if(/Total/.test(a)||a==='Sales Date')continue;
+    if(!/^\d{2}\/[A-Za-z]{3}\/\d{4}$/.test(a))continue;
+    const code=String(row[1]||'').trim();if(!code)continue;
+    const n=i=>Number(row[i])||0;
+    out.push({date:a,loc,code,name:String(row[2]||'').trim(),posGroup:grp,qty:n(4),excl:n(5),disc:n(6),tax:n(8),sc:n(9)});
+  }
+  return out;
+}
 async function _posRebuildMonth(m){
   const snap=await get(ref(db,'config/posDaily/'+m));
   if(!snap.exists()){await remove(ref(db,'config/itemSales/'+m)).catch(()=>{});return;}
@@ -4277,7 +4294,7 @@ async function _posRebuildMonth(m){
     groups.push({name:gn,share:tAmt?gAmt/tAmt:0,items});
   });
   const days=[...dayset].sort();
-  const period=days.length?('집계 기간: '+days[0]+' ~ '+days[days.length-1]+'  ·  '+days.length+'일 (PDF 자동집계)'):'';
+  const period=days.length?('집계 기간: '+days[0]+' ~ '+days[days.length-1]+'  ·  '+days.length+'일 (자동집계)'):'';
   const parsed={period,totals:{itemCount:icount+'개 품목',qty:Math.round(tQty),sales:Math.round(tExcl),dc:Math.round(tDisc),tax:Math.round(tTax),sc:Math.round(tSc),amount:Math.round(tAmt)},groups,posDays:days.length};
   await set(ref(db,'config/itemSales/'+m),parsed);
 }
@@ -4315,16 +4332,31 @@ window.uploadItems=function(input){
   reader.onload=e=>{
     try{
       const wb=window.XLSX.read(e.target.result,{type:'array'});
-      const sheets=wb.SheetNames.filter(n=>/^품목별\s*\d{4}$/.test(String(n).trim()));
-      const mSheets=wb.SheetNames.filter(n=>/^마진\s*\d{4}$/.test(String(n).trim()));
-      if(!sheets.length&&!mSheets.length){showToast('⚠ "품목별 YYMM" 시트를 못 찾음');return;}
-      const updates={};let cnt=0;
-      sheets.forEach(sn=>{
+      const rawSheets =wb.SheetNames.filter(n=>/^\d{4}$/.test(String(n).trim()));           // 원본 일자별 (2609,2610…)
+      const itemSheets=wb.SheetNames.filter(n=>/^품목별\s*\d{4}$/.test(String(n).trim()));   // 이미 계산된 집계
+      const mSheets   =wb.SheetNames.filter(n=>/^마진\s*\d{4}$/.test(String(n).trim()));     // 마진
+      if(!rawSheets.length&&!itemSheets.length&&!mSheets.length){showToast('⚠ 읽을 시트를 못 찾음 (2610 / 품목별 2610 / 마진 2610)');return;}
+      const rawMonths=new Set();const posWrites=[];
+      // ① 원본 일자별 → posDaily (날짜·매장별, PDF와 같은 저장소 → 합쳐짐)
+      rawSheets.forEach(sn=>{
+        const yymm=String(sn).trim();
+        const rows=window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+        const parsed=_posParseRawRows(rows);
+        const blocks={};
+        parsed.forEach(r=>{const iso=_posDateISO(r.date);const key=iso+'_'+(r.loc||'NA');if(!blocks[key])blocks[key]={date:iso,loc:r.loc||'',rows:[]};blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,qty:r.qty,excl:Math.round(r.excl),disc:Math.round(r.disc),tax:Math.round(r.tax),sc:Math.round(r.sc)});});
+        const ks=Object.keys(blocks);
+        if(ks.length){rawMonths.add(yymm);ks.forEach(k=>posWrites.push(set(ref(db,'config/posDaily/'+yymm+'/'+k),blocks[k])));}
+      });
+      // ② 이미 계산된 '품목별' 시트 → itemSales (원본 raw가 없는 달만; 있으면 raw 우선)
+      const salesUpdates={};let cnt=0;
+      itemSheets.forEach(sn=>{
         const yymm=String(sn).match(/(\d{4})/)[1];
+        if(rawMonths.has(yymm))return;
         const rows=window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
         const parsed=_itemParseSheet(rows);
-        if(parsed&&parsed.groups.length){updates[yymm]=parsed;cnt++;}
+        if(parsed&&parsed.groups.length){salesUpdates[yymm]=parsed;cnt++;}
       });
+      // ③ 마진
       const mUpdates={};let mcnt=0;
       mSheets.forEach(sn=>{
         const yymm=String(sn).match(/(\d{4})/)[1];
@@ -4332,12 +4364,12 @@ window.uploadItems=function(input){
         const parsed=_marginParseSheet(rows);
         if(parsed){mUpdates[yymm]=parsed;mcnt++;}
       });
-      const proms=[];
-      if(cnt)proms.push(update(ref(db,'config/itemSales'),updates));
+      const proms=[...posWrites];
+      if(cnt)proms.push(update(ref(db,'config/itemSales'),salesUpdates));
       if(mcnt)proms.push(update(ref(db,'config/itemMargin'),mUpdates));
       if(!proms.length){showToast('⚠ 읽을 데이터가 없어요');return;}
       Promise.all(proms)
-        .then(()=>showToast('✓ 품목별 '+cnt+'개월 · 마진 '+mcnt+'개월 업로드 완료'))
+        .then(async()=>{ for(const m of rawMonths){await _posRebuildMonth(m);} showToast('✓ 원본 '+rawMonths.size+'개월 · 집계 '+cnt+'개월 · 마진 '+mcnt+'개월 반영 완료'); })
         .catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
