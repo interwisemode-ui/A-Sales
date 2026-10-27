@@ -720,6 +720,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:8px;">
         <span style="font-size:11px;color:var(--text3);font-weight:600;">⬇ 엑셀 다운로드</span>
         <button class="quick-btn" onclick="downloadItemsExcel('today')">오늘</button>
+        <button class="quick-btn" onclick="downloadItemsExcel('yesterday')">어제</button>
         <button class="quick-btn" onclick="downloadItemsExcel('month')">이번달</button>
         <button class="quick-btn" onclick="downloadItemsExcel('lastmonth')">지난달</button>
         <span style="width:1px;height:16px;background:var(--border);margin:0 2px;"></span>
@@ -4385,6 +4386,7 @@ window.downloadItemsExcel=async function(mode){
   const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
   const now=new Date();let from,to,label;
   if(mode==='today'){from=to=iso(now);label='오늘_'+from;}
+  else if(mode==='yesterday'){const y=new Date(now.getFullYear(),now.getMonth(),now.getDate()-1);from=to=iso(y);label='어제_'+from;}
   else if(mode==='month'){from=iso(new Date(now.getFullYear(),now.getMonth(),1));to=iso(now);label='이번달_'+from.slice(0,7);}
   else if(mode==='lastmonth'){from=iso(new Date(now.getFullYear(),now.getMonth()-1,1));to=iso(new Date(now.getFullYear(),now.getMonth(),0));label='지난달_'+from.slice(0,7);}
   else{
