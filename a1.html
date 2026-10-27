@@ -713,9 +713,20 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <button class="quick-btn" onclick="document.getElementById('itemsFile').click()">📥 엑셀 업로드</button>
         </div>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
         <button id="itemsViewSales" class="quick-btn" onclick="setItemsView('sales')">📊 매출</button>
         <button id="itemsViewMargin" class="quick-btn" onclick="setItemsView('margin')">💹 마진</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:8px;">
+        <span style="font-size:11px;color:var(--text3);font-weight:600;">⬇ 엑셀 다운로드</span>
+        <button class="quick-btn" onclick="downloadItemsExcel('today')">오늘</button>
+        <button class="quick-btn" onclick="downloadItemsExcel('month')">이번달</button>
+        <button class="quick-btn" onclick="downloadItemsExcel('lastmonth')">지난달</button>
+        <span style="width:1px;height:16px;background:var(--border);margin:0 2px;"></span>
+        <input type="date" id="itemsDlFrom" class="input-field" style="font-size:11px;width:auto;padding:5px 7px;">
+        <span style="font-size:11px;color:var(--text3);">~</span>
+        <input type="date" id="itemsDlTo" class="input-field" style="font-size:11px;width:auto;padding:5px 7px;">
+        <button class="quick-btn" onclick="downloadItemsExcel('custom')">지정 다운로드</button>
       </div>
       <div id="itemsContent"></div>
     </div>
@@ -4244,7 +4255,7 @@ function _posParsePage(lines){
     const nums=toks.slice(-10).map(t=>Number(String(t).replace(/,/g,'')));
     if(nums.some(n=>isNaN(n)))continue;
     const name=toks.slice(0,-10).join(' ').trim();if(!name)continue;
-    rows.push({date:m[1],loc,code:m[2],name,posGroup:grp,qty:nums[1],excl:nums[2],disc:nums[3],tax:nums[5],sc:nums[6]});
+    rows.push({date:m[1],loc,code:m[2],name,posGroup:grp,price:nums[0],qty:nums[1],excl:nums[2],disc:nums[3],taxp:nums[4],tax:nums[5],sc:nums[6]});
   }
   return rows;
 }
@@ -4260,7 +4271,7 @@ function _posParseRawRows(rows){ // 엑셀 원본 'YYMM' 시트(일자별 POS �
     if(!/^\d{2}\/[A-Za-z]{3}\/\d{4}$/.test(a))continue;
     const code=String(row[1]||'').trim();if(!code)continue;
     const n=i=>Number(row[i])||0;
-    out.push({date:a,loc,code,name:String(row[2]||'').trim(),posGroup:grp,qty:n(4),excl:n(5),disc:n(6),tax:n(8),sc:n(9)});
+    out.push({date:a,loc,code,name:String(row[2]||'').trim(),posGroup:grp,price:n(3),qty:n(4),excl:n(5),disc:n(6),taxp:n(7),tax:n(8),sc:n(9)});
   }
   return out;
 }
@@ -4298,6 +4309,116 @@ async function _posRebuildMonth(m){
   const parsed={period,totals:{itemCount:icount+'개 품목',qty:Math.round(tQty),sales:Math.round(tExcl),dc:Math.round(tDisc),tax:Math.round(tTax),sc:Math.round(tSc),amount:Math.round(tAmt)},groups,posDays:days.length};
   await set(ref(db,'config/itemSales/'+m),parsed);
 }
+function _monthsBetween(f,t){
+  const res=[];let [y,mo]=f.split('-').map(Number);const [ty,tm]=t.split('-').map(Number);
+  while(y<ty||(y===ty&&mo<=tm)){res.push(String(y).slice(2)+String(mo).padStart(2,'0'));mo++;if(mo>12){mo=1;y++;}}
+  return res;
+}
+const _MONABBR=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function _isoToPosDate(iso){const p=String(iso).split('-');return p.length===3?(p[2]+'/'+(_MONABBR[Number(p[1])]||'')+'/'+p[0]):iso;}
+async function _posFetchBlocks(fromISO,toISO){
+  const out=[];
+  for(const m of _monthsBetween(fromISO,toISO)){
+    const snap=await get(ref(db,'config/posDaily/'+m));
+    if(!snap.exists())continue;
+    Object.values(snap.val()).forEach(b=>{if(b&&b.date&&b.date>=fromISO&&b.date<=toISO)out.push(b);});
+  }
+  out.sort((a,b)=>(a.date<b.date?-1:a.date>b.date?1:0)||String(a.loc||'').localeCompare(String(b.loc||'')));
+  return out;
+}
+function _posAggBlocks(blocks){
+  const agg={};const dayset=new Set();
+  blocks.forEach(b=>{
+    if(b&&b.date)dayset.add(b.date);
+    ((b&&b.rows)||[]).forEach(r=>{
+      const a=agg[r.code]||(agg[r.code]={name:r.name||r.code,posGroup:r.posGroup||'',qty:0,excl:0,disc:0,tax:0,sc:0});
+      if(String(r.name||'').length>String(a.name||'').length)a.name=r.name;
+      if(r.posGroup)a.posGroup=r.posGroup;
+      a.qty+=Number(r.qty)||0;a.excl+=Number(r.excl)||0;a.disc+=Number(r.disc)||0;a.tax+=Number(r.tax)||0;a.sc+=Number(r.sc)||0;
+    });
+  });
+  const gmap={};let tQty=0,tExcl=0,tDisc=0,tTax=0,tSc=0,tAmt=0;
+  Object.values(agg).forEach(a=>{
+    const grp=_posGroupOf(a.posGroup,a.name);
+    const amount=Math.round(a.excl+a.tax+a.sc);
+    (gmap[grp]=gmap[grp]||[]).push({menu:a.name,qty:Math.round(a.qty),sales:Math.round(a.excl),dc:Math.round(a.disc),tax:Math.round(a.tax),sc:Math.round(a.sc),amount});
+    tQty+=a.qty;tExcl+=a.excl;tDisc+=a.disc;tTax+=a.tax;tSc+=a.sc;tAmt+=amount;
+  });
+  const groups=[];
+  ['LIQUOR','BEVERAGE','FOOD','ROOMS'].forEach(gn=>{
+    const items=gmap[gn];if(!items||!items.length)return;
+    const gAmt=items.reduce((s,i)=>s+i.amount,0);
+    items.sort((a,b)=>b.amount-a.amount);
+    items.forEach(i=>{i.shareG=gAmt?i.amount/gAmt:0;i.shareT=tAmt?i.amount/tAmt:0;i.avg=i.qty?Math.round(i.amount/i.qty):0;});
+    groups.push({name:gn,share:tAmt?gAmt/tAmt:0,items});
+  });
+  return {groups,totals:{qty:Math.round(tQty),sales:Math.round(tExcl),dc:Math.round(tDisc),tax:Math.round(tTax),sc:Math.round(tSc),amount:Math.round(tAmt),itemCount:Object.keys(agg).length},days:[...dayset].sort()};
+}
+function _posRawSheetAoa(blocks){
+  const r2=x=>Math.round((Number(x)||0)*100)/100;
+  const aoa=[['Sales Date','MenuCode','Menu Desc','Price','Sales QTY','Sales ExclTax','Discount','TaxPerc','TaxValue','Service Charges']];
+  let gQ=0,gE=0,gD=0,gT=0,gS=0;
+  blocks.forEach(b=>{
+    aoa.push(['Location : '+(b.loc||'')+' : GURUGRAM']);
+    const order=[],byG={};
+    (b.rows||[]).forEach(r=>{const pg=r.posGroup||'';if(!byG[pg]){byG[pg]=[];order.push(pg);}byG[pg].push(r);});
+    let lQ=0,lE=0,lD=0,lT=0,lS=0;
+    order.forEach(pg=>{
+      aoa.push([' Group Name : '+pg]);
+      let sQ=0,sE=0,sD=0,sT=0,sS=0;
+      byG[pg].forEach(r=>{
+        aoa.push([_isoToPosDate(b.date),r.code,r.name,r2(r.price),Number(r.qty)||0,r2(r.excl),r2(r.disc),(r.taxp!==undefined&&r.taxp!=='')?r.taxp:'',r2(r.tax),r2(r.sc)]);
+        sQ+=Number(r.qty)||0;sE+=Number(r.excl)||0;sD+=Number(r.disc)||0;sT+=Number(r.tax)||0;sS+=Number(r.sc)||0;
+      });
+      aoa.push(['','','','Group Total',r2(sQ),r2(sE),r2(sD),'',r2(sT),r2(sS)]);
+      lQ+=sQ;lE+=sE;lD+=sD;lT+=sT;lS+=sS;
+    });
+    aoa.push(['','','','Location Total',r2(lQ),r2(lE),r2(lD),'',r2(lT),r2(lS)]);
+    gQ+=lQ;gE+=lE;gD+=lD;gT+=lT;gS+=lS;
+  });
+  aoa.push(['','','','Grand Total',r2(gQ),r2(gE),r2(gD),'',r2(gT),r2(gS)]);
+  return aoa;
+}
+window.downloadItemsExcel=async function(mode){
+  if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패');return;}
+  const pad=n=>String(n).padStart(2,'0');
+  const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const now=new Date();let from,to,label;
+  if(mode==='today'){from=to=iso(now);label='오늘_'+from;}
+  else if(mode==='month'){from=iso(new Date(now.getFullYear(),now.getMonth(),1));to=iso(now);label='이번달_'+from.slice(0,7);}
+  else if(mode==='lastmonth'){from=iso(new Date(now.getFullYear(),now.getMonth()-1,1));to=iso(new Date(now.getFullYear(),now.getMonth(),0));label='지난달_'+from.slice(0,7);}
+  else{
+    from=document.getElementById('itemsDlFrom').value;to=document.getElementById('itemsDlTo').value;
+    if(!from||!to){showToast('⚠ 시작일과 종료일을 선택하세요');return;}
+    if(from>to){const x=from;from=to;to=x;}
+    label='기간_'+from+'_'+to;
+  }
+  showToast('📊 집계 중...');
+  try{
+    const blocks=await _posFetchBlocks(from,to);
+    if(!blocks.length){showToast('⚠ 해당 기간 데이터가 없어요 (PDF 업로드된 날짜만 가능)');return;}
+    const d=_posAggBlocks(blocks);const T=d.totals;
+    const wb=window.XLSX.utils.book_new();
+    // ① 일자별 (원본 양식)
+    const rawWs=window.XLSX.utils.aoa_to_sheet(_posRawSheetAoa(blocks));
+    rawWs['!cols']=[{wch:13},{wch:9},{wch:24},{wch:11},{wch:10},{wch:14},{wch:11},{wch:9},{wch:12},{wch:14}];
+    window.XLSX.utils.book_append_sheet(wb,rawWs,'일자별');
+    // ② 품목별 요약
+    const aoa=[];
+    aoa.push(['품목별 매출 집계']);
+    aoa.push(['기간: '+from+' ~ '+to,'',String(d.days.length)+'일']);
+    aoa.push([]);
+    aoa.push([String(T.itemCount)+'개 품목','','',T.qty,T.sales,T.dc,T.tax,T.sc,T.amount]);
+    aoa.push(['NO','GROUP','Menu Desc',"Q'ty",'SALES(Excl.Tax)','D/C','TAX','SERVICE CHARGE','AMOUNT(Tax+SC)','그룹내비중%','전체대비%','건당단가']);
+    let no=0;
+    d.groups.forEach(g=>{g.items.forEach((it,idx)=>{no++;aoa.push([no,idx===0?g.name:'',it.menu,it.qty,it.sales,it.dc,it.tax,it.sc,it.amount,Number((it.shareG*100).toFixed(1)),Number((it.shareT*100).toFixed(1)),it.avg]);});});
+    const sumWs=window.XLSX.utils.aoa_to_sheet(aoa);
+    sumWs['!cols']=[{wch:6},{wch:10},{wch:24},{wch:7},{wch:15},{wch:10},{wch:12},{wch:15},{wch:16},{wch:10},{wch:10},{wch:10}];
+    window.XLSX.utils.book_append_sheet(wb,sumWs,'품목별');
+    window.XLSX.writeFile(wb,'품목별매출_'+label+'.xlsx');
+    showToast('✓ 다운로드: '+from+' ~ '+to+' ('+d.days.length+'일, 시트 2개)');
+  }catch(err){showToast('⚠ 다운로드 오류: '+((err&&err.message)||err));}
+};
 window.uploadPos=async function(input){
   const files=[...input.files];input.value='';
   if(!files.length)return;
@@ -4312,7 +4433,7 @@ window.uploadPos=async function(input){
           const iso=_posDateISO(r.date),mk=_posMonthKey(r.date);
           const key=iso+'_'+(r.loc||'NA');
           if(!blocks[key])blocks[key]={date:iso,loc:r.loc||'',m:mk,rows:[]};
-          blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,qty:r.qty,excl:Math.round(r.excl),disc:Math.round(r.disc),tax:Math.round(r.tax),sc:Math.round(r.sc)});
+          blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,price:r.price||0,qty:r.qty,excl:r.excl,disc:r.disc,taxp:r.taxp||0,tax:r.tax,sc:r.sc});
         });
       }
     }
@@ -4343,7 +4464,7 @@ window.uploadItems=function(input){
         const rows=window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
         const parsed=_posParseRawRows(rows);
         const blocks={};
-        parsed.forEach(r=>{const iso=_posDateISO(r.date);const key=iso+'_'+(r.loc||'NA');if(!blocks[key])blocks[key]={date:iso,loc:r.loc||'',rows:[]};blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,qty:r.qty,excl:Math.round(r.excl),disc:Math.round(r.disc),tax:Math.round(r.tax),sc:Math.round(r.sc)});});
+        parsed.forEach(r=>{const iso=_posDateISO(r.date);const key=iso+'_'+(r.loc||'NA');if(!blocks[key])blocks[key]={date:iso,loc:r.loc||'',rows:[]};blocks[key].rows.push({code:r.code,name:r.name,posGroup:r.posGroup,price:r.price||0,qty:r.qty,excl:r.excl,disc:r.disc,taxp:r.taxp||0,tax:r.tax,sc:r.sc});});
         const ks=Object.keys(blocks);
         if(ks.length){rawMonths.add(yymm);ks.forEach(k=>posWrites.push(set(ref(db,'config/posDaily/'+yymm+'/'+k),blocks[k])));}
       });
