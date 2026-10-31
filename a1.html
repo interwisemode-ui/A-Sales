@@ -3636,8 +3636,8 @@ function downloadExport(){
               pi===0?r.country||'':'',
               pi===0?Math.round((r.pax||0)/2*10)/10:'',
               pi===0?Math.round((r.dc||0)/2*10)/10:'',
-              pi===0?(Array.isArray(r.staff)?r.staff:[]).join(', '):'',
-              pi===0?(Array.isArray(r.staff2)?r.staff2:[]).join(', '):'',
+              (pi===0&&bi===0)?(Array.isArray(r.staff)?r.staff:[]).join(', '):'',
+              (pi===0&&bi===0)?(Array.isArray(r.staff2)?r.staff2:[]).join(', '):'',
               pi===0?r.booking||'':'',
               pi===0?r.checkin||'':'',pi===0?r.checkout||'':'',pi===0?r.note||'':''
             ]);
@@ -3652,8 +3652,8 @@ function downloadExport(){
             r.country||'',
             Math.round((r.pax||0)/2*10)/10,
             Math.round((r.dc||0)/2*10)/10,
-            (Array.isArray(r.staff)?r.staff:[]).join(', '),
-            (Array.isArray(r.staff2)?r.staff2:[]).join(', '),
+            bi===0?(Array.isArray(r.staff)?r.staff:[]).join(', '):'',
+            bi===0?(Array.isArray(r.staff2)?r.staff2:[]).join(', '):'',
             r.booking||'',
             r.checkin||'',r.checkout||'',r.note||''
           ]);
