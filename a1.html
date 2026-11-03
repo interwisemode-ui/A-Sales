@@ -5202,17 +5202,17 @@ function renderExpenseTable(data, monthKey){
 
           let tbl='<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:10px;">💰 별도 항목 (경비 합계 미포함)</div>';
           tbl+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
-          tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
+          tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);position:sticky;left:0;background:var(--bg2);z-index:3;border-right:1px solid var(--border);">항목</th>';
           activePeriods.forEach(p=>{tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${p.label}</th>`;});
           tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
           allCats.forEach(cat=>{
-            tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
+            tbl+=`<tr><td style="padding:4px 8px;font-weight:600;position:sticky;left:0;background:var(--bg2);z-index:1;border-right:1px solid var(--border);">${cat}</td>`;
             let rowTotal=0;
             activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?fmtWon(v):'-'}</td>`;});
             tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">${fmtWon(rowTotal)}</td></tr>`;
           });
           // 월별 합계 행
-          tbl+='<tr style="border-top:2px solid var(--border);"><td style="padding:6px 8px;font-weight:700;color:var(--blue);">합계</td>';
+          tbl+='<tr style="border-top:2px solid var(--border);"><td style="padding:6px 8px;font-weight:700;color:var(--blue);position:sticky;left:0;background:var(--bg2);z-index:1;border-right:1px solid var(--border);">합계</td>';
           let grandSep=0;
           activePeriods.forEach(p=>{
             let colSum=0; allCats.forEach(cat=>{colSum+=periodData[p.label]?.[cat]||0;});
@@ -5705,17 +5705,17 @@ function renderProfit(){
             const allCats=[...new Set(activePeriods.flatMap(p=>Object.keys(periodData[p.label]||{})))];
 
             let tbl='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
-            tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">항목</th>';
+            tbl+='<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);position:sticky;left:0;background:var(--bg2);z-index:3;border-right:1px solid var(--border);">항목</th>';
             activePeriods.forEach(p=>{tbl+=`<th style="text-align:right;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);">${p.label}</th>`;});
             tbl+='<th style="text-align:right;padding:4px 8px;color:var(--blue);border-bottom:1px solid var(--border);">TOTAL</th></tr></thead><tbody>';
             allCats.forEach(cat=>{
-              tbl+=`<tr><td style="padding:4px 8px;font-weight:600;">${cat}</td>`;
+              tbl+=`<tr><td style="padding:4px 8px;font-weight:600;position:sticky;left:0;background:var(--bg2);z-index:1;border-right:1px solid var(--border);">${cat}</td>`;
               let rowTotal=0;
               activePeriods.forEach(p=>{const v=periodData[p.label]?.[cat]||0;rowTotal+=v;tbl+=`<td style="text-align:right;padding:4px 8px;">${v>0?'₹'+fmtWon(v):'-'}</td>`;});
               tbl+=`<td style="text-align:right;padding:4px 8px;font-weight:700;color:var(--blue);">₹${fmtWon(rowTotal)}</td></tr>`;
             });
             // 월별 합계 행
-            tbl+='<tr style="border-top:2px solid var(--border);"><td style="padding:6px 8px;font-weight:700;color:var(--blue);">합계</td>';
+            tbl+='<tr style="border-top:2px solid var(--border);"><td style="padding:6px 8px;font-weight:700;color:var(--blue);position:sticky;left:0;background:var(--bg2);z-index:1;border-right:1px solid var(--border);">합계</td>';
             let grandSep=0;
             activePeriods.forEach(p=>{
               let colSum=0; allCats.forEach(cat=>{colSum+=periodData[p.label]?.[cat]||0;});
