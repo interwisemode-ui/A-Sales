@@ -625,7 +625,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="btn btn-sm" onclick="fixStaffNameAllMonths()" style="background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);white-space:nowrap;" title="출근부·기본급에 옛 이름이 남아있을 때 모든 달을 새 이름으로 맞춤">🔗 이름 통합</button>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기본급·근무일수 자동 · 인센티브/가불은 칸에 입력하거나 엑셀 업로드 · Payable = 기본급×(근무일/30) · Total = Payable+인센−가불</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기본급·근무일수 자동 · 인센티브/가불은 칸에 입력하거나 엑셀 업로드 · Payable = 기본급×(근무일/30) · Total = Payable+부킹+데일리+세일즈 인센 (가불은 참고용)</div>
         <div id="payrollContent" style="overflow-x:auto;"></div>
       </div>
     </div>
@@ -2447,7 +2447,7 @@ window.renderPayroll=function(){
       const excluded=!!p.excluded;
       const book=Number(p.book)||0, daily=Number(p.daily)||0, sales=Number(p.sales)||0, adv=Number(p.advance)||0;
       const payable=Math.round(basic*(wd/30));
-      const total=payable+book+daily+sales-adv;
+      const total=payable+book+daily+sales; // 가불(adv)은 참고용 - 토탈에서 빼지 않음
       if(!excluded){ tot.basic+=basic;tot.pay+=payable;tot.book+=book;tot.daily+=daily;tot.sales+=sales;tot.adv+=adv;tot.total+=total;tot.wd+=wd; }
       const dis=excluded?'disabled':'';
       const cell=(f,v)=>`<td style="${tdS}text-align:right;"><input type="number" value="${v||''}" placeholder="0" onchange="savePayrollCell('${n}','${f}',this.value)" style="${inpS}" ${dis}></td>`;
@@ -2543,10 +2543,12 @@ window.uploadPayroll=function(input){
         const row=rows[r]||[]; const nm=String(row[ci.name]||'').trim().toUpperCase();
         if(!nm)continue;
         const num=i=>i>=0?(Math.round(Number(row[i])||0)):0;
-        updates[nm+'/book']=num(ci.book);
-        updates[nm+'/daily']=num(ci.daily);
-        updates[nm+'/sales']=num(ci.sales);
-        updates[nm+'/advance']=num(ci.advance);
+        let book=num(ci.book), daily=num(ci.daily), sales=num(ci.sales), adv=num(ci.advance);
+        if(managerList.includes(nm)){ sales=sales+daily; daily=0; } // 매니저: 데일리 대신 세일즈 인센티브로
+        updates[nm+'/book']=book;
+        updates[nm+'/daily']=daily;
+        updates[nm+'/sales']=sales;
+        updates[nm+'/advance']=adv;
         cnt++;
       }
       if(!cnt){showToast('⚠ 데이터 행 없음');return;}
@@ -2567,7 +2569,7 @@ window.downloadPayroll=function(){
     names.forEach(n=>{
       const basic=Number((baseAll[n]||{})[month])||0, wd=workMap[n]||0, p=payAll[n]||{};
       const book=Number(p.book)||0,daily=Number(p.daily)||0,sales=Number(p.sales)||0,adv=Number(p.advance)||0;
-      const pay=Math.round(basic*(wd/30)); const total=pay+book+daily+sales-adv;
+      const pay=Math.round(basic*(wd/30)); const total=pay+book+daily+sales; // 가불 제외
       aoa.push([n,basic,wd,pay,book,daily,sales,adv,total]);
     });
     const wb=window.XLSX.utils.book_new();
