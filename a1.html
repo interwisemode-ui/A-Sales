@@ -2050,6 +2050,12 @@ async function downloadStaffStatsXlsx(){
     });
   }
 
+  // 기본급(해당월) 로드 — 월은 기간 종료일(없으면 시작일, 둘 다 없으면 이번달) 기준
+  const baseSnap=await new Promise(res=>onValue(ref(db,'config/baseSalary'),res,{onlyOnce:true}));
+  const baseAll=(baseSnap&&baseSnap.exists())?(baseSnap.val()||{}):{};
+  const salMonth=((to4||from4||'').slice(0,7))||new Date().toISOString().slice(0,7);
+  const basicOf=n=>Math.round(Number((baseAll[n]||{})[salMonth])||0);
+
   const wb=window.XLSX.utils.book_new();
 
   // 부킹자 없는 레코드 → 직전 레코드 부킹자 상속
@@ -2157,13 +2163,15 @@ async function downloadStaffStatsXlsx(){
     ['Staff Stats - Summary'],
     ['Period: '+period],
     [],
-    ['Name','Role','Booking Rev.','Booking Cnt','Sel Points','Attendance','DC Total','Grand Total']
+    ['Name','Role','Booking Rev.','Booking Cnt','Sel Points','Attendance','DC Total','Basic Salary ('+salMonth+')']
   ];
+  let totBasic=0;
   allStaff.forEach(s=>{
     const b=bMapF[s]||{tot:0,cnt:0,dc:0};
     const sel=sMapF[s]||{cnt1:0,cnt2:0};
     const selPts=(sel.cnt1*2)+(sel.cnt2*1);
     const att=attMap[s]||0;
+    const basic=basicOf(s); totBasic+=basic;
     sumRows.push([
       s,
       managerList.includes(s)?'Manager':'Staff',
@@ -2172,16 +2180,16 @@ async function downloadStaffStatsXlsx(){
       selPts,
       att||'-',
       Math.round(b.dc),
-      Math.round(b.tot)
+      basic||''
     ]);
   });
   sumRows.push([]);
-  sumRows.push(['WALKIN / Unassigned','—',Math.round(walkinRev),walkinCnt,'','','',Math.round(walkinRev)]);
+  sumRows.push(['WALKIN / Unassigned','—',Math.round(walkinRev),walkinCnt,'','','','']);
   sumRows.push([]);
   const staffTotalRev=bSortedF.reduce((s,[,d])=>s+Math.round(d.tot),0);
   const staffTotalSel=sSortedF.reduce((s,[,d])=>s+(d.cnt1*200)+(d.cnt2*100),0);
-  sumRows.push(['TOTAL (Staff)','',staffTotalRev,bSortedF.reduce((s,[,d])=>s+d.cnt,0),staffTotalSel,'','',staffTotalRev+staffTotalSel]);
-  sumRows.push(['TOTAL (All incl. WALKIN)','',Math.round(totalAllRev),totalAllCnt,'','','',Math.round(totalAllRev)]);
+  sumRows.push(['TOTAL (Staff)','',staffTotalRev,bSortedF.reduce((s,[,d])=>s+d.cnt,0),staffTotalSel,'','',totBasic]);
+  sumRows.push(['TOTAL (All incl. WALKIN)','',Math.round(totalAllRev),totalAllCnt,'','','','']);
 
   const ws3=window.XLSX.utils.aoa_to_sheet(sumRows);
   ws3['!cols']=[{wch:16},{wch:10},{wch:14},{wch:12},{wch:12},{wch:10},{wch:12},{wch:14}];
