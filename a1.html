@@ -2212,27 +2212,100 @@ const PDF_CARD_COLS=[
 const PDF_CARD_COLS_DEFAULT=['book','sel','sales','att','base'];
 function _pdfSelCols(){ let s=null; try{s=JSON.parse(localStorage.getItem('pdfCols_v1')||'null');}catch(_){ } const list=Array.isArray(s)&&s.length?s:PDF_CARD_COLS_DEFAULT.slice(); return PDF_CARD_COLS.filter(c=>list.includes(c.k)); }
 window.savePdfCols=function(){ try{const sel=[...document.querySelectorAll('.pdfColChk:checked')].map(c=>c.value);localStorage.setItem('pdfCols_v1',JSON.stringify(sel));}catch(_){} };
+function _pdfSortMode(){ try{return localStorage.getItem('pdfSort_v1')||'name';}catch(_){return 'name';} }
+window.savePdfSort=function(){ try{const el=document.getElementById('pdfSortSel'); if(el)localStorage.setItem('pdfSort_v1',el.value);}catch(_){} };
+window.pdfFilterSelect=function(kind){
+  const mgr=new Set(managerList);
+  document.querySelectorAll('.pdfStaffChk').forEach(c=>{
+    const n=c.value; let on=false;
+    if(kind==='mgr')on=mgr.has(n);
+    else if(kind==='staff')on=!mgr.has(n);
+    else if(kind==='attThis')on=(window._pdfAttThis||new Set()).has(n);
+    else if(kind==='attLast')on=(window._pdfAttLast||new Set()).has(n);
+    c.checked=on;
+  });
+  savePdfSel();
+};
+window.pdfSelectTop=function(metric,n){
+  const m=window._pdfMetrics||{};
+  const names=[...document.querySelectorAll('.pdfStaffChk')].map(c=>c.value);
+  const ranked=names.slice().sort((a,b)=>((m[b]&&m[b][metric])||0)-((m[a]&&m[a][metric])||0));
+  const top=new Set(ranked.slice(0,n));
+  document.querySelectorAll('.pdfStaffChk').forEach(c=>{c.checked=top.has(c.value);});
+  savePdfSel();
+};
+function _pdfBuildMetrics(recs, attSnap, allBase, allPay){
+  const perStaff={};
+  const cell=(name,mk)=>{(perStaff[name]=perStaff[name]||{});return(perStaff[name][mk]=perStaff[name][mk]||{sales:0,att:0});};
+  recs.forEach(r=>{ if(!r.date)return; const mk=r.date.slice(0,7); const bookers=(r.bookers||[]).filter(Boolean); bookers.forEach(bn=>{cell(bn,mk).sales+=Math.round((r.total||0)/bookers.length);}); });
+  if(attSnap&&attSnap.exists())attSnap.forEach(ms=>{const data=ms.val()||{};const dates=data.dates||[];(data.staff||[]).forEach(s=>{const nm=(s.name||'').toUpperCase();(s.entries||[]).forEach((e,idx)=>{const ds=(dates[idx]&&dates[idx].dateStr)||'';if(!ds)return;const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));if(present)cell(nm,ds.slice(0,7)).att++;});});});
+  const out={};
+  Object.keys(perStaff).forEach(name=>{
+    const mm=perStaff[name]; const baseSal=allBase[name]||{};
+    const ms=Object.keys(mm).filter(m=>mm[m].sales>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name])).sort().reverse();
+    const lm=ms[0]; if(!lm){out[name]={sales:0,gtotal:0,eff:0,att:0};return;}
+    const d=mm[lm]; const pay=(allPay[lm]||{})[name]||{}; const basic=Number(baseSal[lm])||0;
+    const wdOv=pay.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(d.att||0);
+    const bonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
+    const payable=Math.round(basic*Math.min(30,wd+bonus)/30);
+    const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
+    const sales=Number(d.sales)||0;
+    out[name]={sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Number(d.att)||0};
+  });
+  return out;
+}
 window.openStaffPdfPicker=function(){
+  Promise.all([get(ref(db,'records')),get(ref(db,'attendance')),get(ref(db,'config/baseSalary')),get(ref(db,'config/payroll'))]).then(([snap,attSnap,bsSnap,pySnap])=>{
+    const now=new Date();
+    const mkNow=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    const pd=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const mkPrev=pd.getFullYear()+'-'+String(pd.getMonth()+1).padStart(2,'0');
+    const thisSet=new Set(),lastSet=new Set();
+    if(attSnap&&attSnap.exists())attSnap.forEach(ms=>{const data=ms.val()||{};const dates=data.dates||[];(data.staff||[]).forEach(s=>{const nm=(s.name||'').toUpperCase();(s.entries||[]).forEach((e,idx)=>{const ds=(dates[idx]&&dates[idx].dateStr)||'';if(!ds)return;const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));if(present){const mk=ds.slice(0,7);if(mk===mkNow)thisSet.add(nm);else if(mk===mkPrev)lastSet.add(nm);}});});});
+    window._pdfAttThis=thisSet; window._pdfAttLast=lastSet;
+    const recs=[]; if(snap&&snap.exists())snap.forEach(c=>{const r=c.val(); if(r&&r.date)recs.push(r);});
+    window._pdfMetrics=_pdfBuildMetrics(recs, attSnap, (bsSnap&&bsSnap.val())||{}, (pySnap&&pySnap.val())||{});
+    _renderPdfPicker();
+  }).catch(()=>{window._pdfAttThis=new Set();window._pdfAttLast=new Set();window._pdfMetrics={};_renderPdfPicker();});
+};
+function _renderPdfPicker(){
   const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
   let saved=null; try{saved=JSON.parse(localStorage.getItem('pdfStaffSel_v1')||'null');}catch(_){}
   const isChk=n=>Array.isArray(saved)?saved.includes(n):true; // 저장 없으면 전체 체크
   const boxes=names.map(n=>`<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg3);border-radius:8px;font-size:13px;cursor:pointer;"><input type="checkbox" class="pdfStaffChk" value="${n}" onchange="savePdfSel()" ${isChk(n)?'checked':''}> ${n}</label>`).join('');
   const selColKeys=_pdfSelCols().map(c=>c.k);
   const colBoxes=PDF_CARD_COLS.map(c=>`<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 9px;background:var(--bg3);border-radius:8px;font-size:12px;cursor:pointer;"><input type="checkbox" class="pdfColChk" value="${c.k}" onchange="savePdfCols()" ${selColKeys.includes(c.k)?'checked':''}> ${c.label}</label>`).join('');
+  const sortMode=_pdfSortMode();
+  let topN=10; try{topN=parseInt(localStorage.getItem('pdfTopN_v1'))||10;}catch(_){}
+  const sortOpts=[['name','이름순'],['sales','매출순'],['pay','급여순(G/Total)'],['eff','효율순(높은)'],['effAsc','효율순(낮은·관리대상)'],['att','출근순']].map(([v,l])=>`<option value="${v}" ${sortMode===v?'selected':''}>${l}</option>`).join('');
   const btnS='padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;';
+  const fbtn='padding:5px 11px;border-radius:7px;cursor:pointer;font-size:12px;border:1px solid var(--border);background:var(--bg4);color:var(--text);';
+  const old=document.getElementById('pdfPickerModal'); if(old)old.remove();
   const modal=document.createElement('div');
   modal.id='pdfPickerModal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
   modal.innerHTML=`
-    <div style="background:var(--bg2);border-radius:16px;max-width:680px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:20px;">
+    <div style="background:var(--bg2);border-radius:16px;max-width:680px;width:100%;max-height:90vh;display:flex;flex-direction:column;padding:20px;">
       <div style="font-size:16px;font-weight:700;margin-bottom:4px;">📄 실적카드 PDF 만들기</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">넣을 스탭과 표시할 항목을 선택하세요. (A4 세로 1장에 3명씩 · 최근 6개월, Month는 항상 표시)</div>
       <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">표시 항목</div>
-      <div style="display:flex;flex-wrap:wrap;gap:7px;background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:14px;">${colBoxes}</div>
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">스탭</div>
-      <div style="margin-bottom:8px;display:flex;gap:8px;">
-        <button onclick="document.querySelectorAll('.pdfStaffChk').forEach(c=>c.checked=true);savePdfSel()" style="${btnS}border:1px solid var(--border);background:transparent;color:var(--text);">전체선택</button>
-        <button onclick="document.querySelectorAll('.pdfStaffChk').forEach(c=>c.checked=false);savePdfSel()" style="${btnS}border:1px solid var(--border);background:transparent;color:var(--text);">전체해제</button>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:12px;">${colBoxes}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text2);">출력 정렬</span>
+        <select id="pdfSortSel" onchange="savePdfSort()" style="font-size:12px;padding:5px 8px;border-radius:7px;background:var(--bg4);color:var(--text);border:1px solid var(--border);">${sortOpts}</select>
+        <span style="font-size:10px;color:var(--text3);">※ 최근 활동 월 기준</span>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">스탭 빠른선택</div>
+      <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="document.querySelectorAll('.pdfStaffChk').forEach(c=>c.checked=true);savePdfSel()" style="${fbtn}">전체선택</button>
+        <button onclick="document.querySelectorAll('.pdfStaffChk').forEach(c=>c.checked=false);savePdfSel()" style="${fbtn}">전체해제</button>
+        <button onclick="pdfFilterSelect('mgr')" style="${fbtn}">🌟 매니저</button>
+        <button onclick="pdfFilterSelect('staff')" style="${fbtn}">스탭</button>
+        <button onclick="pdfFilterSelect('attThis')" style="${fbtn}">당월출근</button>
+        <button onclick="pdfFilterSelect('attLast')" style="${fbtn}">전월출근</button>
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);">상위 <input id="pdfTopN" type="number" min="1" value="${topN}" onchange="try{localStorage.setItem('pdfTopN_v1',this.value)}catch(_){}" style="width:50px;padding:4px 6px;border-radius:6px;background:var(--bg4);color:var(--text);border:1px solid var(--border);text-align:center;"> 명</span>
+        <button onclick="pdfSelectTop('sales', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 매출</button>
+        <button onclick="pdfSelectTop('eff', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 효율</button>
       </div>
       <div style="overflow-y:auto;flex:1;min-height:80px;display:flex;flex-wrap:wrap;gap:8px;background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:16px;">${boxes}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -2241,7 +2314,7 @@ window.openStaffPdfPicker=function(){
       </div>
     </div>`;
   document.body.appendChild(modal);
-};
+}
 
 window.savePdfSel=function(){
   try{const sel=[...document.querySelectorAll('.pdfStaffChk:checked')].map(c=>c.value);localStorage.setItem('pdfStaffSel_v1',JSON.stringify(sel));}catch(_){}
@@ -2284,7 +2357,7 @@ window.generateStaffPdf=function(){
     const allBase=(bsSnap&&bsSnap.val())||{};
     const allPay=(pySnap&&pySnap.val())||{};
     const selCols=_pdfSelCols();
-    const cardHtml=name=>{
+    const cardHtml=(name,rank)=>{
       const mm=perStaff[name]; if(!mm) return '';
       const baseSal=allBase[name]||{};
       const active=Object.keys(mm).filter(m=>m<nowMk && mm[m].sales>0).sort().reverse();
@@ -2321,17 +2394,45 @@ window.generateStaffPdf=function(){
       const rows=rMonths.map(rowFor).join('');
       const headTh='<th>Month</th>'+selCols.map(c=>'<th>'+c.label+'</th>').join('');
       const nCols=selCols.length+1;
-      return `<div class="card"><div class="nm">${name}</div>
+      return `<div class="card"><div class="nm">${rank?`<span class="rk">#${rank}</span> `:''}${name}</div>
         <div class="boxes">${box('Last 3 Months',a3)}${box('Last 6 Months',a6)}${box('All Time',aAll)}</div>
         <table class="mt"><thead><tr>${headTh}</tr></thead><tbody>${rows||'<tr><td colspan='+nCols+'>No records</td></tr>'}</tbody></table></div>`;
     };
-    const cards=selected.map(cardHtml).filter(Boolean);
+    // 출력 정렬 (최근 활동 월 기준)
+    const sortMode=_pdfSortMode();
+    const monthMetrics=name=>{
+      const mm=perStaff[name]; if(!mm)return {sales:0,gtotal:0,eff:0,att:0};
+      const baseSal=allBase[name]||{};
+      const ms=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name])).sort().reverse();
+      const lm=ms[0]; if(!lm)return {sales:0,gtotal:0,eff:0,att:0};
+      const d=mm[lm]||{sales:0,att:0};
+      const pay=(allPay[lm]||{})[name]||{};
+      const basic=Number(baseSal[lm])||0;
+      const wdOv=pay.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(d.att||0);
+      const bonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
+      const payable=Math.round(basic*Math.min(30,wd+bonus)/30);
+      const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
+      const sales=Number(d.sales)||0;
+      return {sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Number(d.att)||0};
+    };
+    if(sortMode!=='name'){
+      selected.sort((a,b)=>{const ma=monthMetrics(a),mb=monthMetrics(b);
+        if(sortMode==='sales')return mb.sales-ma.sales;
+        if(sortMode==='pay')return mb.gtotal-ma.gtotal;
+        if(sortMode==='eff')return mb.eff-ma.eff;
+        if(sortMode==='effAsc'){const ea=ma.eff>0?ma.eff:Infinity, eb=mb.eff>0?mb.eff:Infinity; return ea-eb;}
+        if(sortMode==='att')return mb.att-ma.att;
+        return 0;});
+    }
+    const showRank=(sortMode!=='name');
+    const cards=selected.map((n,i)=>cardHtml(n, showRank?(i+1):null)).filter(Boolean);
     let pages='';
     for(let i=0;i<cards.length;i+=3){ pages+=`<div class="page">${cards.slice(i,i+3).join('')}</div>`; }
     const css=`@page{size:A4;margin:8mm;} *{box-sizing:border-box;} body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;margin:0;color:#222;background:#fff;}
       .page{display:grid;grid-template-rows:1fr 1fr 1fr;gap:6mm;page-break-after:always;height:281mm;}
       .card{border:1px solid #ddd;border-radius:8px;padding:10px 14px;overflow:hidden;}
       .nm{font-size:17px;font-weight:700;margin-bottom:7px;}
+      .rk{display:inline-block;background:#111;color:#fff;border-radius:5px;padding:1px 7px;font-size:13px;margin-right:4px;}
       .boxes{display:flex;gap:6px;margin-bottom:9px;}
       .box{flex:1;border:1px solid #eee;border-radius:6px;padding:6px 9px;background:#fafafa;}
       .bt{font-size:9px;color:#888;} .bs{font-size:14px;font-weight:700;color:#0a8a3a;} .bl{font-size:7px;color:#aaa;margin-bottom:3px;}
