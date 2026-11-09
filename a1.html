@@ -2588,43 +2588,55 @@ window.togglePayrollExclude=function(name,checked){
   set(ref(db,'config/payroll/'+month+'/'+name+'/excluded'), !checked)
     .then(()=>renderPayroll()).catch(()=>showToast('⚠ 저장 실패'));
 };
+function _parsePayrollSheet(ws){
+  const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  let hi=rows.findIndex(r=>r.some(c=>/name|이름|staff/i.test(String(c))));
+  if(hi<0)hi=0;
+  const hdr=rows[hi].map(c=>String(c||'').toLowerCase());
+  const find=(...kw)=>hdr.findIndex(h=>kw.some(k=>h.includes(k)));
+  const ci={name:find('name','이름','staff'),book:find('booking','부킹','book'),daily:find('daily','일일','일당'),sales:find('sales','매출'),advance:find('advance','가불','선지급'),r1:find('1r','rakh','lakh'),reward:find('reward','리워드')};
+  if(ci.name<0) return null;
+  const updates={}; let cnt=0;
+  for(let r=hi+1;r<rows.length;r++){
+    const row=rows[r]||[]; const nm=String(row[ci.name]||'').trim().toUpperCase();
+    if(!nm||/^(sub\s*total|total|합계)/i.test(nm))continue;
+    const num=i=>i>=0?(Math.round(Number(row[i])||0)):0;
+    let book=num(ci.book), daily=num(ci.daily), sales=num(ci.sales), adv=num(ci.advance);
+    if(managerList.includes(nm)){ sales=sales+daily; daily=0; } // 매니저: 데일리 대신 세일즈 인센티브로
+    updates[nm+'/book']=book; updates[nm+'/daily']=daily; updates[nm+'/sales']=sales; updates[nm+'/advance']=adv;
+    if(ci.r1>=0) updates[nm+'/r1']=num(ci.r1);         // 열이 있을 때만 (없으면 직접입력값 보존)
+    if(ci.reward>=0) updates[nm+'/reward']=num(ci.reward);
+    cnt++;
+  }
+  return {updates,cnt};
+}
 window.uploadPayroll=function(input){
   const file=input.files[0]; if(!file)return;
   if(!window.XLSX){showToast('⚠ 엑셀 기능 로드 실패');return;}
-  const month=_payrollMonth();
   showToast('📊 읽는 중...');
   const reader=new FileReader();
   reader.onload=e=>{
     try{
       const wb=window.XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
-      // 헤더 행 찾기
-      let hi=rows.findIndex(r=>r.some(c=>/name|이름|staff/i.test(String(c))));
-      if(hi<0)hi=0;
-      const hdr=rows[hi].map(c=>String(c||'').toLowerCase());
-      const find=(...kw)=>hdr.findIndex(h=>kw.some(k=>h.includes(k)));
-      const ci={name:find('name','이름','staff'),book:find('booking','부킹','book'),daily:find('daily','일일','일당'),sales:find('sales','매출'),advance:find('advance','가불','선지급'),r1:find('1r','rakh','lakh'),reward:find('reward','리워드')};
-      if(ci.name<0){showToast('⚠ Name 열을 못 찾음');return;}
-      const updates={}; let cnt=0;
-      for(let r=hi+1;r<rows.length;r++){
-        const row=rows[r]||[]; const nm=String(row[ci.name]||'').trim().toUpperCase();
-        if(!nm)continue;
-        const num=i=>i>=0?(Math.round(Number(row[i])||0)):0;
-        let book=num(ci.book), daily=num(ci.daily), sales=num(ci.sales), adv=num(ci.advance);
-        if(managerList.includes(nm)){ sales=sales+daily; daily=0; } // 매니저: 데일리 대신 세일즈 인센티브로
-        updates[nm+'/book']=book;
-        updates[nm+'/daily']=daily;
-        updates[nm+'/sales']=sales;
-        updates[nm+'/advance']=adv;
-        if(ci.r1>=0) updates[nm+'/r1']=num(ci.r1);         // 열이 있을 때만 (없으면 직접입력값 보존)
-        if(ci.reward>=0) updates[nm+'/reward']=num(ci.reward);
-        cnt++;
+      const yymmSheets=wb.SheetNames.filter(n=>/^\s*\d{4}\s*$/.test(String(n))); // 2610·2609·2608 …
+      if(yymmSheets.length){
+        const proms=[],applied=[];
+        yymmSheets.forEach(sn=>{
+          const yymm=String(sn).trim();
+          const mk='20'+yymm.slice(0,2)+'-'+yymm.slice(2); // 2610 → 2026-10
+          const parsed=_parsePayrollSheet(wb.Sheets[sn]);
+          if(parsed&&parsed.cnt){ proms.push(update(ref(db,'config/payroll/'+mk), parsed.updates)); applied.push(mk+' '+parsed.cnt+'명'); }
+        });
+        if(!proms.length){showToast('⚠ 읽을 데이터가 없어요 (시트의 Name 열 확인)');return;}
+        Promise.all(proms).then(()=>{showToast('✓ 업로드 완료: '+applied.join(' · '));renderPayroll();}).catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
+      } else {
+        // YYMM 시트 없음 → 첫 시트를 선택한 월에 적용 (기존 방식)
+        const month=_payrollMonth();
+        const parsed=_parsePayrollSheet(wb.Sheets[wb.SheetNames[0]]);
+        if(!parsed){showToast('⚠ Name 열을 못 찾음');return;}
+        if(!parsed.cnt){showToast('⚠ 데이터 행 없음');return;}
+        update(ref(db,'config/payroll/'+month), parsed.updates).then(()=>{showToast('✓ '+parsed.cnt+'명 업로드 완료 ('+month+')');renderPayroll();}).catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
       }
-      if(!cnt){showToast('⚠ 데이터 행 없음');return;}
-      update(ref(db,'config/payroll/'+month), updates)
-        .then(()=>{showToast('✓ '+cnt+'명 업로드 완료 ('+month+')');renderPayroll();})
-        .catch(er=>showToast('⚠ 저장 실패: '+((er&&er.message)||er)));
     }catch(err){showToast('⚠ 파일 읽기 오류: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
