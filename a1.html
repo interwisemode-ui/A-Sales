@@ -4395,17 +4395,19 @@ function _posAggBlocks(blocks){
   blocks.forEach(b=>{
     if(b&&b.date)dayset.add(b.date);
     ((b&&b.rows)||[]).forEach(r=>{
-      const a=agg[r.code]||(agg[r.code]={name:r.name||r.code,posGroup:r.posGroup||'',qty:0,excl:0,disc:0,tax:0,sc:0});
+      const a=agg[r.code]||(agg[r.code]={name:r.name||r.code,posGroup:r.posGroup||'',qty:0,excl:0,disc:0,tax:0,sc:0,_pq:{}});
       if(String(r.name||'').length>String(a.name||'').length)a.name=r.name;
       if(r.posGroup)a.posGroup=r.posGroup;
       a.qty+=Number(r.qty)||0;a.excl+=Number(r.excl)||0;a.disc+=Number(r.disc)||0;a.tax+=Number(r.tax)||0;a.sc+=Number(r.sc)||0;
+      const pr=Math.round(Number(r.price)||0); if(pr>0) a._pq[pr]=(a._pq[pr]||0)+(Number(r.qty)||0); // 단가별 판매수량(대표단가 산출용)
     });
   });
   const gmap={};let tQty=0,tExcl=0,tDisc=0,tTax=0,tSc=0,tAmt=0;
   Object.values(agg).forEach(a=>{
     const grp=_posGroupOf(a.posGroup,a.name);
     const amount=Math.round(a.excl+a.tax+a.sc);
-    (gmap[grp]=gmap[grp]||[]).push({menu:a.name,qty:Math.round(a.qty),sales:Math.round(a.excl),dc:Math.round(a.disc),tax:Math.round(a.tax),sc:Math.round(a.sc),amount});
+    let price=0,best=-1; for(const k in a._pq){ if(a._pq[k]>best){best=a._pq[k];price=Number(k);} } // 가장 많이 팔린 단가
+    (gmap[grp]=gmap[grp]||[]).push({menu:a.name,price,qty:Math.round(a.qty),sales:Math.round(a.excl),dc:Math.round(a.disc),tax:Math.round(a.tax),sc:Math.round(a.sc),amount});
     tQty+=a.qty;tExcl+=a.excl;tDisc+=a.disc;tTax+=a.tax;tSc+=a.sc;tAmt+=amount;
   });
   const groups=[];
@@ -4473,12 +4475,12 @@ window.downloadItemsExcel=async function(mode){
     aoa.push(['품목별 매출 집계']);
     aoa.push(['기간: '+from+' ~ '+to,'',String(d.days.length)+'일']);
     aoa.push([]);
-    aoa.push([String(T.itemCount)+'개 품목','','',T.qty,T.sales,T.dc,T.tax,T.sc,T.amount]);
-    aoa.push(['NO','GROUP','Menu Desc',"Q'ty",'SALES(Excl.Tax)','D/C','TAX','SERVICE CHARGE','AMOUNT(Tax+SC)','그룹내비중%','전체대비%','건당단가']);
+    aoa.push([String(T.itemCount)+'개 품목','','',T.qty,'',T.sales,T.dc,T.tax,T.sc,T.amount]);
+    aoa.push(['NO','GROUP','Menu Desc',"Q'ty",'Price','SALES(Excl.Tax)','D/C','TAX','SERVICE CHARGE','AMOUNT(Tax+SC)','그룹내비중%','전체대비%','건당단가']);
     let no=0;
-    d.groups.forEach(g=>{g.items.forEach((it,idx)=>{no++;aoa.push([no,idx===0?g.name:'',it.menu,it.qty,it.sales,it.dc,it.tax,it.sc,it.amount,Number((it.shareG*100).toFixed(1)),Number((it.shareT*100).toFixed(1)),it.avg]);});});
+    d.groups.forEach(g=>{g.items.forEach((it,idx)=>{no++;aoa.push([no,idx===0?g.name:'',it.menu,it.qty,it.price||'',it.sales,it.dc,it.tax,it.sc,it.amount,Number((it.shareG*100).toFixed(1)),Number((it.shareT*100).toFixed(1)),it.avg]);});});
     const sumWs=window.XLSX.utils.aoa_to_sheet(aoa);
-    sumWs['!cols']=[{wch:6},{wch:10},{wch:24},{wch:7},{wch:15},{wch:10},{wch:12},{wch:15},{wch:16},{wch:10},{wch:10},{wch:10}];
+    sumWs['!cols']=[{wch:6},{wch:10},{wch:24},{wch:7},{wch:10},{wch:15},{wch:10},{wch:12},{wch:15},{wch:16},{wch:10},{wch:10},{wch:10}];
     window.XLSX.utils.book_append_sheet(wb,sumWs,'품목별');
     window.XLSX.writeFile(wb,'품목별매출_'+label+'.xlsx');
     showToast('✓ 다운로드: '+from+' ~ '+to+' ('+d.days.length+'일, 시트 2개)');
