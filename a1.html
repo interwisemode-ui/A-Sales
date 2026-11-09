@@ -625,7 +625,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="btn btn-sm" onclick="fixStaffNameAllMonths()" style="background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);white-space:nowrap;" title="출근부·기본급에 옛 이름이 남아있을 때 모든 달을 새 이름으로 맞춤">🔗 이름 통합</button>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기본급·근무일수 자동 · 인센티브/가불은 칸에 입력하거나 엑셀 업로드 · Payable = 기본급×(근무일/30) · Total = Payable+부킹+데일리+세일즈 인센 (가불은 참고용)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">기본급·근무일수 자동 · 인센티브/가불은 칸에 입력하거나 엑셀 업로드 · 출근보너스 25일↑+4·20일↑+2·15일↑+1일(근무일에 가산, 최대 30일) · Payable = 기본급×(min(근무일+보너스,30)/30) · Total = Payable+부킹+데일리+세일즈 인센 (가불은 참고용)</div>
         <div id="payrollContent" style="overflow-x:auto;"></div>
       </div>
     </div>
@@ -2445,7 +2445,7 @@ window.renderPayroll=function(){
     const thS='padding:7px 8px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text3);white-space:nowrap;';
     const tdS='padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;white-space:nowrap;';
     const inpS='width:92px;background:var(--bg4);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-size:12px;text-align:right;';
-    let tot={basic:0,pay:0,book:0,daily:0,sales:0,adv:0,total:0,wd:0};
+    let tot={basic:0,pay:0,book:0,daily:0,sales:0,adv:0,total:0,wd:0,r1:0,reward:0,gtotal:0};
     const buildRow=n=>{
       const basic=Number((baseAll[n]||{})[month])||0;
       const wdAuto=workMap[n]||0;
@@ -2454,30 +2454,37 @@ window.renderPayroll=function(){
       const wd=hasOv?Number(wdOv):wdAuto;
       const excluded=!!p.excluded;
       const book=Number(p.book)||0, daily=Number(p.daily)||0, sales=Number(p.sales)||0, adv=Number(p.advance)||0;
-      const payable=Math.round(basic*(wd/30));
+      const r1=Number(p.r1)||0, reward=Number(p.reward)||0;
+      const attBonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0)); // 출근 보너스 일수(구간)
+      const effDays=Math.min(30, wd+attBonus);          // 근무일수 30일 상한
+      const effBonus=Math.max(0, effDays-wd);           // 실제 가산된 보너스일
+      const payable=Math.round(basic*(effDays/30));
       const total=payable+book+daily+sales; // 가불(adv)은 참고용 - 토탈에서 빼지 않음
-      if(!excluded){ tot.basic+=basic;tot.pay+=payable;tot.book+=book;tot.daily+=daily;tot.sales+=sales;tot.adv+=adv;tot.total+=total;tot.wd+=wd; }
+      const gtotal=total+r1+reward; // G/TOTAL = Total + 1R Inc + Reward
+      if(!excluded){ tot.basic+=basic;tot.pay+=payable;tot.book+=book;tot.daily+=daily;tot.sales+=sales;tot.adv+=adv;tot.total+=total;tot.wd+=wd;tot.r1+=r1;tot.reward+=reward;tot.gtotal+=gtotal; }
       const dis=excluded?'disabled':'';
       const cell=(f,v)=>`<td style="${tdS}text-align:right;"><input type="number" value="${v||''}" placeholder="0" onchange="savePayrollCell('${n}','${f}',this.value)" style="${inpS}" ${dis}></td>`;
       return `<tr style="${excluded?'opacity:0.4;':''}">
         <td style="${tdS}text-align:center;position:sticky;left:0;background:var(--bg2);"><input type="checkbox" ${excluded?'':'checked'} onchange="togglePayrollExclude('${n}',this.checked)"></td>
         <td style="${tdS}font-weight:600;">${managerList.includes(n)?'🌟':''}${n}</td>
         <td style="${tdS}text-align:right;"><input type="number" value="${basic||''}" placeholder="0" onchange="savePayrollCell('${n}','basic',this.value)" style="${inpS}" ${dis}></td>
-        <td style="${tdS}text-align:center;"><input type="number" value="${hasOv?wdOv:''}" placeholder="${wdAuto}" onchange="savePayrollCell('${n}','wd',this.value)" style="${inpS}width:62px;text-align:center;" title="비우면 출근부 자동값(${wdAuto})" ${dis}></td>
-        <td style="${tdS}text-align:right;color:var(--green);font-weight:600;">${payable?payable.toLocaleString():'-'}</td>
+        <td style="${tdS}text-align:center;white-space:nowrap;"><input type="number" value="${hasOv?wdOv:''}" placeholder="${wdAuto}" onchange="savePayrollCell('${n}','wd',this.value)" style="${inpS}width:52px;text-align:center;" title="비우면 출근부 자동값(${wdAuto})" ${dis}>${effBonus>0?`<span style="color:var(--yellow);font-size:10px;margin-left:3px;" title="출근 보너스 +${effBonus}일 (근무일 최대 30일)">+${effBonus}</span>`:''}</td>
+        <td style="${tdS}text-align:right;color:var(--green);font-weight:600;" title="기본급×${effDays}/30 (근무일${effBonus>0?'+보너스'+effBonus:''}, 최대 30일)">${payable?payable.toLocaleString():'-'}</td>
         ${cell('book',book)}${cell('daily',daily)}${cell('sales',sales)}${cell('advance',adv)}
         <td style="${tdS}text-align:right;font-weight:700;color:var(--accent2);">${total?total.toLocaleString():'-'}</td>
+        ${cell('r1',r1)}${cell('reward',reward)}
+        <td style="${tdS}text-align:right;font-weight:700;color:var(--yellow);">${gtotal?gtotal.toLocaleString():'-'}</td>
       </tr>`;
     };
-    const groupHdr=t=>`<tr><td colspan="10" style="padding:7px 8px;background:var(--bg3);font-weight:700;font-size:12px;color:var(--text2);position:sticky;left:0;">${t}</td></tr>`;
+    const groupHdr=t=>`<tr><td colspan="13" style="padding:7px 8px;background:var(--bg3);font-weight:700;font-size:12px;color:var(--text2);position:sticky;left:0;">${t}</td></tr>`;
     const mgrs=names.filter(n=>managerList.includes(n));
     const staff=names.filter(n=>!managerList.includes(n) && (workMap[n]||0)>0); // 일반 스탭은 근무일수 있는 사람만
     let rows='';
     if(mgrs.length){ rows+=groupHdr('🌟 매니저'); mgrs.forEach(n=>rows+=buildRow(n)); }
     rows+=groupHdr('일반 스탭 (근무일수 있는 사람만)'); 
     if(staff.length) staff.forEach(n=>rows+=buildRow(n));
-    else rows+=`<tr><td colspan="10" style="${tdS}color:var(--text3);text-align:center;">근무일수가 있는 일반 스탭이 없어요</td></tr>`;
-    wrap.innerHTML=`<table style="width:100%;border-collapse:collapse;min-width:900px;">
+    else rows+=`<tr><td colspan="13" style="${tdS}color:var(--text3);text-align:center;">근무일수가 있는 일반 스탭이 없어요</td></tr>`;
+    wrap.innerHTML=`<table style="width:100%;border-collapse:collapse;min-width:1150px;">
       <thead><tr>
         <th style="${thS}text-align:center;position:sticky;left:0;background:var(--bg2);">포함</th>
         <th style="${thS}text-align:left;">Name</th>
@@ -2489,6 +2496,9 @@ window.renderPayroll=function(){
         <th style="${thS}text-align:right;">Sales Inc</th>
         <th style="${thS}text-align:right;">Advance</th>
         <th style="${thS}text-align:right;">Total</th>
+        <th style="${thS}text-align:right;">1RAKH</th>
+        <th style="${thS}text-align:right;">Reward</th>
+        <th style="${thS}text-align:right;color:var(--yellow);">G/Total</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr style="font-weight:700;background:var(--bg3);">
@@ -2502,6 +2512,9 @@ window.renderPayroll=function(){
         <td style="${tdS}text-align:right;">${tot.sales.toLocaleString()}</td>
         <td style="${tdS}text-align:right;">${tot.adv.toLocaleString()}</td>
         <td style="${tdS}text-align:right;color:var(--accent2);">${tot.total.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.r1.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;">${tot.reward.toLocaleString()}</td>
+        <td style="${tdS}text-align:right;color:var(--yellow);">${tot.gtotal.toLocaleString()}</td>
       </tr></tfoot>
     </table>`;
   }).catch(e=>{ wrap.innerHTML='<div style="color:var(--red);padding:14px;">불러오기 실패: '+((e&&e.message)||e)+'</div>'; });
@@ -2544,7 +2557,7 @@ window.uploadPayroll=function(input){
       if(hi<0)hi=0;
       const hdr=rows[hi].map(c=>String(c||'').toLowerCase());
       const find=(...kw)=>hdr.findIndex(h=>kw.some(k=>h.includes(k)));
-      const ci={name:find('name','이름','staff'),book:find('booking','부킹','book'),daily:find('daily','일일','일당'),sales:find('sales','매출'),advance:find('advance','가불','선지급')};
+      const ci={name:find('name','이름','staff'),book:find('booking','부킹','book'),daily:find('daily','일일','일당'),sales:find('sales','매출'),advance:find('advance','가불','선지급'),r1:find('1r','rakh','lakh'),reward:find('reward','리워드')};
       if(ci.name<0){showToast('⚠ Name 열을 못 찾음');return;}
       const updates={}; let cnt=0;
       for(let r=hi+1;r<rows.length;r++){
@@ -2557,6 +2570,8 @@ window.uploadPayroll=function(input){
         updates[nm+'/daily']=daily;
         updates[nm+'/sales']=sales;
         updates[nm+'/advance']=adv;
+        if(ci.r1>=0) updates[nm+'/r1']=num(ci.r1);         // 열이 있을 때만 (없으면 직접입력값 보존)
+        if(ci.reward>=0) updates[nm+'/reward']=num(ci.reward);
         cnt++;
       }
       if(!cnt){showToast('⚠ 데이터 행 없음');return;}
@@ -2573,12 +2588,17 @@ window.downloadPayroll=function(){
   Promise.all([get(ref(db,'config/baseSalary')), get(ref(db,'attendance')), get(ref(db,'config/payroll/'+month))]).then(([bsSnap, attSnap, pySnap])=>{
     const baseAll=(bsSnap&&bsSnap.val())||{}, payAll=(pySnap&&pySnap.val())||{}, workMap=_workDaysMap(attSnap, month);
     const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
-    const aoa=[['Name','Basic Salary','Working Days','Payable Salary','Booking Inc','Daily Inc','Sales Inc','Advance','Total']];
+    const aoa=[['Name','Basic Salary','Working Days','출근보너스일','Payable Salary','Booking Inc','Daily Inc','Sales Inc','Advance','Total','1RAKH','Reward','G/Total']];
     names.forEach(n=>{
-      const basic=Number((baseAll[n]||{})[month])||0, wd=workMap[n]||0, p=payAll[n]||{};
+      const basic=Number((baseAll[n]||{})[month])||0, p=payAll[n]||{};
+      const wdOv=p.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(workMap[n]||0);
       const book=Number(p.book)||0,daily=Number(p.daily)||0,sales=Number(p.sales)||0,adv=Number(p.advance)||0;
-      const pay=Math.round(basic*(wd/30)); const total=pay+book+daily+sales; // 가불 제외
-      aoa.push([n,basic,wd,pay,book,daily,sales,adv,total]);
+      const r1=Number(p.r1)||0, reward=Number(p.reward)||0;
+      const attBonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
+      const effDays=Math.min(30, wd+attBonus); const effBonus=Math.max(0,effDays-wd);
+      const pay=Math.round(basic*(effDays/30)); const total=pay+book+daily+sales; // 가불 제외
+      const gtotal=total+r1+reward;
+      aoa.push([n,basic,wd,effBonus,pay,book,daily,sales,adv,total,r1,reward,gtotal]);
     });
     const wb=window.XLSX.utils.book_new();
     const ws=window.XLSX.utils.aoa_to_sheet(aoa);
