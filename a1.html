@@ -2216,14 +2216,13 @@ function _pdfSortMode(){ try{return localStorage.getItem('pdfSort_v1')||'name';}
 window.savePdfSort=function(){ try{const el=document.getElementById('pdfSortSel'); if(el)localStorage.setItem('pdfSort_v1',el.value);}catch(_){} };
 function _pdfBasis(){ try{return localStorage.getItem('pdfBasis_v1')||'lastMonth';}catch(_){return 'lastMonth';} } // lastMonth | avg3
 window.savePdfBasis=function(){ try{const el=document.getElementById('pdfBasisSel'); if(el)localStorage.setItem('pdfBasis_v1',el.value);}catch(_){} _pdfRecomputeMetrics(); };
-// 순위/정렬 지표 계산 (진행 중인 이번달 제외 → 지난달 또는 최근3개월 평균)
+function _mkMinus(nowMk,k){ const p=String(nowMk).split('-').map(Number); const d=new Date(p[0], (p[1]-1)-k, 1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+// 순위/정렬 지표 — 고정 달력 기준(진행 중 이번달 제외). 지난달=직전1달, avg3=직전3달. 빈 달은 0으로 포함.
 function _pdfMetricCompute(mm, baseSal, name, allPay, basis, nowMk){
   mm=mm||{}; baseSal=baseSal||{};
-  const completed=Object.keys(mm).filter(m=>m<nowMk && ((mm[m].sales>0)||(mm[m].att>0)||baseSal[m]||(allPay[m]&&allPay[m][name]))).sort().reverse();
-  const use = basis==='avg3' ? completed.slice(0,3) : completed.slice(0,1);
-  if(!use.length) return {sales:0,gtotal:0,eff:0,att:0};
+  const targets = basis==='avg3' ? [_mkMinus(nowMk,1),_mkMinus(nowMk,2),_mkMinus(nowMk,3)] : [_mkMinus(nowMk,1)];
   let sSales=0,sGtot=0,sAtt=0;
-  use.forEach(m=>{
+  targets.forEach(m=>{
     const d=mm[m]||{sales:0,att:0};
     const pay=(allPay[m]||{})[name]||{};
     const basic=Number(baseSal[m])||0;
@@ -2233,7 +2232,7 @@ function _pdfMetricCompute(mm, baseSal, name, allPay, basis, nowMk){
     const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
     sSales+=Number(d.sales)||0; sGtot+=gtotal; sAtt+=Number(d.att)||0;
   });
-  const n=use.length;
+  const n=targets.length; // 빈 달도 0으로 포함 → 고정 분모(1 또는 3)
   const sales=Math.round(sSales/n), gtotal=Math.round(sGtot/n);
   return {sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Math.round(sAtt/n*10)/10};
 }
@@ -2297,7 +2296,7 @@ function _renderPdfPicker(){
   const basis=_pdfBasis();
   let topN=10; try{topN=parseInt(localStorage.getItem('pdfTopN_v1'))||10;}catch(_){}
   const sortOpts=[['name','이름순'],['sales','매출순'],['pay','급여순(G/Total)'],['eff','효율순(높은)'],['effAsc','효율순(낮은·관리대상)'],['att','출근순']].map(([v,l])=>`<option value="${v}" ${sortMode===v?'selected':''}>${l}</option>`).join('');
-  const basisOpts=[['lastMonth','지난달'],['avg3','최근3개월 평균']].map(([v,l])=>`<option value="${v}" ${basis===v?'selected':''}>${l}</option>`).join('');
+  const basisOpts=[['lastMonth','지난달(직전1달)'],['avg3','최근3개월 평균(고정)']].map(([v,l])=>`<option value="${v}" ${basis===v?'selected':''}>${l}</option>`).join('');
   const btnS='padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;';
   const fbtn='padding:5px 11px;border-radius:7px;cursor:pointer;font-size:12px;border:1px solid var(--border);background:var(--bg4);color:var(--text);';
   const old=document.getElementById('pdfPickerModal'); if(old)old.remove();
