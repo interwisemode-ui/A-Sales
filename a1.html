@@ -2214,6 +2214,36 @@ function _pdfSelCols(){ let s=null; try{s=JSON.parse(localStorage.getItem('pdfCo
 window.savePdfCols=function(){ try{const sel=[...document.querySelectorAll('.pdfColChk:checked')].map(c=>c.value);localStorage.setItem('pdfCols_v1',JSON.stringify(sel));}catch(_){} };
 function _pdfSortMode(){ try{return localStorage.getItem('pdfSort_v1')||'name';}catch(_){return 'name';} }
 window.savePdfSort=function(){ try{const el=document.getElementById('pdfSortSel'); if(el)localStorage.setItem('pdfSort_v1',el.value);}catch(_){} };
+function _pdfBasis(){ try{return localStorage.getItem('pdfBasis_v1')||'lastMonth';}catch(_){return 'lastMonth';} } // lastMonth | avg3
+window.savePdfBasis=function(){ try{const el=document.getElementById('pdfBasisSel'); if(el)localStorage.setItem('pdfBasis_v1',el.value);}catch(_){} _pdfRecomputeMetrics(); };
+// 순위/정렬 지표 계산 (진행 중인 이번달 제외 → 지난달 또는 최근3개월 평균)
+function _pdfMetricCompute(mm, baseSal, name, allPay, basis, nowMk){
+  mm=mm||{}; baseSal=baseSal||{};
+  const completed=Object.keys(mm).filter(m=>m<nowMk && ((mm[m].sales>0)||(mm[m].att>0)||baseSal[m]||(allPay[m]&&allPay[m][name]))).sort().reverse();
+  const use = basis==='avg3' ? completed.slice(0,3) : completed.slice(0,1);
+  if(!use.length) return {sales:0,gtotal:0,eff:0,att:0};
+  let sSales=0,sGtot=0,sAtt=0;
+  use.forEach(m=>{
+    const d=mm[m]||{sales:0,att:0};
+    const pay=(allPay[m]||{})[name]||{};
+    const basic=Number(baseSal[m])||0;
+    const wdOv=pay.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(d.att||0);
+    const bonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
+    const payable=Math.round(basic*Math.min(30,wd+bonus)/30);
+    const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
+    sSales+=Number(d.sales)||0; sGtot+=gtotal; sAtt+=Number(d.att)||0;
+  });
+  const n=use.length;
+  const sales=Math.round(sSales/n), gtotal=Math.round(sGtot/n);
+  return {sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Math.round(sAtt/n*10)/10};
+}
+function _pdfRecomputeMetrics(){
+  const ctx=window._pdfMetricCtx; if(!ctx)return;
+  const now=new Date(); const nowMk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const basis=_pdfBasis(); const out={};
+  Object.keys(ctx.perStaff).forEach(name=>{ out[name]=_pdfMetricCompute(ctx.perStaff[name], ctx.allBase[name]||{}, name, ctx.allPay, basis, nowMk); });
+  window._pdfMetrics=out;
+}
 window.pdfFilterSelect=function(kind){
   const mgr=new Set(managerList);
   document.querySelectorAll('.pdfStaffChk').forEach(c=>{
@@ -2239,20 +2269,8 @@ function _pdfBuildMetrics(recs, attSnap, allBase, allPay){
   const cell=(name,mk)=>{(perStaff[name]=perStaff[name]||{});return(perStaff[name][mk]=perStaff[name][mk]||{sales:0,att:0});};
   recs.forEach(r=>{ if(!r.date)return; const mk=r.date.slice(0,7); const bookers=(r.bookers||[]).filter(Boolean); bookers.forEach(bn=>{cell(bn,mk).sales+=Math.round((r.total||0)/bookers.length);}); });
   if(attSnap&&attSnap.exists())attSnap.forEach(ms=>{const data=ms.val()||{};const dates=data.dates||[];(data.staff||[]).forEach(s=>{const nm=(s.name||'').toUpperCase();(s.entries||[]).forEach((e,idx)=>{const ds=(dates[idx]&&dates[idx].dateStr)||'';if(!ds)return;const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));if(present)cell(nm,ds.slice(0,7)).att++;});});});
-  const out={};
-  Object.keys(perStaff).forEach(name=>{
-    const mm=perStaff[name]; const baseSal=allBase[name]||{};
-    const ms=Object.keys(mm).filter(m=>mm[m].sales>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name])).sort().reverse();
-    const lm=ms[0]; if(!lm){out[name]={sales:0,gtotal:0,eff:0,att:0};return;}
-    const d=mm[lm]; const pay=(allPay[lm]||{})[name]||{}; const basic=Number(baseSal[lm])||0;
-    const wdOv=pay.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(d.att||0);
-    const bonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
-    const payable=Math.round(basic*Math.min(30,wd+bonus)/30);
-    const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
-    const sales=Number(d.sales)||0;
-    out[name]={sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Number(d.att)||0};
-  });
-  return out;
+  window._pdfMetricCtx={perStaff, allBase, allPay};
+  _pdfRecomputeMetrics();
 }
 window.openStaffPdfPicker=function(){
   Promise.all([get(ref(db,'records')),get(ref(db,'attendance')),get(ref(db,'config/baseSalary')),get(ref(db,'config/payroll'))]).then(([snap,attSnap,bsSnap,pySnap])=>{
@@ -2264,20 +2282,22 @@ window.openStaffPdfPicker=function(){
     if(attSnap&&attSnap.exists())attSnap.forEach(ms=>{const data=ms.val()||{};const dates=data.dates||[];(data.staff||[]).forEach(s=>{const nm=(s.name||'').toUpperCase();(s.entries||[]).forEach((e,idx)=>{const ds=(dates[idx]&&dates[idx].dateStr)||'';if(!ds)return;const present=e&&(e.type==='present'||e.type==='late'||(e.time&&e.time!=='-'&&e.time!==''));if(present){const mk=ds.slice(0,7);if(mk===mkNow)thisSet.add(nm);else if(mk===mkPrev)lastSet.add(nm);}});});});
     window._pdfAttThis=thisSet; window._pdfAttLast=lastSet;
     const recs=[]; if(snap&&snap.exists())snap.forEach(c=>{const r=c.val(); if(r&&r.date)recs.push(r);});
-    window._pdfMetrics=_pdfBuildMetrics(recs, attSnap, (bsSnap&&bsSnap.val())||{}, (pySnap&&pySnap.val())||{});
+    _pdfBuildMetrics(recs, attSnap, (bsSnap&&bsSnap.val())||{}, (pySnap&&pySnap.val())||{});
     _renderPdfPicker();
   }).catch(()=>{window._pdfAttThis=new Set();window._pdfAttLast=new Set();window._pdfMetrics={};_renderPdfPicker();});
 };
 function _renderPdfPicker(){
-  const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
+  const names=[...staffList].filter(n=>n&&n!=='WALKIN'&&String(n).toUpperCase()!=='COMMISSION').sort();
   let saved=null; try{saved=JSON.parse(localStorage.getItem('pdfStaffSel_v1')||'null');}catch(_){}
   const isChk=n=>Array.isArray(saved)?saved.includes(n):true; // 저장 없으면 전체 체크
   const boxes=names.map(n=>`<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg3);border-radius:8px;font-size:13px;cursor:pointer;"><input type="checkbox" class="pdfStaffChk" value="${n}" onchange="savePdfSel()" ${isChk(n)?'checked':''}> ${n}</label>`).join('');
   const selColKeys=_pdfSelCols().map(c=>c.k);
   const colBoxes=PDF_CARD_COLS.map(c=>`<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 9px;background:var(--bg3);border-radius:8px;font-size:12px;cursor:pointer;"><input type="checkbox" class="pdfColChk" value="${c.k}" onchange="savePdfCols()" ${selColKeys.includes(c.k)?'checked':''}> ${c.label}</label>`).join('');
   const sortMode=_pdfSortMode();
+  const basis=_pdfBasis();
   let topN=10; try{topN=parseInt(localStorage.getItem('pdfTopN_v1'))||10;}catch(_){}
   const sortOpts=[['name','이름순'],['sales','매출순'],['pay','급여순(G/Total)'],['eff','효율순(높은)'],['effAsc','효율순(낮은·관리대상)'],['att','출근순']].map(([v,l])=>`<option value="${v}" ${sortMode===v?'selected':''}>${l}</option>`).join('');
+  const basisOpts=[['lastMonth','지난달'],['avg3','최근3개월 평균']].map(([v,l])=>`<option value="${v}" ${basis===v?'selected':''}>${l}</option>`).join('');
   const btnS='padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;';
   const fbtn='padding:5px 11px;border-radius:7px;cursor:pointer;font-size:12px;border:1px solid var(--border);background:var(--bg4);color:var(--text);';
   const old=document.getElementById('pdfPickerModal'); if(old)old.remove();
@@ -2290,10 +2310,12 @@ function _renderPdfPicker(){
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">넣을 스탭과 표시할 항목을 선택하세요. (A4 세로 1장에 3명씩 · 최근 6개월, Month는 항상 표시)</div>
       <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">표시 항목</div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:12px;">${colBoxes}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="font-size:12px;font-weight:700;color:var(--text2);">출력 정렬</span>
         <select id="pdfSortSel" onchange="savePdfSort()" style="font-size:12px;padding:5px 8px;border-radius:7px;background:var(--bg4);color:var(--text);border:1px solid var(--border);">${sortOpts}</select>
-        <span style="font-size:10px;color:var(--text3);">※ 최근 활동 월 기준</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text2);">순위 기준</span>
+        <select id="pdfBasisSel" onchange="savePdfBasis()" style="font-size:12px;padding:5px 8px;border-radius:7px;background:var(--bg4);color:var(--text);border:1px solid var(--border);">${basisOpts}</select>
+        <span style="font-size:10px;color:var(--text3);">※ 진행 중인 이번달 제외</span>
       </div>
       <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">스탭 빠른선택</div>
       <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">
@@ -2398,23 +2420,11 @@ window.generateStaffPdf=function(){
         <div class="boxes">${box('Last 3 Months',a3)}${box('Last 6 Months',a6)}${box('All Time',aAll)}</div>
         <table class="mt"><thead><tr>${headTh}</tr></thead><tbody>${rows||'<tr><td colspan='+nCols+'>No records</td></tr>'}</tbody></table></div>`;
     };
-    // 출력 정렬 (최근 활동 월 기준)
+    // 출력 정렬 (진행 중인 이번달 제외 · 지난달 또는 최근3개월 평균)
     const sortMode=_pdfSortMode();
-    const monthMetrics=name=>{
-      const mm=perStaff[name]; if(!mm)return {sales:0,gtotal:0,eff:0,att:0};
-      const baseSal=allBase[name]||{};
-      const ms=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name])).sort().reverse();
-      const lm=ms[0]; if(!lm)return {sales:0,gtotal:0,eff:0,att:0};
-      const d=mm[lm]||{sales:0,att:0};
-      const pay=(allPay[lm]||{})[name]||{};
-      const basic=Number(baseSal[lm])||0;
-      const wdOv=pay.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(d.att||0);
-      const bonus=wd>=25?4:(wd>=20?2:(wd>=15?1:0));
-      const payable=Math.round(basic*Math.min(30,wd+bonus)/30);
-      const gtotal=payable+(Number(pay.book)||0)+(Number(pay.daily)||0)+(Number(pay.sales)||0)+(Number(pay.r1)||0)+(Number(pay.reward)||0);
-      const sales=Number(d.sales)||0;
-      return {sales,gtotal,eff:gtotal>0?sales/gtotal:0,att:Number(d.att)||0};
-    };
+    const _basis=_pdfBasis();
+    const _nowMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
+    const monthMetrics=name=>_pdfMetricCompute(perStaff[name]||{}, allBase[name]||{}, name, allPay, _basis, _nowMk);
     if(sortMode!=='name'){
       selected.sort((a,b)=>{const ma=monthMetrics(a),mb=monthMetrics(b);
         if(sortMode==='sales')return mb.sales-ma.sales;
