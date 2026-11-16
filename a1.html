@@ -5183,6 +5183,8 @@ function parseExpense(raw, monthKey, colInfo=[]){
   }
 
   if(!dayCols.length){showToast('⚠ 날짜 열을 찾지 못했어요. 월 선택 후 다시 시도해주세요.');return;}
+  // 이 업로드 시트가 "담당"하는 날짜(칸이 존재하는 날짜) — 비워진 칸은 삭제로 처리
+  const coveredDates=new Set(dayCols.map(dc=>dc.dateStr));
 
   // ── 카테고리 행 읽기 ──
   for(let r=headerRowIdx+1;r<raw.length;r++){
@@ -5218,7 +5220,8 @@ function parseExpense(raw, monthKey, colInfo=[]){
   console.log('byMonth keys:', Object.keys(byMonth));
 
   // 기존 데이터와 비교 → 변경/삭제가 있으면 확인받고 저장
-  const months=Object.keys(byMonth);
+  const _covMonths=new Set(); coveredDates.forEach(d=>_covMonths.add(d.slice(0,7)));
+  const months=[...new Set([...Object.keys(byMonth), ..._covMonths])];
   if(!months.length){ showToast('⚠ 저장할 데이터 없음'); return; }
 
   showToast('🔍 기존 데이터 확인 중...');
@@ -5229,10 +5232,17 @@ function parseExpense(raw, monthKey, colInfo=[]){
   )).then(arr=>{
     const changes=[]; // 기존 값이 바뀌거나 사라지는 것만
     arr.forEach(({mk, existing})=>{
-      const nd=byMonth[mk].data;
+      const nd=(byMonth[mk]&&byMonth[mk].data)||{};
       Object.keys(existing).forEach(date=>{
-        if(nd[date]===undefined) return; // 엑셀에 없는 날짜는 안 건드림
-        const oldN=_normMap(existing[date]||{}), newN=_normMap(nd[date]||{});
+        const oldN=_normMap(existing[date]||{});
+        if(nd[date]===undefined){
+          // 엑셀에 칸은 있는데(담당) 값이 비워짐 → 삭제로 확인
+          if(coveredDates.has(date)){
+            Object.keys(oldN).forEach(cat=>{ if(oldN[cat]>0) changes.push({date, cat, oldV:oldN[cat], newV:0}); });
+          }
+          return; // 칸이 없는 날짜는 안 건드림
+        }
+        const newN=_normMap(nd[date]||{});
         Object.keys(oldN).forEach(cat=>{
           const o=oldN[cat], n=newN[cat]||0;
           if(o>0 && Math.round(o)!==Math.round(n)) changes.push({date, cat, oldV:o, newV:n});
@@ -5240,25 +5250,32 @@ function parseExpense(raw, monthKey, colInfo=[]){
       });
     });
     if(changes.length){
-      showExpenseChangeConfirm(changes, ()=>doSaveExpense(byMonth, result, monthKey));
+      showExpenseChangeConfirm(changes, ()=>doSaveExpense(byMonth, result, monthKey, coveredDates));
     } else {
-      doSaveExpense(byMonth, result, monthKey);
+      doSaveExpense(byMonth, result, monthKey, coveredDates);
     }
   }).catch(e=>{ showToast('⚠ 확인 실패: '+((e&&e.message)||e)); });
 }
 
-function doSaveExpense(byMonth, result, monthKey){
-  const months=Object.keys(byMonth);
+function doSaveExpense(byMonth, result, monthKey, coveredDates){
+  coveredDates=coveredDates||new Set();
+  const covMonths=new Set(); coveredDates.forEach(d=>covMonths.add(d.slice(0,7)));
+  const months=[...new Set([...Object.keys(byMonth), ...covMonths])];
   if(months.length) showToast('💾 저장 중... ('+months.length+'개월)');
 
   const savePromises=months.map(mk=>{
-    const {year:y,month:m,data:newData}=byMonth[mk];
+    const bm=byMonth[mk];
+    const y=bm?bm.year:parseInt(mk.split('-')[0]);
+    const m=bm?bm.month:parseInt(mk.split('-')[1]);
+    const newData=bm?bm.data:{};
     return new Promise(resolve=>{
       let done=false;
       const finish=(r)=>{ if(!done){done=true;resolve(r);} };
       const timer=setTimeout(()=>finish({mk,ok:false,err:'응답 지연 (인터넷/로그인 확인)'}),10000);
       onValue(ref(db,'expenses/'+mk),snap=>{
         const existing=snap.exists()?(snap.val().data||{}):{};
+        // 이 시트가 담당하는(칸이 있는) 이 달의 날짜는 먼저 제거 → 비워진 칸이 삭제됨
+        coveredDates.forEach(d=>{ if(d.slice(0,7)===mk) delete existing[d]; });
         Object.assign(existing, newData);
         // 안전장치: Firebase 금지문자가 든 항목 키를 정리 (저장 실패 방지)
         const clean={};
@@ -6012,14 +6029,23 @@ const PROFIT_HISTORY_STATIC = [
   {label:'26/03월', sales:7652700, expense:5198867, profit:2453834,  dividend:2250000},
 ];
 
-const AUTO_PERIODS = [
-  {label:'4/11~5/10',  from:'2026-04-11', to:'2026-05-10', expMonths:['2026-04','2026-05']},
-  {label:'5/11~6/10',  from:'2026-05-11', to:'2026-06-10', expMonths:['2026-05','2026-06']},
-  {label:'6/11~7/10',  from:'2026-06-11', to:'2026-07-10', expMonths:['2026-06','2026-07']},
-  {label:'7/11~8/10',  from:'2026-07-11', to:'2026-08-10', expMonths:['2026-07','2026-08']},
-  {label:'8/11~9/10',  from:'2026-08-11', to:'2026-09-10', expMonths:['2026-08','2026-09']},
-  {label:'9/11~10/10', from:'2026-09-11', to:'2026-10-10', expMonths:['2026-09','2026-10']},
-];
+// 11일~익월10일 기간을 2026-04부터 "마감된 기간"까지 자동 생성 (매달 마감되면 자동 추가)
+function _buildAutoPeriods(){
+  const pad=n=>String(n).padStart(2,'0');
+  const now=new Date();
+  const todayStr=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+  const out=[]; let y=2026,m=4;
+  for(let i=0;i<180;i++){
+    const from=new Date(y,m-1,11), to=new Date(y,m,10);
+    const fromStr=from.getFullYear()+'-'+pad(from.getMonth()+1)+'-'+pad(from.getDate());
+    const toStr=to.getFullYear()+'-'+pad(to.getMonth()+1)+'-'+pad(to.getDate());
+    if(toStr>todayStr) break; // 아직 마감 안 된 기간은 제외
+    out.push({label:(from.getMonth()+1)+'/11~'+(to.getMonth()+1)+'/10', from:fromStr, to:toStr, expMonths:[from.getFullYear()+'-'+pad(from.getMonth()+1), to.getFullYear()+'-'+pad(to.getMonth()+1)]});
+    m++; if(m>12){m=1;y++;}
+  }
+  return out;
+}
+const AUTO_PERIODS = _buildAutoPeriods();
 
 function calcPeriodData(p, callback){
   const today = localDateStr(new Date());
