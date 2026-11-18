@@ -2255,10 +2255,12 @@ window.pdfFilterSelect=function(kind){
   });
   savePdfSel();
 };
-window.pdfSelectTop=function(metric,n){
-  const m=window._pdfMetrics||{};
+window.pdfSelectTop=function(metric,basis,n){
+  const ctx=window._pdfMetricCtx; if(!ctx){showToast('데이터 로딩 중, 잠시 후 다시');return;}
+  const now=new Date(); const nowMk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   const names=[...document.querySelectorAll('.pdfStaffChk')].map(c=>c.value);
-  const ranked=names.slice().sort((a,b)=>((m[b]&&m[b][metric])||0)-((m[a]&&m[a][metric])||0));
+  const val={}; names.forEach(nm=>{ const m=_pdfMetricCompute(ctx.perStaff[nm]||{}, ctx.allBase[nm]||{}, nm, ctx.allPay, basis, nowMk); val[nm]=(m&&m[metric])||0; });
+  const ranked=names.slice().sort((a,b)=>(val[b]||0)-(val[a]||0));
   const top=new Set(ranked.slice(0,n));
   document.querySelectorAll('.pdfStaffChk').forEach(c=>{c.checked=top.has(c.value);});
   savePdfSel();
@@ -2295,7 +2297,7 @@ function _renderPdfPicker(){
   const sortMode=_pdfSortMode();
   const basis=_pdfBasis();
   let topN=10; try{topN=parseInt(localStorage.getItem('pdfTopN_v1'))||10;}catch(_){}
-  const sortOpts=[['name','이름순'],['sales','직전월 매출순'],['sales3','최근3개월 평균 매출순'],['pay','급여순(G/Total)'],['eff','효율순(높은)'],['effAsc','효율순(낮은·관리대상)'],['att','출근순']].map(([v,l])=>`<option value="${v}" ${sortMode===v?'selected':''}>${l}</option>`).join('');
+  const sortOpts=[['name','이름순'],['sales','직전월 매출순'],['sales3','최근3개월 평균 매출순'],['pay','급여순(직전월 G/Total)'],['eff','효율순(직전월·높은)'],['effAsc','효율순(직전월·낮은)'],['att','출근순(직전월)']].map(([v,l])=>`<option value="${v}" ${sortMode===v?'selected':''}>${l}</option>`).join('');
   const basisOpts=[['lastMonth','지난달(직전1달)'],['avg3','최근3개월 평균(고정)']].map(([v,l])=>`<option value="${v}" ${basis===v?'selected':''}>${l}</option>`).join('');
   const btnS='padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;';
   const fbtn='padding:5px 11px;border-radius:7px;cursor:pointer;font-size:12px;border:1px solid var(--border);background:var(--bg4);color:var(--text);';
@@ -2312,9 +2314,7 @@ function _renderPdfPicker(){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="font-size:12px;font-weight:700;color:var(--text2);">출력 정렬</span>
         <select id="pdfSortSel" onchange="savePdfSort()" style="font-size:12px;padding:5px 8px;border-radius:7px;background:var(--bg4);color:var(--text);border:1px solid var(--border);">${sortOpts}</select>
-        <span style="font-size:12px;font-weight:700;color:var(--text2);">순위 기준</span>
-        <select id="pdfBasisSel" onchange="savePdfBasis()" style="font-size:12px;padding:5px 8px;border-radius:7px;background:var(--bg4);color:var(--text);border:1px solid var(--border);">${basisOpts}</select>
-        <span style="font-size:10px;color:var(--text3);">※ 진행 중인 이번달 제외</span>
+        <span style="font-size:10px;color:var(--text3);">※ 진행 중인 이번달 제외 · 급여/효율/출근은 직전월 기준</span>
       </div>
       <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">스탭 빠른선택</div>
       <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">
@@ -2325,8 +2325,9 @@ function _renderPdfPicker(){
         <button onclick="pdfFilterSelect('attThis')" style="${fbtn}">당월출근</button>
         <button onclick="pdfFilterSelect('attLast')" style="${fbtn}">전월출근</button>
         <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);">상위 <input id="pdfTopN" type="number" min="1" value="${topN}" onchange="try{localStorage.setItem('pdfTopN_v1',this.value)}catch(_){}" style="width:50px;padding:4px 6px;border-radius:6px;background:var(--bg4);color:var(--text);border:1px solid var(--border);text-align:center;"> 명</span>
-        <button onclick="pdfSelectTop('sales', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 매출</button>
-        <button onclick="pdfSelectTop('eff', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 효율</button>
+        <button onclick="pdfSelectTop('sales','lastMonth', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 매출 직전월</button>
+        <button onclick="pdfSelectTop('sales','avg3', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 매출 3개월</button>
+        <button onclick="pdfSelectTop('eff','lastMonth', Math.max(1,parseInt(document.getElementById('pdfTopN').value)||10))" style="${fbtn}border-color:var(--green);color:var(--green);">🏆 효율</button>
       </div>
       <div style="overflow-y:auto;flex:1;min-height:80px;display:flex;flex-wrap:wrap;gap:8px;background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:16px;">${boxes}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -2431,7 +2432,7 @@ window.generateStaffPdf=function(){
     };
     // 출력 정렬 (진행 중인 이번달 제외 · 지난달 또는 최근3개월 평균)
     const sortMode=_pdfSortMode();
-    let _sortBasis=_pdfBasis();
+    let _sortBasis='lastMonth';                           // 급여/효율/출근은 직전월 고정
     if(sortMode==='sales')_sortBasis='lastMonth';        // 직전월 매출순
     else if(sortMode==='sales3')_sortBasis='avg3';       // 최근3개월 평균 매출순
     const _nowMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
