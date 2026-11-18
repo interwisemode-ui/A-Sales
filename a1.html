@@ -2393,9 +2393,13 @@ window.generateStaffPdf=function(){
       const mm=perStaff[name]; if(!mm) return '';
       const baseSal=allBase[name]||{};
       const active=Object.keys(mm).filter(m=>m<nowMk && mm[m].sales>0).sort().reverse();
-      const a3=avgOver(mm,active.slice(0,3)), a6=avgOver(mm,active.slice(0,6)), aAll=avgOver(mm,active);
+      const a3=avgOver(mm,[1,2,3].map(k=>_mkMinus(nowMk,k))), a6=avgOver(mm,[1,2,3,4,5,6].map(k=>_mkMinus(nowMk,k))), aAll=avgOver(mm,active);
       const box=(t,a)=>`<div class="box"><div class="bt">${t}</div><div class="bs">₹${a.sales.toLocaleString()}</div><div class="bl">Avg Sales / Mo</div><div class="bx">Booking ${a.book} · Selection ${a.sel}</div><div class="ba">Attendance ${a.att} d/mo</div></div>`;
-      const rMonths=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name])).sort().reverse().slice(0,6);
+      // 데이터 있는 달 범위를 연속으로 표시 (중간 빈 달은 0으로 포함) — 최신 데이터달부터 최대 6개월
+      const _hasData=m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name]);
+      const _dataM=Object.keys(mm).filter(_hasData).sort();
+      let rMonths=[];
+      if(_dataM.length){ const _newest=_dataM[_dataM.length-1], _oldest=_dataM[0]; for(let k=0;k<6;k++){ const mk=_mkMinus(_newest,k); if(mk<_oldest) break; rMonths.push(mk); } }
       const rowFor=m=>{
         const d=mm[m]||{book:0,sel:0,sales:0,att:0};
         const pay=(allPay[m]||{})[name]||{};
@@ -2535,7 +2539,7 @@ window.downloadStaffCardsXlsx=function(){
     names.forEach(name=>{
       const mm=perStaff[name];
       const active=Object.keys(mm).filter(m=>m<nowMk && mm[m].sales>0).sort().reverse();
-      const a3=avgOver(mm,active.slice(0,3)), a6=avgOver(mm,active.slice(0,6)), aAll=avgOver(mm,active);
+      const a3=avgOver(mm,[1,2,3].map(k=>_mkMinus(nowMk,k))), a6=avgOver(mm,[1,2,3,4,5,6].map(k=>_mkMinus(nowMk,k))), aAll=avgOver(mm,active);
       summary.push([name, a3.sales,a3.book,a3.sel,a3.att, a6.sales,a6.book,a6.sel,a6.att, aAll.sales,aAll.book,aAll.sel,aAll.att]);
       const detMonths=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0).sort().reverse();
       detMonths.forEach(m=>{ const d=mm[m]; detail.push([name, m, d.book, d.sel, d.sales, d.dc, d.att]); });
