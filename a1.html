@@ -2205,7 +2205,7 @@ const PDF_CARD_COLS=[
   {k:'book',label:'Book'},{k:'sel',label:'Sel'},{k:'sales',label:'Sales',money:true},
   {k:'att',label:'Att'},{k:'base',label:'Base',money:true},{k:'payable',label:'Payable',money:true},
   {k:'bookInc',label:'Booking Inc',money:true},{k:'dailyInc',label:'Daily Inc',money:true},
-  {k:'salesInc',label:'Sales Inc',money:true},{k:'rakh',label:'1RAKH',money:true},
+  {k:'salesInc',label:'Sales Inc',money:true},{k:'rakh',label:'1LAKH',money:true},
   {k:'reward',label:'Reward',money:true},{k:'gtotal',label:'G/Total',money:true},
   {k:'eff',label:'Efficiency'}
 ];
@@ -2220,7 +2220,11 @@ function _mkMinus(nowMk,k){ const p=String(nowMk).split('-').map(Number); const 
 // 순위/정렬 지표 — 고정 달력 기준(진행 중 이번달 제외). 지난달=직전1달, avg3=직전3달. 빈 달은 0으로 포함.
 function _pdfMetricCompute(mm, baseSal, name, allPay, basis, nowMk){
   mm=mm||{}; baseSal=baseSal||{};
-  const targets = basis==='avg3' ? [_mkMinus(nowMk,1),_mkMinus(nowMk,2),_mkMinus(nowMk,3)] : [_mkMinus(nowMk,1)];
+  // 첫 재직(활동) 월 — 그 이전 달은 평균 분모에서 제외
+  const _first=(()=>{const ks=Object.keys(mm).filter(m=>(mm[m]&&(mm[m].sales>0||mm[m].book>0||mm[m].sel>0||mm[m].att>0))||baseSal[m]||(allPay[m]&&allPay[m][name])).sort();return ks[0]||null;})();
+  let targets = basis==='avg3' ? [_mkMinus(nowMk,1),_mkMinus(nowMk,2),_mkMinus(nowMk,3)] : [_mkMinus(nowMk,1)];
+  if(_first) targets=targets.filter(m=>m>=_first);
+  if(!targets.length) return {sales:0,gtotal:0,eff:0,att:0};
   let sSales=0,sGtot=0,sAtt=0;
   targets.forEach(m=>{
     const d=mm[m]||{sales:0,att:0};
@@ -2394,9 +2398,12 @@ window.generateStaffPdf=function(){
       const baseSal=allBase[name]||{};
       const _hasData=m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||baseSal[m]||(allPay[m]&&allPay[m][name]);
       const _dataM=Object.keys(mm).filter(_hasData).sort();
-      // All Time: 첫 데이터달 ~ 직전월(현재월 제외), 빈 달 0 포함 (Last 3/6과 동일 방식)
+      const _first=_dataM[0]||null; // 첫 재직(활동) 월 — 그 이전 달은 평균에서 제외
+      // 직전 cnt개월 중 "재직 중인 달"만 (입사 전 달 제외, 재직 중 공백은 0 포함)
+      const _win=cnt=>{const a=[];for(let k=1;k<=cnt;k++){const mk=_mkMinus(nowMk,k);if(!_first||mk>=_first)a.push(mk);}return a;};
+      // All Time: 첫 재직달 ~ 직전월(현재월 제외), 빈 달 0 포함
       const _allTimeM=[]; if(_dataM.length){ const _end=_mkMinus(nowMk,1), _start=_dataM[0]; for(let k=0;k<120;k++){ const mk=_mkMinus(_end,k); if(mk<_start) break; _allTimeM.push(mk); } }
-      const a3=avgOver(mm,[1,2,3].map(k=>_mkMinus(nowMk,k))), a6=avgOver(mm,[1,2,3,4,5,6].map(k=>_mkMinus(nowMk,k))), aAll=avgOver(mm,_allTimeM);
+      const a3=avgOver(mm,_win(3)), a6=avgOver(mm,_win(6)), aAll=avgOver(mm,_allTimeM);
       const box=(t,a)=>`<div class="box"><div class="bt">${t}</div><div class="bs">₹${a.sales.toLocaleString()}</div><div class="bl">Avg Sales / Mo</div><div class="bx">Booking ${a.book} · Selection ${a.sel}</div><div class="ba">Attendance ${a.att} d/mo</div></div>`;
       // 월별 표: 최신 데이터달부터 최대 6개월, 중간 빈 달 0 포함
       let rMonths=[];
@@ -2418,8 +2425,8 @@ window.generateStaffPdf=function(){
           if(c.k==='eff'){
             if(gtotal>0){
               const eff=Math.round(sales/gtotal*100);
-              const mr=(sales-gtotal)/100000; // RAKH (10만)
-              const mrStr=(mr<0?'-':'')+Math.abs(mr).toFixed(2)+'RAKH';
+              const mr=(sales-gtotal)/100000; // LAKH (10만)
+              const mrStr=(mr<0?'-':'')+Math.abs(mr).toFixed(2)+'LAKH';
               tds+=`<td><div style="font-weight:700;">${eff}%</div><div style="font-size:8px;color:#888;">마진 ${mrStr}</div></td>`;
             } else { tds+='<td>-</td>'; }
           } else {
@@ -2452,7 +2459,7 @@ window.generateStaffPdf=function(){
         return 0;});
     }
     const showRank=(sortMode!=='name');
-    const _basisLabel=_sortBasis==='avg3'?'최근3개월':'지난달';
+    const _basisLabel=_sortBasis==='avg3'?'Last 3 Months':'Last Month';
     const cards=selected.map((n,i)=>cardHtml(n, showRank?(i+1):null, showRank?sortMode:null, showRank?monthMetrics(n):null, _basisLabel)).filter(Boolean);
     let pages='';
     for(let i=0;i<cards.length;i+=3){ pages+=`<div class="page">${cards.slice(i,i+3).join('')}</div>`; }
@@ -2541,7 +2548,9 @@ window.downloadStaffCardsXlsx=function(){
       const mm=perStaff[name];
       const _dataM=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0||mm[m].sales>0).sort();
       const _allTimeM=[]; if(_dataM.length){ const _end=_mkMinus(nowMk,1), _start=_dataM[0]; for(let k=0;k<120;k++){ const mk=_mkMinus(_end,k); if(mk<_start) break; _allTimeM.push(mk); } }
-      const a3=avgOver(mm,[1,2,3].map(k=>_mkMinus(nowMk,k))), a6=avgOver(mm,[1,2,3,4,5,6].map(k=>_mkMinus(nowMk,k))), aAll=avgOver(mm,_allTimeM);
+      const _first=_dataM[0]||null;
+      const _win=cnt=>{const a=[];for(let k=1;k<=cnt;k++){const mk=_mkMinus(nowMk,k);if(!_first||mk>=_first)a.push(mk);}return a;};
+      const a3=avgOver(mm,_win(3)), a6=avgOver(mm,_win(6)), aAll=avgOver(mm,_allTimeM);
       summary.push([name, a3.sales,a3.book,a3.sel,a3.att, a6.sales,a6.book,a6.sel,a6.att, aAll.sales,aAll.book,aAll.sel,aAll.att]);
       const detMonths=Object.keys(mm).filter(m=>mm[m].book>0||mm[m].sel>0||mm[m].att>0).sort().reverse();
       detMonths.forEach(m=>{ const d=mm[m]; detail.push([name, m, d.book, d.sel, d.sales, d.dc, d.att]); });
@@ -2676,7 +2685,7 @@ window.renderPayroll=function(){
         <th style="${thS}text-align:right;">Sales Inc</th>
         <th style="${thS}text-align:right;">Advance</th>
         <th style="${thS}text-align:right;">Total</th>
-        <th style="${thS}text-align:right;">1RAKH</th>
+        <th style="${thS}text-align:right;">1LAKH</th>
         <th style="${thS}text-align:right;">Reward</th>
         <th style="${thS}text-align:right;color:var(--yellow);">G/Total</th>
       </tr></thead>
@@ -2780,7 +2789,7 @@ window.downloadPayroll=function(){
   Promise.all([get(ref(db,'config/baseSalary')), get(ref(db,'attendance')), get(ref(db,'config/payroll/'+month))]).then(([bsSnap, attSnap, pySnap])=>{
     const baseAll=(bsSnap&&bsSnap.val())||{}, payAll=(pySnap&&pySnap.val())||{}, workMap=_workDaysMap(attSnap, month);
     const names=[...staffList].filter(n=>n&&n!=='WALKIN').sort();
-    const aoa=[['Name','Basic Salary','Working Days','출근보너스일','Payable Salary','Booking Inc','Daily Inc','Sales Inc','Advance','Total','1RAKH','Reward','G/Total']];
+    const aoa=[['Name','Basic Salary','Working Days','출근보너스일','Payable Salary','Booking Inc','Daily Inc','Sales Inc','Advance','Total','1LAKH','Reward','G/Total']];
     names.forEach(n=>{
       const basic=Number((baseAll[n]||{})[month])||0, p=payAll[n]||{};
       const wdOv=p.wd; const wd=(wdOv!==undefined&&wdOv!==null&&wdOv!=='')?Number(wdOv):(workMap[n]||0);
