@@ -6171,7 +6171,7 @@ function renderProfitChart(){
     const allData = [...PROFIT_HISTORY_STATIC, ...autoData];
     const maxVal = Math.max(...allData.map(d=>Math.max(d.sales, d.expense, Math.abs(d.profit), d.dividend||0)), 1);
 
-    const barW=58, gap=24, padL=46, padR=0, padT=32, padB=56;
+    const barW=28, gap=14, padL=42, padR=0, padT=44, padB=66;
     const pitch=barW+gap; // 기간 1칸 폭 (표 열 폭과 동일)
     const chartW = padL + allData.length*pitch + padR;
     const chartH = 280;
@@ -6179,35 +6179,43 @@ function renderProfitChart(){
     const scaleUp = (chartH-padT-padB)*0.68 / maxVal;
     const scaleDown = (chartH-padT-padB)*0.32 / maxVal;
     const colors = {sales:'#60a5fa', expense:'#f87171', profit:'#34d399', dividend:'#a78bfa'};
+    // 인도식 표기: 1천만↑ = Crore(C, 소수2자리), 그 미만 = Lakh(L, 정수)
+    const fmtCL=v=>{const neg=v<0,a=Math.abs(v);const s=a>=10000000?(a/10000000).toFixed(2)+'C':Math.round(a/100000)+'L';return (neg?'-':'')+s;};
 
     let bars='', bw=(barW-6)/4;
+    // 세로 금액 라벨 (위=막대 위로 읽어올림, 아래=음수 손익용)
+    const vLabU=(cx,topY,txt,col)=>`<text x="${cx}" y="${topY-2}" text-anchor="start" dominant-baseline="central" font-size="7" fill="${col}" transform="rotate(-90 ${cx} ${topY-2})">${txt}</text>`;
+    const vLabD=(cx,botY,txt,col)=>`<text x="${cx}" y="${botY+2}" text-anchor="end" dominant-baseline="central" font-size="7" fill="${col}" transform="rotate(-90 ${cx} ${botY+2})">${txt}</text>`;
     allData.forEach((d,i)=>{
       const x = padL + i*pitch + gap/2;
       // 매출
-      const sH=Math.max(d.sales*scaleUp,1);
-      bars+=`<rect x="${x}" y="${zeroY-sH}" width="${bw}" height="${sH}" fill="${colors.sales}" rx="2"/>`;
-      bars+=`<text x="${x+bw/2}" y="${zeroY-sH-3}" text-anchor="middle" font-size="8" fill="${colors.sales}">${(d.sales/1000000).toFixed(1)}M</text>`;
+      const sH=Math.max(d.sales*scaleUp,1), cxS=x+bw/2;
+      bars+=`<rect x="${x}" y="${zeroY-sH}" width="${bw}" height="${sH}" fill="${colors.sales}" rx="1"/>`;
+      bars+=vLabU(cxS,zeroY-sH,fmtCL(d.sales),colors.sales);
       // 매입
-      const eH=Math.max(d.expense*scaleUp,1);
-      bars+=`<rect x="${x+bw+2}" y="${zeroY-eH}" width="${bw}" height="${eH}" fill="${colors.expense}" rx="2"/>`;
-      bars+=`<text x="${x+bw+2+bw/2}" y="${zeroY-eH-3}" text-anchor="middle" font-size="8" fill="${colors.expense}">${(d.expense/1000000).toFixed(1)}M</text>`;
+      const eH=Math.max(d.expense*scaleUp,1), cxE=x+bw+2+bw/2;
+      bars+=`<rect x="${x+bw+2}" y="${zeroY-eH}" width="${bw}" height="${eH}" fill="${colors.expense}" rx="1"/>`;
+      bars+=vLabU(cxE,zeroY-eH,fmtCL(d.expense),colors.expense);
       // 손익
+      const cxP=x+bw*2+4+bw/2;
       if(d.profit>=0){
         const pH=Math.max(d.profit*scaleUp,1);
-        bars+=`<rect x="${x+bw*2+4}" y="${zeroY-pH}" width="${bw}" height="${pH}" fill="${colors.profit}" rx="2"/>`;
-        bars+=`<text x="${x+bw*2+4+bw/2}" y="${zeroY-pH-3}" text-anchor="middle" font-size="8" fill="${colors.profit}">${(d.profit/1000000).toFixed(1)}M</text>`;
+        bars+=`<rect x="${x+bw*2+4}" y="${zeroY-pH}" width="${bw}" height="${pH}" fill="${colors.profit}" rx="1"/>`;
+        bars+=vLabU(cxP,zeroY-pH,fmtCL(d.profit),colors.profit);
       } else {
         const pH=Math.max(Math.abs(d.profit)*scaleDown,1);
-        bars+=`<rect x="${x+bw*2+4}" y="${zeroY}" width="${bw}" height="${pH}" fill="${colors.profit}" opacity="0.6" rx="2"/>`;
-        bars+=`<text x="${x+bw*2+4+bw/2}" y="${zeroY+pH+9}" text-anchor="middle" font-size="8" fill="${colors.profit}">-${(Math.abs(d.profit)/1000000).toFixed(1)}M</text>`;
+        bars+=`<rect x="${x+bw*2+4}" y="${zeroY}" width="${bw}" height="${pH}" fill="${colors.profit}" opacity="0.6" rx="1"/>`;
+        bars+=vLabD(cxP,zeroY+pH,fmtCL(d.profit),colors.profit);
       }
       // 배당
       if(d.dividend>0){
-        const dH=Math.max(d.dividend*scaleUp,1);
-        bars+=`<rect x="${x+bw*3+6}" y="${zeroY-dH}" width="${bw}" height="${dH}" fill="${colors.dividend}" rx="2"/>`;
+        const dH=Math.max(d.dividend*scaleUp,1), cxD=x+bw*3+6+bw/2;
+        bars+=`<rect x="${x+bw*3+6}" y="${zeroY-dH}" width="${bw}" height="${dH}" fill="${colors.dividend}" rx="1"/>`;
+        bars+=vLabU(cxD,zeroY-dH,fmtCL(d.dividend),colors.dividend);
       }
-      // 레이블
-      bars+=`<text x="${x+barW/2}" y="${chartH-padB+14}" text-anchor="middle" font-size="9" fill="var(--text3)">${d.label}</text>`;
+      // 기간 레이블 (비스듬히)
+      const lx=x+barW/2, ly=chartH-padB+14;
+      bars+=`<text x="${lx}" y="${ly}" text-anchor="end" font-size="8" fill="var(--text3)" transform="rotate(-40 ${lx} ${ly})">${d.label}</text>`;
     });
 
     const zeroLine=`<line x1="${padL-8}" y1="${zeroY}" x2="${chartW-padR}" y2="${zeroY}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4,2"/>`;
@@ -6225,15 +6233,16 @@ function renderProfitChart(){
 
     // 손익 데이터 표 (매출/매입/손익/배당) — 그래프와 동일 데이터
     const rowDef=[['매출','sales','var(--accent2)'],['매입','expense','var(--red)'],['손익','profit','var(--green)'],['배당','dividend','#a78bfa']];
-    const fmtCell=v=>(v===0||v==null)?'-':fmtWon(v);
+    const fmtCell=v=>(v===0||v==null)?'-':fmtCL(v);
+    const hdrLabel=s=>String(s).replace('~','~<br>'); // 긴 기간 라벨은 ~ 뒤에서 줄바꿈
     let sumTbl=`<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:10px;table-layout:fixed;width:${chartW}px;">`;
     sumTbl+=`<colgroup><col style="width:${padL}px;">`+allData.map(()=>`<col style="width:${pitch}px;">`).join('')+`</colgroup>`;
-    sumTbl+='<thead><tr><th style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 4px;border-bottom:1px solid var(--border);text-align:left;color:var(--text3);white-space:nowrap;">항목</th>';
-    sumTbl+=allData.map(d=>`<th style="padding:6px 6px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.label}</th>`).join('');
+    sumTbl+='<thead><tr><th style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 3px;border-bottom:1px solid var(--border);text-align:left;color:var(--text3);white-space:nowrap;">항목</th>';
+    sumTbl+=allData.map(d=>`<th style="padding:6px 3px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);font-size:9px;line-height:1.15;word-break:keep-all;">${hdrLabel(d.label)}</th>`).join('');
     sumTbl+='</tr></thead><tbody>';
     sumTbl+=rowDef.map(([name,key,color])=>
-      `<tr><td style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 4px;border-bottom:1px solid var(--border);font-weight:700;color:${color};white-space:nowrap;">${name}</td>`
-      + allData.map(d=>{const v=d[key];const neg=(key==='profit'&&v<0);return `<td style="padding:6px 6px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;overflow:hidden;color:${neg?'var(--red)':'var(--text2)'};">${fmtCell(v)}</td>`;}).join('')
+      `<tr><td style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 3px;border-bottom:1px solid var(--border);font-weight:700;color:${color};white-space:nowrap;">${name}</td>`
+      + allData.map(d=>{const v=d[key];const neg=(key==='profit'&&v<0);return `<td style="padding:6px 3px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;overflow:hidden;color:${neg?'var(--red)':'var(--text2)'};">${fmtCell(v)}</td>`;}).join('')
       + '</tr>').join('');
     sumTbl+='</tbody></table></div>';
 
