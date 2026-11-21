@@ -6171,7 +6171,7 @@ function renderProfitChart(){
     const allData = [...PROFIT_HISTORY_STATIC, ...autoData];
     const maxVal = Math.max(...allData.map(d=>Math.max(d.sales, d.expense, Math.abs(d.profit), d.dividend||0)), 1);
 
-    const barW=48, gap=14, padL=42, padR=0, padT=44, padB=48;
+    const barW=48, gap=26, padL=48, padR=0, padT=44, padB=48;
     const pitch=barW+gap; // 기간 1칸 폭 (표 열 폭과 동일)
     const chartW = padL + allData.length*pitch + padR;
     const chartH = 280;
@@ -6214,7 +6214,7 @@ function renderProfitChart(){
         bars+=vLabU(cxD,zeroY-dH,fmtCL(d.dividend),colors.dividend);
       }
       // 기간 레이블 (수평)
-      bars+=`<text x="${x+barW/2}" y="${chartH-padB+16}" text-anchor="middle" font-size="9" fill="var(--text3)">${d.label}</text>`;
+      bars+=`<text x="${x+barW/2}" y="${chartH-padB+16}" text-anchor="middle" font-size="10" fill="var(--text2)">${d.label}</text>`;
     });
 
     const zeroLine=`<line x1="${padL-8}" y1="${zeroY}" x2="${chartW-padR}" y2="${zeroY}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4,2"/>`;
@@ -6233,14 +6233,14 @@ function renderProfitChart(){
     // 손익 데이터 표 (매출/매입/손익/배당) — 그래프와 동일 데이터
     const rowDef=[['매출','sales','var(--accent2)'],['매입','expense','var(--red)'],['손익','profit','var(--green)'],['배당','dividend','#a78bfa']];
     const fmtCell=v=>(v===0||v==null)?'-':fmtWon(v);
-    let sumTbl=`<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:9px;table-layout:fixed;width:${chartW}px;">`;
+    let sumTbl=`<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:11px;table-layout:fixed;width:${chartW}px;">`;
     sumTbl+=`<colgroup><col style="width:${padL}px;">`+allData.map(()=>`<col style="width:${pitch}px;">`).join('')+`</colgroup>`;
-    sumTbl+='<thead><tr><th style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 4px;border-bottom:1px solid var(--border);text-align:left;color:var(--text3);white-space:nowrap;">항목</th>';
-    sumTbl+=allData.map(d=>`<th style="padding:6px 4px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);white-space:nowrap;overflow:hidden;">${d.label}</th>`).join('');
+    sumTbl+='<thead><tr><th style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 4px;border-bottom:1px solid var(--border);text-align:left;color:var(--text2);white-space:nowrap;">항목</th>';
+    sumTbl+=allData.map(d=>`<th style="padding:6px 4px;border-bottom:1px solid var(--border);text-align:right;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;">${d.label}</th>`).join('');
     sumTbl+='</tr></thead><tbody>';
     sumTbl+=rowDef.map(([name,key,color])=>
       `<tr><td style="position:sticky;left:0;z-index:1;background:var(--bg2);padding:6px 4px;border-bottom:1px solid var(--border);font-weight:700;color:${color};white-space:nowrap;">${name}</td>`
-      + allData.map(d=>{const v=d[key];const neg=(key==='profit'&&v<0);return `<td style="padding:6px 4px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;overflow:hidden;color:${neg?'var(--red)':'var(--text2)'};">${fmtCell(v)}</td>`;}).join('')
+      + allData.map(d=>{const v=d[key];const neg=(key==='profit'&&v<0);return `<td style="padding:6px 4px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;overflow:hidden;color:${neg?'var(--red)':'var(--text)'};">${fmtCell(v)}</td>`;}).join('')
       + '</tr>').join('');
     sumTbl+='</tbody></table></div>';
 
