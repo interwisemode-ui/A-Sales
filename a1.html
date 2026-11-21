@@ -6171,21 +6171,21 @@ function renderProfitChart(){
     const allData = [...PROFIT_HISTORY_STATIC, ...autoData];
     const maxVal = Math.max(...allData.map(d=>Math.max(d.sales, d.expense, Math.abs(d.profit), d.dividend||0)), 1);
 
-    const barW=48, gap=26, padL=48, padR=0, padT=44, padB=48;
-    const pitch=barW+gap; // 기간 1칸 폭 (표 열 폭과 동일)
+    const barW=58, gap=16, padL=48, padR=0, padT=34, padB=46;
+    const pitch=barW+gap; // 기간 1칸 폭 (표 열 폭과 동일, =74 유지)
     const chartW = padL + allData.length*pitch + padR;
     const chartH = 280;
     const zeroY = padT + (chartH-padT-padB)*0.68;
     const scaleUp = (chartH-padT-padB)*0.68 / maxVal;
     const scaleDown = (chartH-padT-padB)*0.32 / maxVal;
     const colors = {sales:'#60a5fa', expense:'#f87171', profit:'#34d399', dividend:'#a78bfa'};
-    // 인도식 표기: 1천만↑ = Crore(C, 소수2자리), 그 미만 = Lakh(L, 정수)
-    const fmtCL=v=>{const neg=v<0,a=Math.abs(v);const s=a>=10000000?(a/10000000).toFixed(2)+'C':Math.round(a/100000)+'L';return (neg?'-':'')+s;};
+    // 인도식 표기: 1천만↑ = Crore(C, 소수1자리), 그 미만 = Lakh(L, 정수)
+    const fmtCL=v=>{const neg=v<0,a=Math.abs(v);const s=a>=10000000?(a/10000000).toFixed(1)+'C':Math.round(a/100000)+'L';return (neg?'-':'')+s;};
 
     let bars='', bw=(barW-6)/4;
-    // 세로 금액 라벨 (위=막대 위로 읽어올림, 아래=음수 손익용)
-    const vLabU=(cx,topY,txt,col)=>`<text x="${cx}" y="${topY-3}" text-anchor="start" dominant-baseline="central" font-size="8" fill="${col}" transform="rotate(-90 ${cx} ${topY-3})">${txt}</text>`;
-    const vLabD=(cx,botY,txt,col)=>`<text x="${cx}" y="${botY+3}" text-anchor="end" dominant-baseline="central" font-size="8" fill="${col}" transform="rotate(-90 ${cx} ${botY+3})">${txt}</text>`;
+    // 금액 라벨 (가로, 위=막대 위 / 아래=음수 손익용)
+    const vLabU=(cx,topY,txt,col)=>`<text x="${cx}" y="${topY-3}" text-anchor="middle" font-size="8" fill="${col}">${txt}</text>`;
+    const vLabD=(cx,botY,txt,col)=>`<text x="${cx}" y="${botY+9}" text-anchor="middle" font-size="8" fill="${col}">${txt}</text>`;
     allData.forEach((d,i)=>{
       const x = padL + i*pitch + gap/2;
       // 매출
