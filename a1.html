@@ -6179,8 +6179,8 @@ function renderProfitChart(){
     const scaleUp = (chartH-padT-padB)*0.68 / maxVal;
     const scaleDown = (chartH-padT-padB)*0.32 / maxVal;
     const colors = {sales:'#60a5fa', expense:'#f87171', profit:'#34d399', dividend:'#a78bfa'};
-    // 인도식 표기: 1천만↑ = Crore(C, 소수1자리), 그 미만 = Lakh(L, 정수)
-    const fmtCL=v=>{const neg=v<0,a=Math.abs(v);const s=a>=10000000?(a/10000000).toFixed(1)+'C':Math.round(a/100000)+'L';return (neg?'-':'')+s;};
+    // 인도식 표기: 1천만↑ = Crore(C, 소수2자리), 그 미만 = Lakh(L, 정수)
+    const fmtCL=v=>{const neg=v<0,a=Math.abs(v);const s=a>=10000000?(a/10000000).toFixed(2)+'C':Math.round(a/100000)+'L';return (neg?'-':'')+s;};
 
     let bars='', bw=(barW-6)/4;
     // 금액 라벨 (가로, 위=막대 위 / 아래=음수 손익용)
